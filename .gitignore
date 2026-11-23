@@ -1,0 +1,24 @@
+# build
+/bin/
+/dist/
+web/dist/
+web/node_modules/
+cover.out
+*.test
+
+# local data and secrets
+.mcpdeck/
+*.mcpdeck
+.env
+.env.*
+!.env.example
+mcpdeck.key
+
+# editors / os
+.DS_Store
+.idea/
+.claude/settings.local.json
+
+# e2e
+e2e/test-results/
+e2e/playwright-report/

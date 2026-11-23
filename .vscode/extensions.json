@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "golang.go",
+    "biomejs.biome",
+    "bradlc.vscode-tailwindcss",
+    "ms-playwright.playwright",
+    "vitest.explorer",
+    "editorconfig.editorconfig",
+    "anthropic.claude-code",
+    "github.copilot-chat"
+  ]
+}

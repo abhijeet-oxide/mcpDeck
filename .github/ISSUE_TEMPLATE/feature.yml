@@ -1,0 +1,14 @@
+name: Feature
+description: Propose a change to what mcpDeck does
+labels: [feature]
+body:
+  - type: textarea
+    id: problem
+    attributes: { label: Problem, description: Who is stuck and why. }
+    validations: { required: true }
+  - type: textarea
+    id: proposal
+    attributes: { label: Proposal, description: "Written as a requirement: what it MUST/SHOULD do and how we'd know it works." }
+  - type: input
+    id: area
+    attributes: { label: Area, description: "e.g. TOOL, ACC, SES, MCP, UI" }

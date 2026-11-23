@@ -1,0 +1,15 @@
+---
+description: Go backend conventions for mcpDeck
+globs: ["**/*.go", "internal/store/**/*.sql"]
+alwaysApply: false
+---
+
+Follow AGENTS.md. For Go specifically:
+
+- Test first: failing test tagged `// REQ: <ID>` from docs/requirements.md, then code.
+- All outbound HTTP goes through `internal/proxy`. Never create an `http.Client` elsewhere.
+- Secrets are injected only in the proxy and must never appear in responses, logs, recordings or errors.
+- Stdlib first; explicit constructors; no package-level state; inject clock and ID generator.
+- Table-driven tests, `go-cmp`, `t.TempDir()` for SQLite, no `time.Sleep`.
+- SQL in `internal/store/queries/*.sql`; regenerate with `make sqlc`.
+- Run `make test-go && make lint` before finishing.
