@@ -1,0 +1,17 @@
+name: Bug
+description: Something behaves differently from docs/requirements.md
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes: { label: What happened, description: Include the agent, tool and session ID if relevant. }
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes: { label: What you expected, description: Requirement ID if you know it. }
+  - type: textarea
+    id: repro
+    attributes: { label: Steps to reproduce, description: "Ideally with `mcpdeck dev` and the demo apps, or an exported .mcpdeck file with secrets left out." }
+  - type: input
+    id: version
+    attributes: { label: mcpdeck version }

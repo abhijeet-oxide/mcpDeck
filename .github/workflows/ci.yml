@@ -1,0 +1,47 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    if: ${{ hashFiles('go.mod') != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test -race -shuffle=on -coverprofile=cover.out ./...
+      - uses: golangci/golangci-lint-action@v6
+
+  web:
+    if: ${{ hashFiles('web/package.json') != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm -C web install --frozen-lockfile
+      - run: pnpm -C web exec biome check .
+      - run: pnpm -C web test --run
+      - run: pnpm -C web build
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: requirement IDs are unique
+        run: |
+          dups=$(grep -oE '^\*\*[A-Z]+-[0-9]+' docs/requirements.md | sort | uniq -d)
+          if [ -n "$dups" ]; then echo "duplicate requirement IDs: $dups"; exit 1; fi

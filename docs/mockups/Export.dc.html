@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>mcpDeck Export</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0066CC;text-decoration:none}a:hover{color:#004C99}
+.glass{background:rgba(255,255,255,.56);-webkit-backdrop-filter:blur(30px) saturate(180%);backdrop-filter:blur(30px) saturate(180%);border:1px solid rgba(255,255,255,.8);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 1px 2px rgba(20,30,60,.04),0 14px 44px rgba(20,30,60,.08)}
+.btn{font:inherit;cursor:pointer;border:0;height:40px;padding:0 18px;border-radius:999px;font-size:14px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.dark{background:#1d1d1f;color:#fff}.blue{background:#0071E3;color:#fff}.light{background:rgba(255,255,255,.9);color:#1d1d1f;box-shadow:0 1px 3px rgba(20,30,60,.1)}
+.mono{font-family:'JetBrains Mono',monospace}
+.muted{color:#6E6E73}
+.card{border-radius:16px;background:rgba(255,255,255,.62)}
+.opt{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;cursor:pointer}
+.opt:hover{background:rgba(255,255,255,.7)}
+.opt input{width:18px;height:18px;accent-color:#0071E3;margin:0}
+</style>
+</helmet>
+<div style="position: relative; overflow: hidden; min-height: 920px; box-sizing: border-box; background: #E4E7EE; font-family: Inter, -apple-system, system-ui, sans-serif; color: #1D1D1F; -webkit-font-smoothing: antialiased; display: flex; align-items: center; justify-content: center; padding: 40px 16px;">
+  <div aria-hidden="true" style="position: absolute; width: 620px; height: 620px; left: -120px; top: -160px; border-radius: 50%; background: #BFD4FF; filter: blur(110px); opacity: 0.85;"></div>
+  <div aria-hidden="true" style="position: absolute; width: 520px; height: 520px; right: -80px; top: 120px; border-radius: 50%; background: #D5E3EC; filter: blur(110px); opacity: 0.8;"></div>
+  <div aria-hidden="true" style="position: absolute; width: 560px; height: 460px; left: 38%; bottom: -200px; border-radius: 50%; background: #FFDCC8; filter: blur(120px); opacity: 0.7;"></div>
+  <div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(20,24,36,.18);"></div>
+
+  <section class="glass" role="dialog" aria-modal="true" aria-labelledby="exp" style="position: relative; width: 100%; max-width: 620px; border-radius: 28px; padding: 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px; background: rgba(255,255,255,.72);">
+    <div style="display: flex; align-items: flex-start; gap: 14px;">
+      <div style="width: 44px; height: 44px; border-radius: 13px; background: #1D1D1F; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5"></path><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"></path></svg></div>
+      <div style="flex-grow: 1;">
+        <p class="muted" style="margin: 0 0 2px; font-size: 12px; font-weight: 500;">Settings</p>
+        <h1 id="exp" style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em;">Export a copy</h1>
+        <p class="muted" style="margin: 4px 0 0; font-size: 14px; line-height: 1.45;">Pick what to include. It runs as a working mcpDeck on any machine, so you can debug a session exactly as it happened.</p>
+      </div>
+      <button class="btn" type="button" aria-label="Close" style="width: 32px; height: 32px; padding: 0; background: rgba(0,0,0,.06); color: #3A3A3C;"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+    </div>
+
+    <div class="card" style="padding: 6px; display: flex; flex-direction: column;">
+      <sc-for list="{{items}}" as="it" hint-placeholder-count="6">
+        <label class="opt">
+          <input type="checkbox" checked="{{it.on}}">
+          <span style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 14px; font-weight: 600;">{{it.name}}</span><span class="muted" style="font-size: 12px;">{{it.sub}}</span></span>
+          <span class="muted" style="font-size: 13px; font-weight: 500;">{{it.count}}</span>
+        </label>
+      </sc-for>
+    </div>
+
+    <div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 14px; font-weight: 600;">Credentials</span>
+      <div role="radiogroup" aria-label="Credentials" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;">
+        <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.9); box-shadow: 0 0 0 2px rgba(0,113,227,.5); font-size: 13px; font-weight: 500; cursor: pointer;"><input type="radio" name="cred" checked style="accent-color: #0071E3; margin: 0;">Leave out</label>
+        <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.6); font-size: 13px; font-weight: 500; cursor: pointer;"><input type="radio" name="cred" style="accent-color: #0071E3; margin: 0;">Include, locked with a passphrase</label>
+      </div>
+      <span class="muted" style="font-size: 12px;">Recorded responses keep their sensitive fields masked either way.</span>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px;">
+        <span class="mono" style="font-size: 13px;">support-debug.mcpdeck</span>
+        <span class="muted" style="font-size: 12px;">About 4.2 MB · open with <span class="mono">mcpdeck serve support-debug.mcpdeck</span></span>
+      </div>
+      <button class="btn light" type="button">Cancel</button>
+      <button class="btn blue" type="button">Export</button>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":920}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      items: [
+        { name: 'Applications and APIs', sub: 'Jira, Salesforce, Billing', count: '142 APIs', on: true },
+        { name: 'Projects and tools', sub: 'All versions', count: '18 tools', on: true },
+        { name: 'Examples', sub: 'Saved responses, masked', count: '28', on: true },
+        { name: 'Agents and access', sub: 'Tokens are reissued on import', count: '4', on: true },
+        { name: 'Sessions', sub: 'claude-code · last 7 days', count: '64', on: true },
+        { name: 'Audit log', sub: 'Approvals and access changes', count: '312 events', on: false }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
