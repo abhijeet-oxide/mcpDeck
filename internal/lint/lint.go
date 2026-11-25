@@ -275,8 +275,8 @@ func outputTokenFindings(tool string, n int) []Finding {
 
 var (
 	sensitive = regexp.MustCompile(`(?i)(password|passwd|token|secret|authorization|api[-_]?key|cookie)`)
-	uuidRe = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
-	b64Re  = regexp.MustCompile(`^[A-Za-z0-9+/=_-]{200,}$`)
+	uuidRe    = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	b64Re     = regexp.MustCompile(`^[A-Za-z0-9+/=_-]{200,}$`)
 )
 
 // FieldStat is the size of one field path in an output.
