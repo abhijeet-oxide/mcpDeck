@@ -1,7 +1,8 @@
 # build
 /bin/
 /dist/
-web/dist/
+web/dist/*
+!web/dist/.gitkeep
 web/node_modules/
 cover.out
 *.test

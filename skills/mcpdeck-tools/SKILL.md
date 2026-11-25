@@ -1,6 +1,6 @@
 ---
 name: mcpdeck-tools
-description: Use whenever an mcpDeck MCP server is connected and a task needs data from or changes in a company system (CRM, billing, tickets, internal or legacy APIs). Covers picking the right mcpDeck tool, what to do when none fits, and how to keep responses small.
+description: Use whenever an mcpDeck MCP server is connected and a task needs data from or changes in a company system (CRM, billing, tickets, internal or legacy APIs). Covers picking the right mcpDeck tool, handing tool building to the builder subagent when none fits, and keeping responses small.
 ---
 
 # Working with mcpDeck tools
@@ -17,9 +17,12 @@ user for one.
 2. If nothing listed matches, call `search_tools` with the user's intent in
    plain words ("overdue invoices for a customer"). Some toolkits list only
    their most used tools.
-3. Still nothing: if you can build tools here (you'll see `search_apis` and
-   `save_tool`), follow the **mcpdeck-build-tool** skill. If you can't, follow
-   **mcpdeck-request-tool**.
+3. Still nothing, and the server instructions name a builder subagent
+   (`mcpdeck-<toolkit>-builder`): hand the job to it. Send one paragraph:
+   the question, the inputs you have, the fields you need back. Don't
+   explore APIs yourself; that's what keeps your context small. It replies
+   with the tool's name and whether it's live; call it when it is.
+4. No builder: follow **mcpdeck-request-tool**.
 
 ## Errors
 

@@ -1,9 +1,15 @@
 ---
 name: mcpdeck-build-tool
-description: Use when you can build mcpDeck tools (search_apis and save_tool are available) and a task needs a tool that doesn't exist, or a tool request is open. Covers exploring APIs, writing the TypeScript tool file, checking it, testing and saving it so it passes the toolkit's approval rules.
+description: Use when you can build mcpDeck tools (search_apis and save_tool are available), usually as an mcpDeck builder subagent, and a task needs a tool that doesn't exist, or a tool request is open. Covers exploring APIs, writing the TypeScript tool file, checking it, testing and saving it so it passes the toolkit's approval rules.
 ---
 
 # Build an mcpDeck tool
+
+You're usually running as the toolkit's builder subagent
+(`mcpdeck-<toolkit>-builder`): the main agent sent you a short brief and
+waits for a two-line answer. Explore and test here, so none of it lands in
+the main agent's context. When you're done, reply with the tool's name, its
+status (live, or pending and which rule held it) and what it returns.
 
 A tool is one TypeScript file that calls one or more APIs and returns only
 what's needed. Once it passes the toolkit's approval rules it's published to
