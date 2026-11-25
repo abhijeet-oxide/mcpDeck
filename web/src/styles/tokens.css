@@ -1,0 +1,111 @@
+/* mcpDeck design tokens. Calm and solid: neutral page, white surfaces with
+   hairline borders, one blue accent, ink for the main action, coloured mono
+   chips for HTTP methods and states. No glass, glows or gradients. */
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #f9fafb;
+  --surface-3: #f2f4f7;
+  --sidebar: #fbfbfc;
+  --line: #e6e8ec;
+  --line-strong: #d4d8de;
+  --text: #1d1d1f;
+  --text-2: #3a3a3c;
+  --muted: #6e6e73;
+  --accent: #0071e3;
+  --accent-hover: #0064c8;
+  --link: #0066cc;
+  --accent-soft: rgba(0, 113, 227, 0.09);
+  --ink: #1d1d1f;
+  --on-ink: #ffffff;
+  --nav-on: #eceef2;
+  --row-hover: #f6f7f9;
+  --ok: #1f7a35;
+  --ok-bg: rgba(52, 199, 89, 0.14);
+  --info: #0058b0;
+  --info-bg: rgba(0, 113, 227, 0.1);
+  --warn: #9a3f00;
+  --warn-bg: rgba(255, 149, 0, 0.16);
+  --bad: #b3261e;
+  --bad-bg: rgba(255, 59, 48, 0.11);
+  --neutral-bg: rgba(20, 30, 60, 0.06);
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-pop: 0 12px 32px rgba(16, 24, 40, 0.14), 0 2px 6px rgba(16, 24, 40, 0.06);
+  --code-bg: #fbfbfc;
+  --font: "Inter Variable", Inter, -apple-system, "Segoe UI Variable", system-ui, sans-serif;
+  --mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  --r-panel: 10px;
+  --r-ctl: 7px;
+  --r-pill: 999px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1014;
+    --surface: #15171c;
+    --surface-2: #181b21;
+    --surface-3: #1d2027;
+    --sidebar: #121418;
+    --line: #262a31;
+    --line-strong: #343944;
+    --text: #e8eaee;
+    --text-2: #c7ccd4;
+    --muted: #9aa1ab;
+    --accent: #3b8ef0;
+    --accent-hover: #5aa1f3;
+    --link: #6cb0ff;
+    --accent-soft: rgba(59, 142, 240, 0.15);
+    --ink: #e8eaee;
+    --on-ink: #0e1014;
+    --nav-on: #1f232a;
+    --row-hover: #1a1d23;
+    --ok: #5dd37a;
+    --ok-bg: rgba(46, 160, 67, 0.18);
+    --info: #79b8ff;
+    --info-bg: rgba(56, 139, 253, 0.18);
+    --warn: #f0a24b;
+    --warn-bg: rgba(240, 136, 62, 0.18);
+    --bad: #ff7b72;
+    --bad-bg: rgba(248, 81, 73, 0.16);
+    --neutral-bg: rgba(255, 255, 255, 0.07);
+    --shadow-sm: none;
+    --shadow-pop: 0 16px 40px rgba(0, 0, 0, 0.5);
+    --code-bg: #121419;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0e1014;
+  --surface: #15171c;
+  --surface-2: #181b21;
+  --surface-3: #1d2027;
+  --sidebar: #121418;
+  --line: #262a31;
+  --line-strong: #343944;
+  --text: #e8eaee;
+  --text-2: #c7ccd4;
+  --muted: #9aa1ab;
+  --accent: #3b8ef0;
+  --accent-hover: #5aa1f3;
+  --link: #6cb0ff;
+  --accent-soft: rgba(59, 142, 240, 0.15);
+  --ink: #e8eaee;
+  --on-ink: #0e1014;
+  --nav-on: #1f232a;
+  --row-hover: #1a1d23;
+  --ok: #5dd37a;
+  --ok-bg: rgba(46, 160, 67, 0.18);
+  --info: #79b8ff;
+  --info-bg: rgba(56, 139, 253, 0.18);
+  --warn: #f0a24b;
+  --warn-bg: rgba(240, 136, 62, 0.18);
+  --bad: #ff7b72;
+  --bad-bg: rgba(248, 81, 73, 0.16);
+  --neutral-bg: rgba(255, 255, 255, 0.07);
+  --shadow-sm: none;
+  --shadow-pop: 0 16px 40px rgba(0, 0, 0, 0.5);
+  --code-bg: #121419;
+  color-scheme: dark;
+}

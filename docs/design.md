@@ -100,9 +100,16 @@ tool.ts ──esbuild (strip types)──▶ JS ──▶ engine (sandbox) ─�
 
 ## MCP
 
-- One `mcp.Server` per toolkit, mounted at `/mcp/<toolkit>`, built with the
-  official Go SDK. `mcpdeck stdio --toolkit x` is a small bridge to the same
-  server for stdio-only clients.
+- One `mcp.Server` per toolkit and grant, mounted at `/mcp/<toolkit>`, built
+  with the official Go SDK. `mcpdeck stdio --toolkit x` is a small bridge to
+  the same server for stdio-only clients.
+- **Use and build are separate endpoints (MCP-7).** `/mcp/<toolkit>` carries
+  the published tools plus `search_tools`, `request_tool` and
+  `report_field_usage`: what an agent needs to do its job. The build tools live
+  only at `/mcp/<toolkit>/build`, which `mcpdeck connect` gives to a **builder
+  subagent** (`mcpdeck-<toolkit>-builder`). The main agent delegates "build a
+  tool for X" in one paragraph and gets two lines back, so exploring APIs,
+  trying calls and testing never fill its context.
 - `tools/list`: the toolkit's live tools at the grant's pins, minus write
   tools for read grants. Over the size limit (ACC-3), the top tools plus
   `find_tool` / `use_tool`.
@@ -127,7 +134,7 @@ in the PR description.
 | MCP | `github.com/modelcontextprotocol/go-sdk` | Official SDK; Streamable HTTP and stdio |
 | CLI | `github.com/spf13/cobra` | Standard, good help output |
 | Database | `modernc.org/sqlite` | Pure Go, so no CGO and easy cross-compiling |
-| Queries | `sqlc` (generated, checked in) | Typed Go from plain SQL, no ORM |
+| Queries | Typed helpers in `internal/store` over JSON documents, real columns for calls and audit | Small schema that changes often during Phase 1; `sqlc` once it settles |
 | Migrations | Embedded `.sql` files + a ~50-line runner | No extra dependency |
 | JS engine | `github.com/dop251/goja` | Pure Go; no I/O unless we give it |
 | TS → JS | `github.com/evanw/esbuild/pkg/api` | Pure Go, strips types in microseconds |
@@ -148,15 +155,15 @@ such (SES-3).
 |---|---|
 | Build | Vite + TypeScript (strict) |
 | UI | React 19 |
-| Routing, data | TanStack Router, TanStack Query |
-| Styling | Tailwind CSS v4 + a small glass layer (`web/src/styles/glass.css`) |
+| Routing, data | A small history router (`web/src/lib/router.tsx`), TanStack Query |
+| Styling | Tailwind CSS v4 for layout + component classes in `web/src/styles/app.css` |
 | Accessible primitives | Radix UI (unstyled) |
 | Icons | Lucide |
 | Motion | Motion, springs only, respects `prefers-reduced-motion` |
 | Code editor | Monaco, bundled with its TypeScript worker (offline) |
 | Charts | uPlot |
 | Font | Inter and JetBrains Mono, bundled |
-| API client | Generated from the server's OpenAPI document |
+| API client | One typed module (`web/src/lib/api.ts`, `types.ts`); generating it from OpenAPI is planned |
 
 ### Tooling
 
@@ -282,9 +289,18 @@ every agent of the toolkit gets it.
 **Person builds a tool**: select requests in History → "Create tool" →
 generated file in the editor (TOOL-10) → Test → Save.
 
-**Add to Claude Code**: toolkit page → "Add to…" → Claude Code → mcpDeck
-reuses or creates the agent, adds a `read` grant → shows `claude mcp add …` and offers to write
-the config after showing the change (AGT-3) → audit event.
+**Add to Claude Code**: toolkit page → "Connect agent" → Claude Code → mcpDeck
+reuses or creates the agent (issuing a fresh token), adds the grant → shows
+`claude mcp add …` and offers to write `~/.claude.json` (or `.mcp.json`), the
+builder subagent `~/.claude/agents/mcpdeck-<toolkit>-builder.md` with the
+build endpoint inline, and the skills, after showing every file (AGT-3,
+MCP-7, SKL-2) → waits for the client's first request → audit event.
+
+**Agent needs a tool it doesn't have**: main agent reads the instructions →
+delegates to `mcpdeck-<toolkit>-builder` with a brief → the subagent runs
+`search_tools` → `search_apis` → `describe_api` → `run_api` → `test_tool` →
+`save_tool` on the build endpoint → the version goes live by the rules →
+`tools/list_changed` reaches the main agent → it calls the new tool.
 
 **Field feedback**: an agent calls `report_field_usage` (often after an MCP-6
 hint) → `field_report` row → `insight` combines reports and observed use per
@@ -350,46 +366,47 @@ docs/assets/how-it-works.mjs`). Edit the script, not the SVGs. README uses
 
 ### Look
 
-Light, calm, Apple-like. Frosted panels over a soft neutral background. Plenty
-of white space, few colours, no purple, no emoji, no gradients on content.
-Dense where work happens (request editor, code, call table), airy everywhere
-else.
+Calm, compact and professional: a modern tool, not a showcase. Solid
+surfaces with hairline borders on a neutral page, one blue accent, ink for the
+main action, coloured mono chips for HTTP methods and states. Dense where
+work happens (request editor, code, call table) and short everywhere else: a
+page answers its question in the first screen. No glass, background glows,
+purple, emoji or gradients on content.
 
 ### Tokens
 
+The source of truth is [`web/src/styles/tokens.css`](../web/src/styles/tokens.css),
+with dark values for UI-8.
+
 ```css
 :root {
-  --bg:            #ECEFF5;                 /* page */
-  --glow-1:        #BFD4FF;                 /* background glows, blurred 110px */
-  --glow-2:        #D5E3EC;
-  --glow-3:        #FFDCC8;
-  --glass:         rgba(255,255,255,.56);   /* panels */
-  --glass-strong:  rgba(255,255,255,.9);    /* selected rows, light buttons */
-  --glass-border:  rgba(255,255,255,.8);
-  --glass-blur:    blur(30px) saturate(180%);
-  --shadow:        inset 0 1px 0 rgba(255,255,255,.95),
-                   0 1px 2px rgba(20,30,60,.04),
-                   0 14px 44px rgba(20,30,60,.08);
-  --text:          #1D1D1F;
-  --text-2:        #3A3A3C;
-  --text-muted:    #6E6E73;                 /* ≥ 4.5:1 on glass */
-  --accent:        #0071E3;                 /* primary action, links #0066CC */
-  --ink:           #1D1D1F;                 /* dark buttons */
-  --ok:   #1F7A35 on rgba(52,199,89,.16)    /* GET, live, passed */
-  --info: #0058B0 on rgba(0,113,227,.12)    /* POST, read, version */
-  --warn: #A04100 on rgba(255,149,0,.18)    /* PUT, needs review */
-  --bad:  #B3261E on rgba(255,59,48,.13)    /* DELETE, blocked, revoke */
-  --radius-panel: 24px; --radius-card: 16px; --radius-pill: 999px;
-  --font: Inter, -apple-system, "Segoe UI Variable", system-ui, sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --bg:          #F5F6F8;   /* page */
+  --surface:     #FFFFFF;   /* panels, dialogs */
+  --surface-2:   #F9FAFB;   /* table heads, copy fields */
+  --sidebar:     #FBFBFC;
+  --line:        #E6E8EC;   /* hairline borders */
+  --line-strong: #D4D8DE;   /* inputs, light buttons */
+  --text:        #1D1D1F;
+  --text-2:      #3A3A3C;
+  --muted:       #6E6E73;   /* >= 4.5:1 on white */
+  --accent:      #0071E3;   /* confirm, links #0066CC */
+  --ink:         #1D1D1F;   /* main page action */
+  --ok:   #1F7A35 on rgba(52,199,89,.14)    /* GET, live, passed */
+  --info: #0058B0 on rgba(0,113,227,.10)    /* POST, read */
+  --warn: #9A3F00 on rgba(255,149,0,.16)    /* PUT, needs review */
+  --bad:  #B3261E on rgba(255,59,48,.11)    /* DELETE, blocked, revoke */
+  --r-panel: 10px; --r-ctl: 7px; --r-pill: 999px;
+  --font: "Inter Variable", -apple-system, "Segoe UI Variable", system-ui, sans-serif;  /* 13.5px base */
+  --mono: "JetBrains Mono Variable", ui-monospace, Consolas, monospace;
 }
 ```
 
-Rules: panels are glass; cards inside panels are `rgba(255,255,255,.62)`;
-buttons are pills (dark for primary page action, blue for confirm, light for
-secondary); HTTP methods are always shown as coloured mono chips; numbers use
-tabular figures. The code editor and call table use a solid surface, not
-glass, so text stays crisp.
+Rules: panels are white with a 1px `--line` border and a barely visible
+shadow; buttons are 30px pills (ink for the main page action, blue to
+confirm, light for secondary, red tint for destructive); page titles are 20px;
+HTTP methods are always mono chips; numbers use tabular figures. The first
+mockup (`docs/mockups/`) used frosted glass and larger spacing; the layouts
+and flows still apply, the surfaces and sizes follow the tokens above.
 
 ## Decisions
 

@@ -119,9 +119,10 @@ If a task seems to need breaking one of these, stop and ask.
   exists.
 - Nothing fake: every control works; no "coming soon", no lorem ipsum. (UI-4)
 - Styling with Tailwind and the tokens in `web/src/styles/tokens.css`. Match
-  the mockup in `docs/mockups/` (spec in `docs/ui.md`): frosted glass panels, neutral background,
-  black and blue pill buttons, coloured mono chips for HTTP methods. No purple,
-  no emoji, no gradients on content.
+  the layouts in `docs/mockups/` (spec in `docs/ui.md`) with the calmer look in
+  `docs/design.md#look`: solid panels with hairline borders, neutral
+  background, compact sizes, black and blue pill buttons, coloured mono chips
+  for HTTP methods. No glass, glows, purple, emoji or gradients on content.
 - Accessible by default: real `<button>`/`<a>`, labels on inputs, visible focus,
   AA contrast.
 - Icons are Lucide (`lucide-react`). Don't mix in other icon sets.

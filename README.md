@@ -169,6 +169,26 @@ export default async function (input: Input) {
 Three systems, one call for the agent. Keys are added by mcpDeck; this code
 never sees them.
 
+### Agents build tools without filling their context
+
+A toolkit has two MCP endpoints. Your agent's session connects to
+`/mcp/<toolkit>`, which lists only the finished tools plus `search_tools`,
+`request_tool` and `report_field_usage`. The build tools (`search_apis`,
+`describe_api`, `run_api`, `run_script`, `test_tool`, `save_tool`) are on
+`/mcp/<toolkit>/build`, which only a **builder subagent** gets.
+
+When no tool fits, the server's instructions tell the agent to hand a
+one-paragraph brief to `mcpdeck-<toolkit>-builder`. The subagent explores the
+APIs, tries calls, tests and saves the tool, and replies in two lines. The
+tool goes live by your approval rules, the agent's tool list updates, and it
+calls the tool. None of the exploring lands in the main conversation.
+
+Connecting writes all of it in one step: the MCP server, the builder subagent
+(for Claude Code, `~/.claude/agents/mcpdeck-<toolkit>-builder.md` with the
+build endpoint inside it; for VS Code, a custom agent for `runSubagent`) and
+the skills. The skills load only when relevant, so they cost nothing until an
+agent needs them.
+
 <details>
 <summary><b>Prefer the terminal?</b></summary>
 <br>
@@ -177,8 +197,9 @@ Everything above can also be done from the CLI, which is handy in scripts:
 
 ```sh
 mcpdeck import https://petstore3.swagger.io/api/v3/openapi.json --api petstore
-mcpdeck connect claude --toolkit support        # or: vscode, cursor, claude-desktop
-mcpdeck agents                                  # who has access to what
+mcpdeck connect claude --toolkit support --build --write   # or: vscode, cursor, claude-desktop
+mcpdeck agents                                             # who has access to what
+mcpdeck pull support ./tools && mcpdeck push ./tools --toolkit support   # tools as files
 ```
 
 </details>
@@ -228,8 +249,15 @@ scoop install mcpdeck
 
 Linux, or no package manager: download the archive for your platform from
 [Releases](https://github.com/abhijeet-oxide/mcpDeck/releases). Then run
-`mcpdeck`; the UI opens at `http://127.0.0.1:47800`. Try `mcpdeck dev` for
-demo APIs to play with.
+`mcpdeck`; the UI opens at `http://127.0.0.1:47800`.
+
+To look around first, `mcpdeck dev` starts a demo world (CRM, billing,
+ticketing and a legacy service with a cookie login) in throwaway data, with
+tools, agents and calls already in it. From source:
+
+```sh
+make build && ./bin/mcpdeck dev
+```
 
 ## Security
 
@@ -237,12 +265,17 @@ demo APIs to play with.
   read them.
 - Secrets are encrypted with AES-256-GCM. The key lives in your OS keychain,
   not in the database.
-- The server listens on `127.0.0.1` only and refuses requests from web pages.
+- Agents with read access can't run tools that write, and their write
+  requests are refused at the proxy.
+- The server listens on `127.0.0.1` only and refuses requests from web pages
+  on other sites. The UI opens through a one-time launch link.
 - Every change and approval goes into an append-only audit log.
 
 mcpDeck controls what agents can do through MCP. It doesn't sandbox the agent
-itself: a program running as you on the same machine can still use your
-keychain or call an API directly.
+itself: a program running as you on the same machine, including an agent with
+a shell, can still use your keychain or call an API directly. Agent tokens are
+stored in plain text in each client's config, as MCP clients require; revoke
+one if it leaks.
 
 ## Roadmap
 
