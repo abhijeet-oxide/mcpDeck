@@ -31,7 +31,7 @@ between instances.
 │ examples     │ versions · tests │ instructions     │ cookies · recording ·   │
 │ schema       │ files            │                  │ token count             │
 ├──────────────┴──────────────────┴──────────────────┴─────────────────────────┤
-│ toolkit · connection · session (calls) · usage · insight (rules) · audit     │
+│ toolkit · agent + grant · session (calls) · usage · insight (rules) · audit  │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ vault: local AES-GCM + OS keychain        store: SQLite (Postgres in Phase 2)│
 └──────────────────────────────────────────────────────────────────────────────┘
@@ -96,15 +96,15 @@ tool.ts ──esbuild (strip types)──▶ JS ──▶ engine (sandbox) ─�
   interrupt on timeout, a memory cap, and no `eval` or `Function` from strings.
 - **Clients.** `crm.getAccount(args)` is a thin wrapper over
   `call("crm", "GET /accounts/{id}", args)`. `call` resolves variables, then
-  hands the request to `proxy.Do` with the connection's access.
+  hands the request to `proxy.Do` with the agent's grant.
 
 ## MCP
 
 - One `mcp.Server` per toolkit, mounted at `/mcp/<toolkit>`, built with the
   official Go SDK. `mcpdeck stdio --toolkit x` is a small bridge to the same
   server for stdio-only clients.
-- `tools/list`: the toolkit's live tools at each connection's pins, minus write
-  tools for read connections. Over the size limit (ACC-3), the top tools plus
+- `tools/list`: the toolkit's live tools at the grant's pins, minus write
+  tools for read grants. Over the size limit (ACC-3), the top tools plus
   `find_tool` / `use_tool`.
 - `instructions` on initialize carries the toolkit's purpose and, when building
   is allowed, the five-line build loop (TK-3).
@@ -178,7 +178,8 @@ internal/
   api/             APIs, folders, requests, environments, variables, examples, schema capture
   importer/        openapi, swagger page, postman, curl → api types (pure functions)
   vault/           Backend interface; local AES-GCM + keychain
-  toolkit/         toolkits, connections, pins, bound variables
+  toolkit/         tool library membership, toolkits, build scope, approval rules
+  agent/           agents, tokens, grants, pins
   tool/            tool files, runtime, sandbox, typegen, versions, tests
   proxy/           the only outbound HTTP path
   mcp/             per-toolkit MCP servers, build tools, stdio bridge
@@ -215,32 +216,35 @@ request(id, api_id, folder_id, name, method, url, params, headers, body,
         auth, scripts, request_schema, response_schema, captured_schema,
         access: read|write, access_override, access_flag)
 environment(id, api_id, name)
-variable(id, scope: global|api|environment|toolkit|connection, scope_id,
+variable(id, scope: global|api|environment|toolkit|grant, scope_id,
          name, source: literal|os_env|dotenv|secret, value, secret_id)
 secret(id, api_id, environment_id, kind, ciphertext, nonce, rotated_at)
 login(id, api_id, request_id, capture, ttl)
 example(id, request_id, request, response_masked, created_at)
 history(id, request_snapshot, call_id, created_at)
 
-toolkit(id, name, slug, can_build, auto_live_reads)
-tool(id, toolkit_id, name, created_by)
+toolkit(id, name, slug, build_scope_api_ids[], approval_rules_json)
+tool(id, name, created_by)                          -- the library
+toolkit_tool(toolkit_id, tool_id)
 tool_version(id, tool_id, n, source_ts, definition_json, access,
              status: pending|live|retired, breaking, created_by_actor,
              source_session_id, approved_at, created_at)
 tool_test(id, tool_id, input, script)
 
-connection(id, toolkit_id, name, client, token_hash, access: read|read_write,
-           env_by_app, revoked_at, created_at)
-pin(connection_id, tool_id, version: latest|n)
+agent(id, name, client, token_hash, revoked_at, created_at)
+grant(id, agent_id, toolkit_id, access: read|read_write, can_build, env_by_api,
+      created_at)
+pin(grant_id, tool_id, version: latest|n)
 
-session(id, connection_id, mcp_session_id, client_name, client_version,
+session(id, agent_id, toolkit_id, mcp_session_id, client_name, client_version,
         started_at, last_seen_at, ended_at, end_reason)
-call(id, session_id, parent_call_id, actor: you|connection, kind: tool|build|list|upstream,
+call(id, session_id, parent_call_id, actor: you|agent, kind: tool|build|list|upstream,
      tool_version_id|request_id, started_at, duration_ms, status, error,
      input_masked, output_masked, output_bytes, tokens, token_encoder)
 
 suggestion(id, rule, target, evidence_json, saving_json, state, created_at)
-tool_request(id, connection_id, session_id, description, state)
+tool_request(id, agent_id, toolkit_id, session_id, description, tried_calls,
+             state, fulfilled_by_version_id)
 audit_event(id, prev_hash, hash, actor_kind, actor_id, action, target, at, detail)
 ```
 
@@ -251,8 +255,8 @@ IDs are ULIDs (sortable, generated in Go). Times are UTC.
 **Agent calls a tool**
 
 1. MCP request to `/mcp/<toolkit>` with bearer token → `server` checks the local
-   guard, resolves the connection, finds or opens the session (SES-1).
-2. `mcp` resolves the tool at the connection's pin and validates input against
+   guard, resolves the agent and its grant for that toolkit, finds or opens the session (SES-1).
+2. `mcp` resolves the tool at the grant's pin and validates input against
    `inputSchema`.
 3. `tool` runs the code. Each client call goes to `proxy.Do(ctx, req)`.
 4. `proxy` checks allow-list and access → resolves variables and secrets →
@@ -263,15 +267,21 @@ IDs are ULIDs (sortable, generated in Go). Times are UTC.
 
 **Agent builds a tool**: `search_apis` → `describe_api` (TS signature) →
 `run_api` / `run_script` → `save_tool` → `tool` strips types, runs tests,
-checks duplicates and description (AB-5, AB-6), computes access → `live` if
-read-only and clean (AB-2), else `pending` (AB-3) → audit event.
+checks the toolkit's approval rules (AB-2) → `live` if they all pass, else
+`pending` (AB-3) → audit event → on live, `tools/list_changed` to every
+connected agent of every toolkit containing the tool (AB-7).
+
+**Agent asks for a tool**: `request_tool` → request on Home and in
+`list_tool_requests` for building agents of that toolkit → a person or a
+building agent saves a tool with `fulfils` → it goes live by the rules →
+every agent of the toolkit gets it.
 
 **Person builds a tool**: select requests in History → "Create tool" →
 generated file in the editor (TOOL-10) → Test → Save.
 
 **Add to Claude Code**: toolkit page → "Add to…" → Claude Code → mcpDeck
-creates a connection and token → shows `claude mcp add …` and offers to write
-the config after showing the change (CON-2) → audit event.
+reuses or creates the agent, adds a `read` grant → shows `claude mcp add …` and offers to write
+the config after showing the change (AGT-3) → audit event.
 
 **Suggestion**: after each session ends, and hourly, `insight` runs its rules
 over new calls → new `suggestion` rows → Home. Acting on one opens the editor
@@ -283,7 +293,7 @@ with the change prefilled; the next week's numbers show before and after.
    script code sees `"[secret]"`.
 2. Connection tokens can't approve, change access, make write tools live or
    read secrets (ACC-6).
-3. Write requests are blocked at the proxy for read connections; requests
+3. Write requests are blocked at the proxy for read grants; requests
    flagged "check access" count as write until confirmed.
 4. The sandbox has no filesystem, network, env, `require` or string `eval`;
    the clients and `call()` are the only exit and go through `proxy`.

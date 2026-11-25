@@ -99,7 +99,7 @@ function svg(t) {
   out.push(card(338, 290, 508, 98, 16));
   out.push(txt(354, 316, "Calls and suggestions", { size: 14, w: 700 }), txt(510, 316, "who called what, when, how long, how many tokens", { size: 11.5, c: t.muted }));
   let cx = 354;
-  for (const s of ["merge repeated calls", "drop unused fields", "run calls in parallel"]) {
+  for (const s of ["merge repeated calls", "trim large outputs", "run calls in parallel"]) {
     const w = s.length * 6.6 + 22;
     out.push(`<rect x="${cx}" y="338" width="${w}" height="28" rx="14" fill="${t.panel}" stroke="${t.cardLine}"/>`, txt(cx + w / 2, 356, s, { size: 11, a: "middle" }));
     cx += w + 8;
