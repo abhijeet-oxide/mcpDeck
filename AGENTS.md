@@ -87,7 +87,9 @@ noticing what's broken and fixing it without being asked.
 - **CI is the gate, and it must be green before you say done.** After pushing
   a PR, subscribe to its activity and fix failures yourself. A red check
   you didn't cause still gets fixed or reported, never ignored.
-- **Workflow changes:** run `actionlint` (CI does too). Workflows use the
+- **Workflow changes:** run `actionlint` (CI does too). Actions are pinned
+  to a commit SHA with the version in a comment (`@<sha> # v7.0.1`);
+  Dependabot updates both. Workflows use the
   latest Go patch (`GO_VERSION: 1.26.x`) because patches carry stdlib security
   fixes; bump the minor in go.mod and the workflows together.
 - **Security:** CodeQL, govulncheck (source and the shipped binary),
