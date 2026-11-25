@@ -25,53 +25,85 @@ page.on("console", (m) => m.type() === "error" && !/fonts\.g/.test(m.text()) && 
 page.on("pageerror", (e) => errors.push(e.message));
 
 const go = async (hash) => { await page.goto(url + hash); await page.waitForTimeout(150); };
-const shot = async (name, full = true) => { if (!check) await page.screenshot({ path: join(out, name + ".jpg"), fullPage: full, type: "jpeg", quality: 82 }); };
+const shot = async (name, full = true) => {
+  if (check) return;
+  const tag = await page.addStyleTag({ content: ".mockbar,.toasts{display:none!important}" });
+  await page.screenshot({ path: join(out, name + ".jpg"), fullPage: full, type: "jpeg", quality: 82 });
+  await tag.evaluate((el) => el.remove());
+};
 const expect = async (sel, what) => { try { await page.locator(sel).first().waitFor({ state: "visible", timeout: 4000 }); } catch { throw new Error(`flow "${what}": ${sel} not visible`); } };
 
-// 1. First run: empty states and the four steps.
+const fx = (f) => join(dir, "fixtures", f);
+
+// 1. New user: first run, and the demo world kept apart.
 await go("#home");
 await page.click('[data-a=mockstate][data-v=new]');
 await shot("01-home-first-run");
 for (const h of ["apis", "toolkits", "agents", "activity"]) { await go("#" + h); }
 await go("#home");
+await page.click("[data-a=loadDemo]");
+await expect(".demobar", "open demo");
+await shot("08-demo-world", false);
+await page.click("[data-a=leaveDemo]");
+await expect("text=Turn the APIs you already have", "leave demo");
 
-// 2. Add an API from curl (first run).
+// 2. Add an API: every source.
 await page.click("text=Add API >> nth=0");
-await page.click('[data-a=impSrc][data-v=curl]');
-await page.fill("#imp-text", "curl 'https://erp.internal.example/api/orders/1042?api_key=abc' -H 'Accept: application/json'\ncurl -X POST https://erp.internal.example/api/orders -H 'Authorization: Bearer xyz' -d '{\"sku\":\"A1\"}'");
+await expect("text=Import from", "add api page");
+await page.fill("#imp-url", "https://petstore3.swagger.io/");
+await page.click("[data-a=impLoad]");
+await expect("text=19 requests found", "swagger page");
+await shot("02a-import-swagger");
+await page.click("[data-a=impSrc][data-v=openapi]");
+await page.setInputFiles("#imp-file", fx("acme-crm.openapi.json"));
+await expect("text=5 requests found", "openapi file");
+await shot("02b-import-openapi");
+await page.click("[data-a=impSrc][data-v=postman]");
+await page.setInputFiles("#imp-file", fx("acme-support.postman_collection.json"));
+await expect("text=5 requests found", "postman collection");
+await page.setInputFiles("#imp-envfile", fx("acme-support.postman_environment.json"));
+await expect("text=become encrypted credentials", "postman environment");
+await shot("02c-import-postman");
+await page.click("[data-a=impSrc][data-v=blank]");
+await shot("02e-import-blank");
+await page.click("[data-a=impSrc][data-v=curl]");
+await page.fill("#imp-curl", "curl 'https://erp.internal.example/api/orders/1042?api_key=abc' -H 'Accept: application/json'\ncurl -X POST https://erp.internal.example/api/orders -H 'Authorization: Bearer xyz' -d '{\"sku\":\"A1\"}'");
+await expect("text=2 requests found", "curl live preview");
 await page.fill("#imp-name", "erp");
-await shot("02-add-api", false);
-await page.click("[data-a=doImport]");
-await expect("text=Imported 2 requests into", "import curl");
-await shot("03-add-api-result", false);
-await page.click(".modal >> text=Open erp");
+await shot("02d-import-curl");
+await page.click("[data-a=impGo]");
+await expect("text=with 2 requests from pasted curl", "import curl");
+await shot("03-api-after-import");
 
-// 3. New toolkit, connect an agent, first tool.
+// 3. Getting started, new toolkit, connect an agent.
 await go("#home");
-await page.click("[data-a=newToolkit]");
+await expect("text=Getting started", "getting started card");
+await shot("04-home-getting-started");
+await page.click(".setup [data-a=newToolkit]");
 await page.fill("#tk-name", "orders");
 await page.fill("#tk-desc", "Order lookups for the support team.");
-await shot("04-new-toolkit", false);
+await shot("05-new-toolkit", false);
 await page.click("[data-a=tkCreate]");
 await expect("text=MCP endpoint", "create toolkit");
 await page.click("[data-a=connect] >> nth=0");
-await shot("05-connect-pick-client", false);
+await shot("06-connect-pick-client", false);
 await page.click("[data-a=cCreate]");
 await expect("text=This token is shown once", "connect");
 await page.click(".modal >> text=Write config");
 await page.waitForTimeout(2700);
 await expect("text=Connected.", "connect waits for client");
-await shot("06-connect-done", false);
+await shot("07-connect-done", false);
 await page.click(".modal >> text=Done");
 await go("#home");
-await shot("07-home-first-run-done");
+await expect("text=3 of 4 done", "getting started progress");
+await shot("09-home-getting-started-3");
 
 // 4. Demo world: every page.
-await page.click('[data-a=mockstate][data-v=demo]');
+await page.click('[data-a=mockstate][data-v=used]');
 const pages = [
   ["10-home", "#home"], ["11-apis", "#apis"], ["12-api-requests", "#api-support"], ["16-toolkits", "#toolkits"], ["17-all-tools", "#tools"],
   ["18-toolkit", "#toolkit-support"], ["22-tool-editor", "#tool-customer_360"], ["26-review", "#review-reassign_ticket"],
-  ["27-agents", "#agents"], ["28-agent", "#agent-claude-code"], ["29-activity-calls", "#activity"], ["31-activity-usage", "#usage"], ["32-activity-audit", "#audit"], ["33-settings", "#preferences"],
+  ["27-agents", "#agents"], ["28-agent", "#agent-claude-code"], ["29-activity-calls", "#activity"], ["31-activity-usage", "#usage"], ["32-activity-audit", "#audit"], ["33-settings", "#preferences"], ["38-about", "#about"],
 ];
 for (const [name, hash] of pages) { await go(hash); await shot(name); }
 

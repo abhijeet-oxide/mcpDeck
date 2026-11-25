@@ -11,16 +11,16 @@
 </head>
 <body>
 <div class="glows" aria-hidden="true"><i></i><i></i><i></i></div>
-<div class="mockbar" role="note">
-  <span><b>mcpDeck UI mockup</b> · clickable, running on the demo world · not the product</span>
-  <div class="seg" id="mock-state" aria-label="Mockup state">
-    <button type="button" data-a="mockstate" data-v="new">First run</button>
-    <button type="button" data-a="mockstate" data-v="demo">Demo world</button>
-  </div>
-</div>
 <div class="shell">
-  <nav class="glass side" id="side" aria-label="Main"></nav>
+  <nav class="side" id="side" aria-label="Main"></nav>
   <main class="main" id="main"></main>
+</div>
+<div class="mockbar" role="note">
+  <span><b>Mockup</b>, not the product. Show as</span>
+  <div class="seg" id="mock-state" aria-label="Mockup state">
+    <button type="button" data-a="mockstate" data-v="new">New user</button>
+    <button type="button" data-a="mockstate" data-v="used">Everyday use</button>
+  </div>
 </div>
 <div id="layer"></div>
 <div class="toasts" id="toasts" aria-live="polite"></div>
@@ -176,6 +176,7 @@ export default async function (input: Input) {
   return { key: input.key, assignee: input.assignee, previous: issue.fields.assignee?.displayName ?? null };
 }
 </script>
+<script src="icons.js"></script>
 <script src="mockup.js"></script>
 </body>
 </html>

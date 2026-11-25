@@ -16,39 +16,12 @@ const plural = (n, w, p = w + "s") => `${fmt(n)} ${n === 1 ? w : p}`;
 const deep = (o) => JSON.parse(JSON.stringify(o));
 const src = (id) => ($("#src-" + id)?.textContent || "").trimEnd() + "\n";
 
-const ICON = {
-  home: '<path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/>',
-  api: '<path d="M9 2v5M15 2v5"/><path d="M6 7h12v4a6 6 0 0 1-12 0z"/><path d="M12 17v5"/>',
-  layers: '<path d="M12 2l10 5-10 5L2 7z"/><path d="M2 12l10 5 10-5"/><path d="M2 17l10 5 10-5"/>',
-  agent: '<rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4"/><path d="M9 12.5v1.5M15 12.5v1.5"/>',
-  activity: '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
-  sliders: '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
-  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
-  copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
-  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
-  x: '<path d="M6 6l12 12M18 6L6 18"/>',
-  plus: '<path d="M12 5v14M5 12h14"/>',
-  chat: '<path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M8 9.5h8M8 12.5h5"/>',
-  play: '<path d="M7 5l12 7-12 7z"/>',
-  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
-  key: '<circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2"/><path d="M16 7l3 3"/>',
-  shield: '<path d="M12 2l8 3v6c0 5-3.4 9.3-8 11-4.6-1.7-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/>',
-  import: '<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/>',
-  alert: '<path d="M12 3l10 18H2z"/><path d="M12 10v4.5"/><path d="M12 17.5v.5"/>',
-  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.5"/>',
-  bulb: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/>',
-  eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
-  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-  folder: '<path d="M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/>',
-  code: '<path d="M8 6l-6 6 6 6"/><path d="M16 6l6 6-6 6"/>',
-  terminal: '<path d="M5 7l5 5-5 5"/><path d="M12 18h7"/>',
-  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
-  ban: '<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
-  chev: '<path d="M9 6l6 6-6 6"/>',
-  file: '<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/>',
-};
-const ic = (n, s = 16) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg>`;
-const LOGO = `<svg width="30" height="30" viewBox="0 0 72 72" aria-hidden="true"><rect width="72" height="72" rx="17" fill="#1D1D1F"/><rect x="14.6" y="19.1" width="24.8" height="33.8" rx="5" fill="#0071E3" transform="rotate(-12 27 36)"/><rect x="30.4" y="16.9" width="24.8" height="33.8" rx="5" fill="#1D1D1F" transform="rotate(9 42.8 33.8)"/><rect x="32.1" y="18.6" width="21.4" height="30.4" rx="4" fill="#fff" transform="rotate(9 42.8 33.8)"/><g transform="rotate(9 42.8 33.8)" fill="none" stroke="#1D1D1F" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M38.3 28.8l-3.6 5 3.6 5"/><path d="M47.3 28.8l3.6 5-3.6 5"/></g></svg>`;
+const ic = (n, s = 16) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${LUCIDE[n] || ""}</svg>`;
+// The logo is the two cards on their own, no tile. --logo-edge follows the theme.
+const LOGO = `<svg class="logo" width="30" height="30" viewBox="8 8 56 56" aria-hidden="true"><rect x="14.6" y="19.1" width="24.8" height="33.8" rx="5" fill="#0071E3" transform="rotate(-12 27 36)"/><g transform="rotate(9 42.8 33.8)"><rect x="30.4" y="16.9" width="24.8" height="33.8" rx="5" fill="var(--logo-edge)"/><rect x="32.1" y="18.6" width="21.4" height="30.4" rx="4" fill="#fff"/><g fill="none" stroke="var(--logo-edge)" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M38.3 28.8l-3.6 5 3.6 5"/><path d="M47.3 28.8l3.6 5-3.6 5"/></g></g></svg>`;
+const REPO = "https://github.com/abhijeet-oxide/mcpDeck";
+const darkNow = () => S.theme === "dark" || (S.theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+const tile = (icon, size = 40, tone = "accent") => `<span class="tile ${tone}" style="width:${size}px;height:${size}px">${ic(icon, Math.round(size * 0.5))}</span>`;
 
 const CLIENTS = {
   "claude-code": { label: "Claude Code", short: "CC", color: "#C2603E" },
@@ -264,8 +237,9 @@ const PETSTORE = [
   ["user", "createUser", "POST", "/user"], ["user", "createUsersWithListInput", "POST", "/user/createWithList"], ["user", "loginUser", "GET", "/user/login"], ["user", "logoutUser", "GET", "/user/logout"],
   ["user", "getUserByName", "GET", "/user/{username}"], ["user", "updateUser", "PUT", "/user/{username}"], ["user", "deleteUser", "DELETE", "/user/{username}"],
 ];
+const DATA_KEYS = ["apis", "tools", "toolkits", "agents", "requests", "suggestions", "history", "calls", "audit"];
 function emptyWorld() { return { apis: [], tools: [], toolkits: [], agents: [], requests: [], suggestions: [], history: [], calls: [], audit: [] }; }
-let S = { mode: "demo", theme: "system", ...demoWorld(), ui: { tabs: {}, open: {}, sel: {}, drafts: {}, runs: {}, env: {}, filters: { agent: "", tk: "", kind: "all", session: "" }, usage: { range: "7d", by: "tools" }, showFirstRun: false } };
+let S = { mode: "used", demo: false, theme: "system", ...demoWorld(), ui: { tabs: {}, open: {}, sel: {}, drafts: {}, runs: {}, env: {}, notice: {}, setupHidden: false, filters: { agent: "", tk: "", kind: "all", session: "" }, usage: { range: "7d", by: "tools" }, showFirstRun: false } };
 const api = (id) => S.apis.find((a) => a.id === id);
 const tool = (id) => S.tools.find((t) => t.id === id);
 const kit = (id) => S.toolkits.find((t) => t.id === id);
@@ -279,7 +253,7 @@ const inboxCount = () => pendingVersions().length + openRequests().length + S.su
 const tab = (key, def) => S.ui.tabs[key] || def;
 const avatar = (clientId, size = 26) => { const c = CLIENTS[clientId] || CLIENTS.other; return `<span class="avatar" style="background:${c.color};width:${size}px;height:${size}px" title="${esc(c.label)}">${c.short}</span>`; };
 const agentName = (id) => (id === "you" ? "You" : agent(id)?.name || CLIENTS[id]?.label || id);
-const who = (id) => (id === "you" ? `<span class="avatar" style="background:var(--muted)">You</span>` : avatar(agent(id)?.client || id));
+const who = (id, size = 26) => (id === "you" ? `<span class="avatar" style="background:var(--muted);width:${size}px;height:${size}px">You</span>` : avatar(agent(id)?.client || id, size));
 const accessChip = (a) => (a === "read_write" ? `<span class="chip warn">read+write</span>` : a === "write" ? `<span class="chip warn">writes</span>` : a === "check" ? `<span class="chip warn">check access</span>` : `<span class="chip info">read</span>`);
 const statusChip = (s) => ({ live: `<span class="chip ok">live</span>`, pending: `<span class="chip warn">needs review</span>`, rejected: `<span class="chip bad">rejected</span>` }[s] || "");
 const m = (method) => `<span class="m ${method}">${method}</span>`;
@@ -396,15 +370,18 @@ const NAV = [
 ];
 function renderSide(route) {
   const sect = route.split("-")[0];
-  const active = { api: "apis", toolkit: "toolkits", tool: "toolkits", tools: "toolkits", review: "toolkits", agent: "agents", usage: "activity", audit: "activity", preferences: "preferences" }[sect] || sect;
+  const active = { api: "apis", add: "apis", import: "apis", toolkit: "toolkits", tool: "toolkits", tools: "toolkits", review: "toolkits", agent: "agents", usage: "activity", audit: "activity" }[sect] || sect;
   const n = inboxCount();
+  const item = (id, label, icon, extra = "") => `<a class="nav ${active === id ? "on" : ""}" href="#${id}" ${active === id ? 'aria-current="page"' : ""}>${ic(icon, 18)}<span>${label}</span>${extra}</a>`;
+  const dark = darkNow();
   $("#side").innerHTML = `
-    <div class="brand">${LOGO}<span>mcpDeck</span></div>
+    <div class="side-top"><a class="brand" href="#home">${LOGO}<span>mcpDeck</span></a><button type="button" class="iconbtn" data-a="toggleTheme" aria-label="Switch to ${dark ? "light" : "dark"} mode" title="Switch to ${dark ? "light" : "dark"} mode">${ic(dark ? "sun" : "moon", 17)}</button></div>
     <button type="button" class="search-btn" data-a="palette">${ic("search", 15)}<span>Search or run</span><kbd>${MOD} K</kbd></button>
-    ${NAV.map(([id, label, icon, step]) => `<a class="nav ${active === id ? "on" : ""}" href="#${id}" ${active === id ? 'aria-current="page"' : ""}>${ic(icon, 18)}<span>${label}</span>${id === "home" && n ? `<span class="count" title="${n} need you">${n}</span>` : ""}</a>`).join("")}
+    <div class="navlist">${NAV.map(([id, label, icon]) => item(id, label, icon, id === "home" && n ? `<span class="count" title="${n} need you">${n}</span>` : "")).join("")}</div>
     <div class="spacer"></div>
-    <a class="nav ${active === "preferences" ? "on" : ""}" href="#preferences">${ic("sliders", 18)}<span>Settings</span></a>
-    <div class="status"><span class="dot"></span>127.0.0.1:47800</div>`;
+    <a class="ghcard" href="${REPO}" target="_blank" rel="noopener">${ic("github", 18)}<span class="grow stack" style="gap:0"><b>Star on GitHub</b><span class="sub">abhijeet-oxide/mcpDeck</span></span>${ic("star", 15)}</a>
+    <div class="navlist">${item("about", "About", "info")}${item("preferences", "Settings", "settings")}</div>
+    <div class="status"><span class="dot"></span>Running on 127.0.0.1:47800</div>`;
 }
 const head = (title, sub, actions = "", crumbs = "") => `<header class="pagehead"><div class="titles">${crumbs ? `<div class="crumbs">${crumbs}</div>` : ""}<h1>${title}</h1>${sub ? `<p class="muted">${sub}</p>` : ""}</div><div class="actions">${actions}</div></header>`;
 const tabsBar = (key, items, def) => { const cur = tab(key, def); return `<div class="tabs" role="tablist">${items.map(([id, label, badge]) => `<button type="button" role="tab" aria-selected="${cur === id}" class="tab ${cur === id ? "on" : ""}" data-a="tab" data-key="${key}" data-v="${id}">${label}${badge ? ` <span class="chip neutral">${badge}</span>` : ""}</button>`).join("")}</div>`; };
@@ -413,57 +390,72 @@ const empty = (icon, title, text, actions) => `<div class="stack" style="align-i
 /* ---------- pages ---------- */
 const PAGES = {};
 
+const SETUP = () => [
+  ["Add an API", S.apis.length > 0, `<a class="btn dark sm" href="#add-api">${ic("plus", 14)}Add API</a>`],
+  ["Create a toolkit", S.toolkits.length > 0, `<button type="button" class="btn dark sm" data-a="newToolkit">${ic("plus", 14)}New toolkit</button>`],
+  ["Connect an agent", S.agents.length > 0, `<button type="button" class="btn dark sm" data-a="connect">${ic("agent", 14)}Connect agent</button>`],
+  ["Build the first tool", S.tools.length > 0, buildFirstAction()],
+];
+function buildFirstAction() {
+  const k = S.toolkits[0], a = S.apis[0];
+  const p = k && a ? prompts({ kind: "api", api: a })[0] : null;
+  return p ? copyBtn(p.text, "Copy prompt for your agent", "Prompt copied. Paste it into your agent.", "dark sm") + `<button type="button" class="btn light sm" data-a="newTool" data-how="blank" data-tk="${k.id}">Write it myself</button>` : "";
+}
+// Shown only to someone still setting up, and gone for good once done or hidden.
+function gettingStarted() {
+  if (S.mode !== "new" || S.demo || S.ui.setupHidden) return "";
+  const steps = SETUP(); const done = steps.filter((s) => s[1]).length;
+  if (done === steps.length) return "";
+  const next = steps.find((s) => !s[1]);
+  return `<section class="glass panel setup"><div class="row"><h2 class="grow">Getting started <span class="muted" style="font-weight:500">· ${done} of ${steps.length} done</span></h2><button type="button" class="btn ghost sm" data-a="hideSetup">Hide</button></div>
+    <div class="setup-steps">${steps.map(([t, d]) => `<div class="setup-step ${d ? "done" : t === next[0] ? "next" : ""}"><span class="num">${d ? ic("check", 13) : steps.findIndex((s) => s[0] === t) + 1}</span><span>${t}</span></div>`).join("")}</div>
+    <div class="row"><span class="small muted grow">Next: ${next[0].toLowerCase()}.</span>${next[2]}</div></section>`;
+}
+
 PAGES.home = () => {
-  if (S.mode === "new" || !S.apis.length) return firstRun();
-  const k = S.toolkits;
+  if (!S.apis.length && !S.demo) return firstRun();
   const live = S.agents.filter((a) => a.live).length;
   const callsToday = S.agents.reduce((n, a) => n + a.today, 0);
-  const tokensToday = 61400;
+  const tokensToday = S.calls.length ? 61400 : 0;
   const steps = [
-    ["apis", "APIs", S.apis.length, `Systems you call · ${S.apis.reduce((n, a) => n + a.requests.length, 0)} requests`, "api"],
-    ["toolkits", "Toolkits", k.length, `MCP servers · ${S.tools.length} tools in the library`, "layers"],
+    ["apis", "APIs", S.apis.length, `Systems you call · ${plural(S.apis.reduce((n, a) => n + a.requests.length, 0), "request")}`, "api"],
+    ["toolkits", "Toolkits", S.toolkits.length, `MCP servers · ${plural(S.tools.length, "tool")} in the library`, "layers"],
     ["agents", "Agents", S.agents.length, `Connected clients · ${live} active now`, "agent"],
     ["activity", "Activity", callsToday, `Calls today · ${fmt(tokensToday)} tokens returned`, "activity"],
   ];
   const inbox = [
-    ...pendingVersions().map((t) => `<div class="item">${who(t.versions[0].by)}<div class="body"><div class="row"><b class="name">${t.id}</b> <span class="muted small">v${t.version}</span> ${accessChip(t.access)} ${statusChip("pending")}</div><div class="sub">Saved by ${esc(agentName(t.versions[0].by))} ${t.versions[0].when}. Tools that write always wait for a person.</div></div><div class="acts"><a class="btn blue sm" href="#review-${t.id}">Review</a></div></div>`),
-    ...openRequests().map((r) => `<div class="item">${who(r.agent)}<div class="body"><div class="row"><b>Tool request #${r.id}</b><span class="chip neutral">${r.tk}</span><span class="muted small">${r.when}</span></div><div class="sub">${esc(r.text)}</div></div><div class="acts">${copyBtn(prompts({ kind: "request", req: r })[0].text, "Copy prompt", "Prompt copied. Paste it into an agent that can build.")}<a class="btn light sm" href="#toolkit-${r.tk}" data-a="tab" data-key="toolkit-${r.tk}" data-v="requests">Open</a></div></div>`),
-    ...S.suggestions.map((s) => `<div class="item"><span class="avatar" style="background:var(--accent-soft);color:var(--accent)">${ic("bulb", 15)}</span><div class="body"><div class="row"><b>${esc(s.title)}</b></div><div class="sub">${esc(s.save)}</div></div><div class="acts"><button type="button" class="btn light sm" data-a="suggestion" data-id="${s.id}">Details</button></div></div>`),
+    ...pendingVersions().map((t) => `<div class="item">${who(t.versions[0].by, 34)}<div class="body"><div class="row"><b class="name">${t.id}</b> <span class="muted small">v${t.version}</span> ${accessChip(t.access)} ${statusChip("pending")}</div><div class="sub">Saved by ${esc(agentName(t.versions[0].by))} ${t.versions[0].when}. Tools that write always wait for a person.</div></div><div class="acts"><a class="btn blue sm" href="#review-${t.id}">Review</a></div></div>`),
+    ...openRequests().map((r) => `<div class="item">${who(r.agent, 34)}<div class="body"><div class="row"><b>Tool request #${r.id}</b><span class="chip neutral">${r.tk}</span><span class="muted small">${r.when}</span></div><div class="sub">${esc(r.text)}</div></div><div class="acts">${copyBtn(prompts({ kind: "request", req: r })[0].text, "Copy prompt", "Prompt copied. Paste it into an agent that can build.")}<a class="btn light sm" href="#toolkit-${r.tk}" data-a="tab" data-key="toolkit-${r.tk}" data-v="requests">Open</a></div></div>`),
+    ...S.suggestions.map((s) => `<div class="item">${tile("bulb", 34)}<div class="body"><div class="row"><b>${esc(s.title)}</b></div><div class="sub">${esc(s.save)}</div></div><div class="acts"><button type="button" class="btn light sm" data-a="suggestion" data-id="${s.id}">Details</button></div></div>`),
   ];
   const recent = S.calls.filter((c) => c.kind !== "list").slice(0, 6);
-  return head("Home", "What's connected, what needs you, and what agents did today.", `${askBtn("home")}<button type="button" class="btn light" data-a="addApi">${ic("plus")}Add API</button><button type="button" class="btn dark" data-a="connect">${ic("agent")}Connect agent</button>`) + `
-  <section class="glass pipe" aria-label="How mcpDeck fits together">${steps.map(([href, label, n, desc, icon]) => `<a class="stepcard" href="#${href}" style="color:inherit;text-decoration:none"><span class="what">${ic(icon)}${label}</span><span class="n">${fmt(n)}</span><span class="desc">${desc}</span></a>`).join("")}</section>
+  const stat = (icon, label, value, hint = "") => `<div class="card stat"><div class="row nw" style="gap:8px"><span class="label grow">${label}</span><span class="muted">${ic(icon, 16)}</span></div><div class="value">${value}</div>${hint ? `<div class="hint">${hint}</div>` : ""}</div>`;
+  return head("Home", "What's connected, what needs you, and what agents did today.", `${askBtn("home")}<a class="btn light" href="#add-api">${ic("plus")}Add API</a><button type="button" class="btn dark" data-a="connect">${ic("agent")}Connect agent</button>`) + gettingStarted() + `
+  <section class="glass pipe" aria-label="How mcpDeck fits together">${steps.map(([href, label, n, desc, icon]) => `<a class="stepcard" href="#${href}">${tile(icon, 44)}<span class="stack" style="gap:2px;min-width:0"><span class="what">${label}</span><span class="n">${fmt(n)}</span><span class="desc">${desc}</span></span></a>`).join("")}</section>
   <div class="grid cols-2">
-    <section class="glass panel"><div class="panel-head"><h2>Needs you</h2><span class="chip neutral">${inbox.length}</span><span class="grow"></span><span class="small muted">Reviews, tool requests and suggestions</span></div>
-      <div class="stack">${inbox.join("") || `<p class="muted">Nothing needs you. Agents' requests and mcpDeck's suggestions show up here.</p>`}</div></section>
-    <section class="glass panel"><div class="panel-head"><h2>Today</h2><span class="grow"></span><a href="#activity" class="small">All activity</a></div>
+    <section class="glass panel"><div class="panel-head">${ic("inbox", 20)}<h2>Needs you</h2><span class="chip neutral">${inbox.length}</span><span class="grow"></span><span class="small muted">Reviews, tool requests and suggestions</span></div>
+      <div class="stack">${inbox.join("") || `<p class="muted">Nothing needs you. When an agent asks for a tool, saves one that writes, or mcpDeck spots an improvement, it shows here.</p>`}</div></section>
+    <section class="glass panel"><div class="panel-head">${ic("activity", 20)}<h2>Today</h2><span class="grow"></span><a href="#activity" class="small">All activity</a></div>
       <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:14px">
-        <div class="card stat"><div class="label">Calls</div><div class="value">${fmt(callsToday)}</div></div>
-        <div class="card stat"><div class="label">Tokens returned</div><div class="value">61.4K</div><div class="hint">Counted by mcpDeck</div></div>
-        <div class="card stat"><div class="label">Errors</div><div class="value">${S.agents.reduce((n, a) => n + a.errors, 0)}</div></div>
-        <div class="card stat"><div class="label">Writes blocked</div><div class="value">${S.agents.reduce((n, a) => n + a.blocked, 0)}</div></div>
+        ${stat("zap", "Calls", fmt(callsToday))}${stat("activity", "Tokens returned", tokensToday ? "61.4K" : "0", "Counted by mcpDeck")}${stat("alert", "Errors", S.agents.reduce((n, a) => n + a.errors, 0))}${stat("ban", "Writes blocked", S.agents.reduce((n, a) => n + a.blocked, 0))}
       </div>
-      <div class="stack" style="gap:2px">${recent.map((c) => `<a class="row nw" href="#activity" data-a="pickcall" data-id="${c.id}" style="color:inherit;padding:6px 4px;border-radius:8px">${avatar(agent(c.agent)?.client || c.agent, 22)}<span class="name grow" style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span>${c.status === "ok" ? "" : `<span class="chip ${c.status === "blocked" ? "bad" : "warn"}">${c.status}</span>`}<span class="small muted nowrap">${c.t.slice(0, 5)}</span></a>`).join("")}</div>
+      <div class="stack" style="gap:2px">${recent.map((c) => `<a class="row nw recent" href="#activity" data-a="pickcall" data-id="${c.id}">${avatar(agent(c.agent)?.client || c.agent, 26)}<span class="name grow" style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span>${c.status === "ok" ? "" : `<span class="chip ${c.status === "blocked" ? "bad" : "warn"}">${c.status}</span>`}<span class="small muted nowrap">${c.t.slice(0, 5)}</span></a>`).join("") || `<p class="small muted">No calls yet. They show up here once an agent uses a toolkit.</p>`}</div>
     </section>
   </div>`;
 };
 
 function firstRun() {
-  const hasApi = S.apis.length > 0, hasKit = S.toolkits.length > 0, hasAgent = S.agents.length > 0;
-  const newKit = S.toolkits[0], newAgent = S.agents[0];
-  const step = (n, done, title, text, action) => `<div class="card ${done ? "done" : ""}"><div class="row nw"><span class="num">${done ? ic("check", 14) : n}</span><h3 class="grow">${title}</h3></div><p class="small muted">${text}</p><div class="row" style="margin-top:auto">${action}</div></div>`;
-  const buildPrompt = newKit && S.apis[0] ? prompts({ kind: "api", api: S.apis[0] })[0] : null;
-  return `<section class="glass hero">
-      <h1>Turn the APIs you already have into tools for your agents.</h1>
-      <p>Add an API, put tools in a toolkit, and connect Claude Code, VS Code, Cursor or Claude Desktop. mcpDeck keeps the keys, decides what each agent may do, and records every call.</p>
+  const step = (n, icon, title, text, action) => `<div class="card"><div class="row nw" style="gap:12px">${tile(icon, 40, n === 1 ? "accent" : "neutral")}<span class="stack" style="gap:0"><span class="small muted">Step ${n}</span><h3>${title}</h3></span></div><p class="small muted">${text}</p><div class="row" style="margin-top:auto">${action}</div></div>`;
+  return `<section class="glass hero"><div class="row nw" style="gap:18px;align-items:flex-start">${LOGO.replace('width="30" height="30"', 'width="56" height="56"')}<div class="stack" style="gap:10px"><h1>Turn the APIs you already have into tools for your agents.</h1>
+      <p>Add an API, put tools in a toolkit, and connect Claude Code, VS Code, Cursor or Claude Desktop. mcpDeck keeps the keys, decides what each agent may do, and records every call.</p></div></div>
     </section>
     <section class="firststeps" aria-label="Get started">
-      ${step(1, hasApi, "Add an API", hasApi ? `${S.apis.map((a) => `<code>${a.id}</code>`).join(", ")} added with ${plural(S.apis.reduce((n, a) => n + a.requests.length, 0), "request")}.` : "Paste a Swagger page URL, import OpenAPI or a Postman collection, or paste curl. One API per system, like your CRM.", hasApi ? `<a class="btn light sm" href="#api-${S.apis[0].id}">Open ${S.apis[0].id}</a>` : `<button type="button" class="btn dark sm" data-a="addApi">${ic("plus", 14)}Add API</button>`)}
-      ${step(2, hasKit, "Create a toolkit", hasKit ? `<code>${newKit.id}</code> is an MCP server at <code>/mcp/${newKit.id}</code>.` : "A toolkit is one MCP server. Choose which APIs its agents may use to build tools.", hasKit ? `<a class="btn light sm" href="#toolkit-${newKit.id}">Open ${newKit.id}</a>` : `<button type="button" class="btn ${hasApi ? "dark" : "light"} sm" data-a="newToolkit" ${hasApi ? "" : "disabled"}>${ic("plus", 14)}New toolkit</button>${hasApi ? "" : `<span class="small muted">Add an API first</span>`}`)}
-      ${step(3, hasAgent, "Connect an agent", hasAgent ? `${esc(newAgent.name)} can use <code>${newAgent.grants[0].tk}</code> and may build tools.` : "Add the toolkit to Claude Code, VS Code, Cursor or Claude Desktop. Let it build tools if you want it to.", hasAgent ? `<a class="btn light sm" href="#agent-${newAgent.id}">Open agent</a>` : `<button type="button" class="btn ${hasKit ? "dark" : "light"} sm" data-a="connect" ${hasKit ? "" : "disabled"}>${ic("agent", 14)}Connect agent</button>${hasKit ? "" : `<span class="small muted">Create a toolkit first</span>`}`)}
-      ${step(4, S.tools.length > 0, "Build the first tool", S.tools.length ? `${S.tools.length} tool in the library.` : "Ask your agent to build it from the API, or write it yourself in the editor.", hasAgent && buildPrompt ? copyBtn(buildPrompt.text, "Copy prompt for your agent", "Prompt copied. Paste it into your agent.", "dark sm") + `<button type="button" class="btn light sm" data-a="newTool" data-how="blank" data-tk="${newKit.id}">Write it myself</button>` : `<button type="button" class="btn light sm" disabled>Copy prompt for your agent</button><span class="small muted">Connect an agent first</span>`)}
+      ${step(1, "api", "Add an API", "Paste a Swagger page URL, import OpenAPI or a Postman collection, or paste curl. One API per system, like your CRM.", `<a class="btn dark sm" href="#add-api">${ic("plus", 14)}Add API</a>`)}
+      ${step(2, "layers", "Create a toolkit", "A toolkit is one MCP server. Choose which APIs its agents may use to build tools.", `<button type="button" class="btn light sm" disabled>${ic("plus", 14)}New toolkit</button><span class="small muted">After step 1</span>`)}
+      ${step(3, "agent", "Connect an agent", "Add the toolkit to Claude Code, VS Code, Cursor or Claude Desktop. Let it build tools if you want it to.", `<button type="button" class="btn light sm" disabled>${ic("agent", 14)}Connect agent</button><span class="small muted">After step 2</span>`)}
+      ${step(4, "code", "Build the first tool", "Ask your agent to build it from the API with a prompt mcpDeck writes, or write it yourself.", `<button type="button" class="btn light sm" disabled>Copy prompt for your agent</button><span class="small muted">After step 3</span>`)}
     </section>
-    <section class="glass panel"><div class="row"><div class="grow stack" style="gap:4px"><h2>Try it with the demo world</h2><p class="small muted">Four mock APIs on your computer (a CRM, billing, a Jira-like support desk and a SOAP order system), two toolkits, three agents and a morning of calls. Nothing leaves this computer.</p></div><button type="button" class="btn light" data-a="mockstate" data-v="demo">Load the demo</button></div></section>`;
+    <section class="glass panel"><div class="row">${tile("flask", 44, "neutral")}<div class="grow stack" style="gap:4px"><h2>Not ready to add your own? Look around the demo world</h2><p class="small muted">Four mock APIs on your computer (a CRM, billing, a Jira-like support desk and a SOAP order system), two toolkits, three agents and a morning of calls. It opens on its own, apart from your data, and you can leave it any time from the bar at the top or from Settings.</p></div><button type="button" class="btn light" data-a="loadDemo">${ic("flask", 15)}Open the demo world</button></div></section>`;
 }
 
 PAGES.apis = () => {
@@ -496,7 +488,9 @@ PAGES.api = (id) => {
   if (t === "environments") body = apiEnvs(a);
   if (t === "credentials") body = apiCreds(a);
   if (t === "settings") body = apiSettings(a);
-  return head1 + `<section class="glass panel" style="padding-top:8px">${tabs}${body}</section>`;
+  const nt = S.ui.notice[id], noCred = a.authType !== "None" && !Object.values(a.creds || {}).some(Boolean);
+  const notice = nt ? `<div class="notice ok">${ic("check")}<div class="grow">${nt.added ? `Added <b class="mono">${a.id}</b> with` : "Imported"} ${plural(nt.n, "request")} from ${esc(nt.from)}.${nt.moved?.length ? ` Moved ${nt.moved.map((x) => `<code>${esc(x)}</code>`).join(", ")} into an encrypted credential.` : ""}${noCred ? " Add the credential before sending requests." : ""}</div>${noCred ? `<button type="button" class="btn dark sm" data-a="replaceSecret" data-api="${a.id}">Add credential</button>` : ""}<button type="button" class="iconbtn" aria-label="Dismiss" data-a="dismissNotice" data-api="${a.id}">${ic("x", 14)}</button></div>` : "";
+  return head1 + notice + `<section class="glass panel" style="padding-top:8px">${tabs}${body}</section>`;
 };
 
 function apiWorkspace(a, env) {
@@ -862,7 +856,7 @@ function usageView() {
 
 PAGES.preferences = () => {
   const t = tab("prefs", "general");
-  const groups = [["general", "General"], ["appearance", "Appearance"], ["security", "Security"], ["skills", "Agent skills"], ["data", "Data"], ["about", "About"]];
+  const groups = [["general", "General"], ["appearance", "Appearance"], ["security", "Security"], ["skills", "Agent skills"], ["data", "Data"], ["updates", "Updates"]];
   const row = (l, d, r) => `<div class="setrow"><div class="l"><b>${l}</b>${d ? `<span class="small muted">${d}</span>` : ""}</div>${r}</div>`;
   const pages = {
     general: `<div class="setgroup">${row("Port", "Client configs use this port. Changing it needs a restart and new configs.", `<input class="input mono" style="width:110px" value="47800" aria-label="Port">`)}${row("Open the browser on start", "", `<input type="checkbox" class="toggle" checked aria-label="Open the browser on start">`)}${row("Tool timeout", "Default for new tools.", `<select class="input" style="width:auto" aria-label="Tool timeout"><option>10 s</option><option>30 s</option><option>60 s</option></select>`)}${row("Request timeout", "For each API call.", `<select class="input" style="width:auto" aria-label="Request timeout"><option>30 s</option><option>60 s</option></select>`)}</div>`,
@@ -871,11 +865,42 @@ PAGES.preferences = () => {
       <h3 style="margin-top:8px">What mcpDeck protects</h3><div class="setgroup" style="padding:12px 16px"><p class="small">Agents connected over MCP never receive credentials, and tool code can't read them. The database file on its own decrypts nothing. Each agent only sees the toolkits you grant, and read access can't write.</p></div>
       <h3 style="margin-top:8px">What it doesn't</h3><div class="setgroup" style="padding:12px 16px"><p class="small">A program running as you on this computer, including an agent with a shell, can ask your key store or call an API directly. mcpDeck controls what agents do through MCP; it doesn't sandbox the agent.</p></div>`,
     skills: `<p class="small muted" style="margin-bottom:10px">Skills teach agents to use mcpDeck well. "Connect agent" offers to install them; install or update them here too.</p><div class="setgroup">${[["mcpdeck-tools", "Picking tools and handling errors"], ["mcpdeck-request-tool", "Asking for a tool people can act on"], ["mcpdeck-trim-output", "Measuring output and reporting fields · field-sizes.mjs"], ["mcpdeck-build-tool", "Building and checking a tool · check-tool.mjs"]].map(([n, d]) => row(`<span class="mono">${n}</span>`, d, `<span class="small muted">${S.agents.filter((a) => a.client !== "other").length ? "Installed for " + [...new Set(S.agents.map((a) => CLIENTS[a.client].label))].join(", ") : "Not installed"}</span>`)).join("")}</div><div class="row" style="margin-top:10px"><button type="button" class="btn light sm" data-a="toastOnly" data-msg="Skills updated in every place they were installed">Update installed skills</button></div>`,
-    data: `<div class="setgroup">${row("Data folder", "One SQLite database. Deleting the folder resets mcpDeck.", `<code class="small">${isMac ? "~/Library/Application Support/mcpDeck" : "%LOCALAPPDATA%\\mcpDeck"}</code><button type="button" class="btn light sm" data-a="toastOnly" data-msg="Opened the data folder">Reveal</button>`)}${row("Keep call bodies", "Inputs and outputs of calls.", `<select class="input" style="width:auto" aria-label="Keep call bodies"><option>30 days</option><option>7 days</option><option>90 days</option></select>`)}${row("Keep call details", "Who, when, how long, tokens.", `<select class="input" style="width:auto" aria-label="Keep call details"><option>1 year</option><option>90 days</option></select>`)}</div>`,
-    about: `<div class="setgroup">${row("mcpDeck", "Version, commit and build date of this binary.", `<code>mcpdeck version</code>`)}${row("Updates", "mcpDeck never updates itself. Check GitHub for a newer release.", `<button type="button" class="btn light sm" data-a="toastOnly" data-msg="Checked GitHub releases">Check for updates</button>`)}${row("Docs", "", `<a href="https://github.com/abhijeet-oxide/mcpDeck" target="_blank" rel="noopener">github.com/abhijeet-oxide/mcpDeck</a>`)}</div>`,
+    data: `<div class="setgroup">${row("Data folder", "One SQLite database. Deleting the folder resets mcpDeck.", `<code class="small">${isMac ? "~/Library/Application Support/mcpDeck" : "%LOCALAPPDATA%\\mcpDeck"}</code><button type="button" class="btn light sm" data-a="toastOnly" data-msg="Opened the data folder">Reveal</button>`)}${row("Demo world", "Mock APIs, toolkits and agents to try things on. Opens apart from your own data.", S.demo ? `<button type="button" class="btn light sm" data-a="leaveDemo">Leave demo</button>` : `<button type="button" class="btn light sm" data-a="loadDemo">${ic("flask", 14)}Open the demo world</button>`)}${row("Keep call bodies", "Inputs and outputs of calls.", `<select class="input" style="width:auto" aria-label="Keep call bodies"><option>30 days</option><option>7 days</option><option>90 days</option></select>`)}${row("Keep call details", "Who, when, how long, tokens.", `<select class="input" style="width:auto" aria-label="Keep call details"><option>1 year</option><option>90 days</option></select>`)}</div>`,
+    updates: `<div class="setgroup">${row("This copy", "Version, commit and build date are printed by the command.", `<code>mcpdeck version</code>`)}${row("Updates", "mcpDeck never updates itself. Check GitHub for a newer release.", `<button type="button" class="btn light sm" data-a="toastOnly" data-msg="Checked GitHub releases">Check for updates</button>`)}${row("Source and docs", "Star the repo, report a bug, or read the docs.", `<a href="${REPO}" target="_blank" rel="noopener">github.com/abhijeet-oxide/mcpDeck</a>`)}</div>`,
   };
   return head("Settings", "", "") + `<div class="settings"><nav class="glass" style="padding:10px" aria-label="Settings sections">${groups.map(([k, l]) => `<button type="button" class="nav ${t === k ? "on" : ""}" data-a="tab" data-key="prefs" data-v="${k}">${l}</button>`).join("")}</nav><section class="glass panel stack">${`<h2>${groups.find((g) => g[0] === t)[1]}</h2>`}${pages[t]}</section></div>`;
 };
+PAGES.about = () => {
+  const what = [
+    ["api", "APIs", "Import any HTTP API, old ones too, from a Swagger page, OpenAPI, a Postman collection or curl. Send requests and keep good responses, as in Postman."],
+    ["layers", "Toolkits", "Tools are short TypeScript functions over those requests, written by you or by an agent. Each toolkit is one MCP server."],
+    ["agent", "Agents", "Connect Claude Code, VS Code, Cursor or Claude Desktop. Each gets its own token and access: read, or read and write, and whether it may build tools."],
+    ["activity", "Activity", "Every call is recorded with time, size and tokens. Rules turn that into suggestions that make tools smaller and faster, and you approve each one."],
+  ];
+  const link = (href, icon, label, text) => `<a class="setrow linkrow" href="${href}" target="_blank" rel="noopener"><span class="row nw" style="gap:12px">${tile(icon, 32, "neutral")}<span class="l"><b>${label}</b><span class="small muted">${text}</span></span></span>${ic("ext", 15)}</a>`;
+  return head("About mcpDeck", "Build MCP tools from the APIs you already have, and control what every agent can do.") + `
+  <div class="grid cols-2">
+    <section class="glass panel stack" style="gap:18px"><h2>What it does</h2>
+      ${what.map(([i, t, d]) => `<div class="row nw" style="align-items:flex-start;gap:14px">${tile(i, 40)}<div class="stack" style="gap:2px"><b>${t}</b><span class="small muted">${d}</span></div></div>`).join("")}
+      <div class="notice info">${ic("shield")}<div>Credentials stay in mcpDeck, encrypted with a key in your OS key store. Agents use them without seeing them. Everything runs on this computer; nothing is sent anywhere else.</div></div>
+    </section>
+    <div class="stack" style="gap:16px">
+      <section class="glass panel stack repo" style="gap:14px">
+        <div class="row nw" style="gap:14px">${tile("github", 48, "ink")}<div class="stack" style="gap:2px"><h2>mcpDeck is open source</h2><a class="mono small" href="${REPO}" target="_blank" rel="noopener">github.com/abhijeet-oxide/mcpDeck</a></div></div>
+        <p class="small muted">Built in the open under the Apache 2.0 license. If mcpDeck saves you time, a star helps other people find it.</p>
+        <div class="row"><a class="btn blue" href="${REPO}" target="_blank" rel="noopener">${ic("star", 15)}Star on GitHub</a><a class="btn light" href="${REPO}/issues/new" target="_blank" rel="noopener">${ic("bug", 15)}Report a bug</a></div>
+      </section>
+      <section class="glass panel"><div class="setgroup">
+        ${link(`${REPO}#readme`, "book", "Docs", "What it does, install, and how each part works")}
+        ${link(`${REPO}/releases`, "history", "Releases", "New versions and what changed. mcpDeck never updates itself")}
+        ${link(`${REPO}/blob/main/AGENTS.md`, "code", "Contribute", "People and coding agents follow the same guide, AGENTS.md")}
+        ${link(`${REPO}/blob/main/LICENSE`, "scale", "License", "Apache 2.0")}
+      </div></section>
+    </div>
+  </div>`;
+};
+PAGES.add = () => importPage(null);
+PAGES.import = (id) => importPage(id);
 PAGES.tools = () => { S.ui.tabs.toolkits = "tools"; return PAGES.toolkits(); };
 PAGES.usage = () => { S.ui.tabs.activity = "usage"; return PAGES.activity(); };
 PAGES.audit = () => { S.ui.tabs.activity = "audit"; return PAGES.activity(); };
@@ -947,40 +972,69 @@ function openModal(state) { S.modal = state; renderModal(); }
 function closeModal() { S.modal = null; clearTimeout(S.connectTimer); $("#layer").innerHTML = ""; }
 function renderModal() {
   const md = S.modal; if (!md) return;
-  const html = { addApi: addApiModal, connect: connectModal, newToolkit: newToolkitModal, newTool: newToolModal, library: libraryModal, confirm: confirmModal, palette: paletteModal, suggestion: suggestionDrawer, secret: secretModal }[md.type](md);
+  const html = { connect: connectModal, newToolkit: newToolkitModal, newTool: newToolModal, library: libraryModal, confirm: confirmModal, palette: paletteModal, suggestion: suggestionDrawer, secret: secretModal }[md.type](md);
   $("#layer").innerHTML = md.type === "suggestion" ? `<div class="scrim" data-a="scrim" style="place-items:stretch end;padding:0"></div>${html}` : `<div class="scrim" data-a="scrim">${html}</div>`;
   const f = $("#layer [autofocus]"); if (f) f.focus();
 }
 const modalShell = (title, sub, body, foot, wide) => `<div class="modal ${wide ? "wide" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-head"><div class="grow"><h2 style="font-size:19px">${title}</h2>${sub ? `<p class="small muted">${sub}</p>` : ""}</div><button type="button" class="iconbtn" data-a="close" aria-label="Close">${ic("x")}</button></div><div class="modal-body">${body}</div>${foot ? `<div class="modal-foot">${foot}</div>` : ""}</div>`;
 
 const SOURCES = [
-  ["swagger", "Swagger or Redoc page", "The docs page URL. mcpDeck finds the spec."],
-  ["openapi", "OpenAPI file or URL", "3.x or Swagger 2.0, JSON or YAML"],
-  ["postman", "Postman collection", "v2.1 export, with environments"],
-  ["curl", "curl commands", "Paste one or more"],
-  ["blank", "Start empty", "Add requests by hand"],
+  ["swagger", "Swagger or Redoc page", "The docs page URL. mcpDeck finds the spec it loads.", "globe"],
+  ["openapi", "OpenAPI file or URL", "OpenAPI 3.x or Swagger 2.0, JSON or YAML.", "json"],
+  ["postman", "Postman collection", "A v2.1 export, and its environment if you have one.", "tree"],
+  ["curl", "curl commands", "Paste one or more. Credentials are moved out.", "terminal"],
+  ["blank", "Start empty", "A name and a base URL. Add requests by hand.", "fileplus"],
 ];
-function addApiModal(md) {
-  if (md.step === 2) {
-    const r = md.result, into = api(md.target);
-    return modalShell(`Imported ${plural(r.added.length, "request")} into <span class="mono">${md.target}</span>`, esc(r.from), `
-      ${r.moved.length ? `<div class="notice ok">${ic("lock")}<div>${r.moved.map((x) => `Moved <code>${esc(x)}</code> out of the request into an encrypted credential.`).join("<br>")}</div></div>` : ""}
-      <div class="row small"><span class="chip info">${r.added.filter((x) => x.access === "read").length} read</span><span class="chip warn">${r.added.filter((x) => x.access === "write").length} write</span>${r.added.some((x) => x.access === "check") ? `<span class="chip warn">${r.added.filter((x) => x.access === "check").length} to check</span>` : ""}<span class="muted">Read or write comes from the method. Change it on any request.</span></div>
-      <div class="card" style="max-height:300px;overflow:auto;padding:6px 10px">${r.added.map((x) => `<div class="row nw" style="padding:5px 0;border-bottom:1px solid var(--line)">${m(x.method)}<code class="grow" style="overflow:hidden;text-overflow:ellipsis">${x.id}</code><span class="small muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:45%">${esc(x.path)}</span></div>`).join("") || `<p class="small muted">No requests. Add them with New request.</p>`}</div>
-      ${into && into.authType !== "None" && !Object.values(into.creds || {}).some(Boolean) ? `<div class="notice info">${ic("key")}<div>${esc(into.authType)} auth was found. Add the credential before sending requests.</div></div>` : ""}`,
-      `<a class="btn light" href="#api-${md.target}" data-a="close" data-tab="credentials">Add credentials</a><a class="btn dark" href="#api-${md.target}" data-a="close">Open ${md.target}</a>`);
-  }
-  const s = md.src;
-  const input = s === "curl" ? `<label class="field">curl commands<textarea class="input" id="imp-text" rows="7" autofocus placeholder="curl https://api.example.com/v1/orders?status=open -H 'X-Api-Key: …'">${esc(md.value || "")}</textarea><span class="hint">Headers that carry credentials (Authorization, Cookie, X-Api-Key) are moved into an encrypted credential. They're never saved on the request.</span></label>`
-    : s === "blank" ? `<label class="field">Base URL<input class="input mono" id="imp-text" autofocus placeholder="https://erp.internal.example/api" value="${esc(md.value || "")}"><span class="hint">Becomes <code>{{baseUrl}}</code> in the first environment.</span></label>`
-    : s === "postman" ? `<label class="field">Collection file<input class="input" type="file" id="imp-file" accept=".json" style="padding-top:6px"><span class="hint">Postman: Collection › Export › v2.1. Folders, variables, auth and saved responses come across; scripts stay off until you trust them.</span></label>`
-    : `<label class="field">${s === "swagger" ? "Docs page URL" : "Spec URL"}<input class="input mono" id="imp-text" autofocus placeholder="${s === "swagger" ? "https://petstore3.swagger.io/" : "https://petstore3.swagger.io/api/v3/openapi.json"}" value="${esc(md.value || "")}"></label>${s === "openapi" ? `<div class="row small"><span class="muted">or</span><label class="btn light sm" style="cursor:pointer">${ic("file", 13)}Choose a file<input type="file" id="imp-file" accept=".json,.yaml,.yml" class="sr"></label></div>` : ""}`;
-  const target = md.into ? `<div class="notice info">${ic("api")}<div>Into <b class="mono">${md.into}</b>. New requests are added and matching ones updated; nothing is deleted.</div></div>`
-    : `<label class="field">API name<input class="input mono" id="imp-name" value="${esc(md.name || "")}" placeholder="billing" pattern="[a-z][a-z0-9_]*"><span class="hint">One API per system. Tools call it by this name: <code id="imp-preview">${esc(md.name || "billing")}.getInvoice()</code>. Leave empty to use the spec's title or the host name.</span></label>`;
-  return modalShell(md.into ? `Import into ${md.into}` : "Add an API", md.into ? "" : "An API is one system you call, like your CRM. Bring its requests from wherever they are now.", `
-    <div class="optgrid" role="radiogroup" aria-label="Source">${SOURCES.filter(([k]) => !(md.into && k === "blank")).map(([k, t, d]) => `<button type="button" role="radio" aria-checked="${s === k}" class="opt ${s === k ? "on" : ""}" data-a="impSrc" data-v="${k}"><span class="t">${t}</span><span class="d">${d}</span></button>`).join("")}</div>
-    ${input}${target}${md.error ? `<div class="notice bad">${ic("alert")}<div>${esc(md.error)}</div></div>` : ""}`,
-    `<span class="left small muted">From the terminal: <code>mcpdeck import &lt;url-or-file&gt; --api &lt;name&gt;</code></span><button type="button" class="btn light" data-a="close">Cancel</button><button type="button" class="btn dark" data-a="doImport">${s === "blank" ? "Create API" : "Import"}</button>`);
+function impState(into) {
+  const key = into || "";
+  if (!S.imp || S.imp.key !== key) S.imp = { key, into, src: into ? "openapi" : "swagger", url: "", name: "", env: into ? api(into)?.envs[0] : "Local", auth: "None", parsed: null, sel: null, error: null, found: null, from: "" };
+  return S.imp;
+}
+function importPage(into) {
+  if (into && !api(into)) return notFound("API", "#apis");
+  const st = impState(into);
+  const srcs = SOURCES.filter(([k]) => !(into && k === "blank"));
+  const h = head(into ? `Import into <span class="mono">${into}</span>` : "Add an API",
+    into ? "New requests are added and matching ones updated. Nothing is deleted." : "An API is one system you call, like your CRM or Jira. Bring its requests from wherever they are now.",
+    `<a class="btn light" href="${into ? "#api-" + into : "#apis"}">Cancel</a>`,
+    `<a href="#apis">APIs</a>${ic("chev", 12)}${into ? `<a href="#api-${into}">${into}</a>${ic("chev", 12)}<span>Import</span>` : "<span>Add an API</span>"}`);
+  return h + `<div class="importgrid"><nav class="glass panel srclist" aria-label="Where the requests come from"><div class="kicker" style="padding:2px 6px 8px">Import from</div>${srcs.map(([k, t, d, i]) => `<button type="button" class="srcitem ${st.src === k ? "on" : ""}" data-a="impSrc" data-v="${k}" aria-pressed="${st.src === k}">${tile(i, 36, st.src === k ? "accent" : "neutral")}<span class="stack" style="gap:1px;min-width:0"><b>${t}</b><span class="small muted">${d}</span></span></button>`).join("")}
+    <p class="small muted" style="padding:12px 6px 0">From a terminal: <code>mcpdeck import &lt;url-or-file&gt; --api &lt;name&gt;</code></p></nav>
+    <div class="stack" style="gap:16px;min-width:0"><section class="glass panel stack" style="gap:14px">${sourceForm(st)}</section><section class="glass panel" id="imp-prev">${previewHtml(st)}</section></div></div>`;
+}
+function sourceForm(st) {
+  const err = st.error ? `<div class="notice bad">${ic("alert")}<div>${esc(st.error)}</div></div>` : "";
+  const found = st.found ? `<div class="notice ok">${ic("check")}<div>${esc(st.found)}</div></div>` : "";
+  if (st.src === "swagger") return `<h2>Swagger or Redoc page</h2><label class="field" for="imp-url">Docs page URL</label><div class="row nw"><input class="input mono" id="imp-url" value="${esc(st.url)}" placeholder="https://petstore3.swagger.io/"><button type="button" class="btn dark" data-a="impLoad">Find spec</button></div><p class="small muted">The page people open to read the API docs. mcpDeck reads it and loads the OpenAPI or Swagger file it points to. Works with the default Swagger UI and Redoc pages.</p>${found}${err}`;
+  if (st.src === "openapi") return `<h2>OpenAPI file or URL</h2><label class="field" for="imp-url">Spec URL</label><div class="row nw"><input class="input mono" id="imp-url" value="${esc(st.url)}" placeholder="https://petstore3.swagger.io/api/v3/openapi.json"><button type="button" class="btn dark" data-a="impLoad">Load</button></div>
+    <label class="drop">${ic("upload", 22)}<span>Or choose an <code>openapi.json</code> or <code>.yaml</code> file</span><span class="btn light sm">Choose file</span><input type="file" id="imp-file" accept=".json,.yaml,.yml" class="sr" data-a="impFile"></label>${found}${err}`;
+  if (st.src === "postman") return `<h2>Postman collection</h2><p class="small muted">In Postman, open the collection's menu › Export › Collection v2.1. Folders, variables, auth and saved responses come across. Scripts come across too, but stay off until you trust the collection.</p>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))"><label class="drop">${ic("tree", 22)}<b>Collection</b><span class="small ${st.fileName ? "mono" : "muted"}">${esc(st.fileName || "*.postman_collection.json")}</span><span class="btn light sm">Choose file</span><input type="file" id="imp-file" accept=".json" class="sr" data-a="impFile"></label>
+    <label class="drop">${ic("file", 22)}<b>Environment <span class="muted" style="font-weight:400">(optional)</span></b><span class="small ${st.envFileName ? "mono" : "muted"}">${esc(st.envFileName || "*.postman_environment.json")}</span><span class="btn light sm">Choose file</span><input type="file" id="imp-envfile" accept=".json" class="sr" data-a="impEnvFile"></label></div>${found}${err}`;
+  if (st.src === "curl") return `<h2>curl commands</h2><label class="field">Paste one or more<textarea class="input" id="imp-curl" rows="8" placeholder="curl https://erp.internal.example/api/orders/1042 -H 'Accept: application/json'">${esc(st.url)}</textarea><span class="hint">The list below updates as you paste. Authorization, Cookie and API key headers, and query keys like api_key, go into an encrypted credential and are never saved on a request.</span></label>${err}`;
+  return `<h2>Start empty</h2><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))"><label class="field">API name<input class="input mono" id="imp-name" value="${esc(st.name)}" placeholder="erp"><span class="hint">Tools call it by this name, like <code>erp.getOrder()</code>.</span></label><label class="field">Base URL<input class="input mono" id="imp-url" value="${esc(st.url)}" placeholder="https://erp.internal.example/api"><span class="hint">Becomes <code>{{baseUrl}}</code> in the Local environment.</span></label></div>
+    <label class="field">Auth<select class="input" id="imp-auth">${["None", "API key (header X-Api-Key)", "Bearer token", "Basic", "OAuth 2.0 client credentials", "Digest", "Login request (cookie)"].map((x) => `<option ${x === st.auth ? "selected" : ""}>${x}</option>`).join("")}</select><span class="hint">Set once here; every request inherits it. You add the credential next.</span></label>${err}<div class="row"><button type="button" class="btn dark" data-a="impBlank">Create API</button></div>`;
+}
+// "Acme CRM" → crm, "Swagger Petstore - OpenAPI 3.0" → petstore: the last word that names the system.
+const suggestName = (p) => { const words = (p.title || p.host || "").toLowerCase().split(/[^a-z0-9]+/).filter((w) => w && !/^\d+$/.test(w) && !["api", "apis", "swagger", "openapi", "rest", "the", "service", "v1", "v2", "v3"].includes(w)); return (words[words.length - 1] || (p.host || "api").split(".")[0]).replace(/^[^a-z]+/, "") || "api"; };
+function previewHtml(st) {
+  const p = st.parsed;
+  if (st.src === "blank") return `<h2>What you get</h2><p class="small muted" style="margin-top:6px">An API with one environment, <b>Local</b>, whose <code>{{baseUrl}}</code> is the URL above. Add requests with New request, or paste curl into it later with Import.</p>`;
+  if (!p) return `<h2>Requests to import</h2><p class="small muted" style="margin-top:6px">${st.parseError ? esc(st.parseError) : st.src === "curl" ? "Paste a curl command above." : st.src === "postman" ? "Choose the collection file." : "Load the spec to see its requests."} You choose which ones to import, and see whether each one reads or writes.</p>`;
+  const sel = st.sel, n = sel.size;
+  const picked = p.reqs.filter((_, i) => sel.has(i));
+  const reads = picked.filter((r) => r.access === "read").length, checks = picked.filter((r) => r.access === "check").length;
+  const name = st.name || suggestName(p);
+  const secrets = (p.envVars || []).filter((v) => v[2]);
+  return `<div class="row" style="margin-bottom:14px"><h2 class="grow">${plural(p.reqs.length, "request")} found</h2><span class="chip info">${reads} read</span><span class="chip warn">${picked.length - reads - checks} write</span>${checks ? `<span class="chip warn">${checks} to check</span>` : ""}</div>
+    ${st.into ? "" : `<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin-bottom:14px"><label class="field">API name<input class="input mono" id="imp-name" value="${esc(name)}"><span class="hint">Tools call it as <code id="imp-code">${esc(name)}.${esc(p.reqs[0]?.id || "request")}()</code></span></label><label class="field">First environment<input class="input" id="imp-env" value="${esc(p.envName || st.env)}"><span class="hint"><code>{{baseUrl}}</code> = <code>${esc(p.base || "set after import")}</code></span></label></div>`}
+    ${p.moved.length ? `<div class="notice ok" style="margin-bottom:12px">${ic("lock")}<div>Moves ${p.moved.map((x) => `<code>${esc(x)}</code>`).join(", ")} into an encrypted credential.</div></div>` : ""}
+    ${p.envVars?.length ? `<div class="notice info" style="margin-bottom:12px">${ic("file")}<div>Environment <b>${esc(p.envName)}</b>: ${plural(p.envVars.length, "variable")}${secrets.length ? `, of which ${secrets.map((v) => `<code>${esc(v[0])}</code>`).join(", ")} become encrypted credentials` : ""}.</div></div>` : ""}
+    ${p.scripts ? `<div class="notice warn" style="margin-bottom:12px">${ic("lock")}<div>${plural(p.scripts, "script")} in this collection. They come across off, until you trust the collection in the API's Settings.</div></div>` : ""}
+    <div class="tablewrap" style="max-height:440px;overflow:auto"><table><thead><tr><th><input type="checkbox" data-a="impAll" aria-label="Select all" ${n === p.reqs.length ? "checked" : ""}></th><th>Request</th><th>Path</th><th>Folder</th><th>Access</th></tr></thead><tbody>
+    ${p.reqs.map((r, i) => { const upd = st.into && api(st.into).requests.some((x) => x.id === r.id); return `<tr><td><input type="checkbox" data-a="impSel" data-i="${i}" ${sel.has(i) ? "checked" : ""} aria-label="Import ${esc(r.id)}"></td><td><span class="row nw">${m(r.method)}<span class="name" style="font-weight:500">${esc(r.id)}</span>${upd ? `<span class="chip neutral">updates</span>` : ""}</span></td><td class="mono small">${esc(r.path)}</td><td class="small muted">${esc(r.folder)}</td><td>${accessChip(r.access)}</td></tr>`; }).join("")}
+    </tbody></table></div>
+    <div class="row" style="margin-top:14px"><span class="small muted grow">Read or write comes from the method. Anything mcpDeck can't tell is marked "check access". You can change it on any request.</span><button type="button" class="btn dark" data-a="impGo" ${n ? "" : "disabled"}>${st.into ? `Import ${plural(n, "request")}` : `Add API with ${plural(n, "request")}`}</button></div>`;
 }
 function shellSplit(cmd) {
   const out = []; let cur = "", q = null, i = 0, has = false;
@@ -1035,46 +1089,46 @@ function parseSpec(text, name) {
     return { reqs, kind: j.openapi ? `OpenAPI ${j.openapi}` : `Swagger ${j.swagger}`, title: j.info?.title, base: j.servers?.[0]?.url || (j.host ? `https://${j.host}${j.basePath || ""}` : ""), moved: [] };
   }
   if (j.info?._postman_id || /postman/.test(j.info?.schema || "")) {
-    const reqs = [];
-    const walk = (items, folder) => items.forEach((it) => { if (it.item) walk(it.item, it.name); else if (it.request) { const M = (it.request.method || "GET").toUpperCase(); const raw = typeof it.request.url === "string" ? it.request.url : it.request.url?.raw || ""; reqs.push(R(it.name.replace(/[^a-z0-9]+(.)?/gi, (s, c) => (c ? c.toUpperCase() : "")).replace(/^./, (c) => c.toLowerCase()), folder || "requests", M, raw.replace(/^\{\{\w+\}\}/, "").split("?")[0] || "/", ["GET", "HEAD", "OPTIONS"].includes(M) ? "read" : "write", {})); } });
+    const reqs = []; let scripts = (j.event || []).filter((e) => e.script?.exec?.length).length;
+    const walk = (items, folder) => items.forEach((it) => { if (it.item) walk(it.item, it.name); else if (it.request) { scripts += (it.event || []).filter((e) => e.script?.exec?.length).length; const M = (it.request.method || "GET").toUpperCase(); const raw = typeof it.request.url === "string" ? it.request.url : it.request.url?.raw || ""; reqs.push(R(it.name.replace(/[^a-z0-9]+(.)?/gi, (s, c) => (c ? c.toUpperCase() : "")).replace(/^./, (c) => c.toLowerCase()), folder || "requests", M, raw.replace(/^\{\{\w+\}\}/, "").split("?")[0] || "/", ["GET", "HEAD", "OPTIONS"].includes(M) ? "read" : "write", {})); } });
     walk(j.item || []);
-    return { reqs, kind: "Postman collection", title: j.info?.name, base: "", moved: [] };
+    const base = (j.variable || []).find((v) => v.key === "baseUrl")?.value || "";
+    return { reqs, kind: "Postman collection", title: j.info?.name, base, moved: [], scripts };
   }
   throw new Error("That file isn't an OpenAPI, Swagger or Postman collection.");
 }
-function finishImport(md, parsed, from) {
-  const name = (md.into || md.name || (parsed.title || parsed.host || "api").toLowerCase().replace(/^api\./, "").split(/[.\s-]/)[0].replace(/[^a-z0-9_]/g, "")) || "api";
-  if (!md.into && api(name)) { md.error = `There's already an API named ${name}. Pick another name, or open ${name} and import into it.`; return renderModal(); }
+function setParsed(st, p) { st.parsed = p; st.parseError = null; st.sel = new Set(p.reqs.map((_, i) => i)); if (st.envFile) { p.envName = st.envFile.name; p.envVars = st.envFile.vars; } }
+function keepImpFields() { const st = S.imp; if (!st) return; st.name = $("#imp-name")?.value.trim() ?? st.name; st.env = $("#imp-env")?.value.trim() || st.env; }
+function readFile(el, cb) { const f = el.files?.[0]; if (!f) return; const fr = new FileReader(); fr.onload = () => cb(String(fr.result), f.name); fr.readAsText(f); }
+function loadUrl(st) {
+  let u; try { u = new URL(st.url); } catch { throw new Error(st.url ? "That isn't a full URL. Include https://." : st.src === "swagger" ? "Enter the docs page URL." : "Enter the spec URL, or choose a file."); }
+  const demo = { "127.0.0.1:9001": "crm", "127.0.0.1:9002": "billing", "127.0.0.1:9003": "support", "127.0.0.1:9004": "legacy" }[u.host];
+  if (demo) { const d = demoWorld().apis.find((x) => x.id === demo); return { parsed: { reqs: d.requests, moved: [], base: `http://${u.host}`, kind: d.kind, title: demo }, found: `Found the ${d.kind} spec at ${d.from}.` }; }
+  if (/petstore/.test(u.host)) { const spec = "https://petstore3.swagger.io/api/v3/openapi.json"; return { parsed: { reqs: PETSTORE.map(([f, id, M, p]) => R(id, f, M, p, M === "GET" ? "read" : "write", {})), moved: [], base: "https://petstore3.swagger.io/api/v3", kind: "OpenAPI 3.0.4", title: "Swagger Petstore - OpenAPI 3.0", host: "petstore" }, found: st.src === "swagger" && st.url !== spec ? `Found an OpenAPI 3.0.4 spec loaded by the page: ${spec}` : "Loaded OpenAPI 3.0.4: Swagger Petstore - OpenAPI 3.0." }; }
+  throw new Error(st.src === "swagger" ? "This mockup can't reach the network. Try https://petstore3.swagger.io/ or a demo URL like http://127.0.0.1:9002/." : "This mockup can't reach the network. Try https://petstore3.swagger.io/api/v3/openapi.json, or choose a JSON file.");
+}
+function finishImport() {
+  keepImpFields();
+  const st = S.imp, p = st.parsed, pick = p.reqs.filter((_, i) => st.sel.has(i));
+  const name = st.into || st.name || suggestName(p);
+  st.error = null;
+  if (!st.into && !/^[a-z][a-z0-9_]*$/.test(name)) st.error = "API names are lowercase letters, digits and _, starting with a letter, because tools use them in code.";
+  else if (!st.into && api(name)) st.error = `There's already an API named ${name}. Open it and use Import to add to it.`;
+  if (st.error) { render(); window.scrollTo(0, 0); return; }
   let a = api(name);
   if (!a) {
-    a = { id: name, title: parsed.title || name, kind: parsed.kind || "curl", from, authType: parsed.moved.length ? (parsed.moved.some((x) => /authorization/i.test(x)) ? "Bearer token" : "API key (header X-Api-Key)") : "None", envs: ["Local"], vars: [["baseUrl", parsed.base || "", "", "text"]], creds: parsed.moved.length ? { Local: "just now" } : {}, hosts: parsed.base ? [new URL(parsed.base, "http://x").host] : [], scripts: null, requests: [] };
+    const secretVars = (p.envVars || []).filter((v) => v[2]);
+    a = { id: name, title: p.title || name, kind: p.kind || "curl", from: st.from, authType: p.moved.length || secretVars.length ? (p.moved.some((x) => /authorization/i.test(x)) || secretVars.some((v) => /token/i.test(v[0])) ? "Bearer token" : "API key (header X-Api-Key)") : "None", envs: [st.env || "Local"],
+      vars: [["baseUrl", p.base || "", "", "text"], ...(p.envVars || []).filter((v) => v[0] !== "baseUrl").map(([k, v, s]) => [k, s ? "secret" : v, "", s ? "secret" : "text"])], creds: {}, hosts: p.base ? [new URL(p.base, "http://x").host] : [], scripts: p.scripts ? { count: p.scripts, trusted: false } : null, requests: [] };
+    if (p.moved.length || secretVars.some((v) => v[1])) a.creds[a.envs[0]] = "just now";
     S.apis.push(a);
   }
-  for (const r of parsed.reqs) { const i = a.requests.findIndex((x) => x.id === r.id); if (i >= 0) a.requests[i] = r; else a.requests.push(r); }
-  S.ui.open[a.id] = a.requests.slice(0, 1).map((r) => r.id);
-  S.audit.unshift(["now", "you", md.into ? "Imported requests" : "Added API", a.id, `${parsed.reqs.length} requests from ${from}`]);
-  openModal({ type: "addApi", step: 2, target: a.id, result: { added: parsed.reqs, moved: parsed.moved, from } });
-  route();
+  for (const r of pick) { const i = a.requests.findIndex((x) => x.id === r.id); if (i >= 0) a.requests[i] = r; else a.requests.push(r); }
+  S.ui.open[a.id] = a.requests.slice(0, 1).map((r) => r.id); S.ui.tabs["api-" + a.id] = "requests";
+  S.ui.notice[a.id] = { n: pick.length, from: st.from, moved: p.moved, added: !st.into };
+  S.audit.unshift(["now", "you", st.into ? "Imported requests" : "Added API", a.id, `${pick.length} requests from ${st.from}`]);
+  S.imp = null; location.hash = "#api-" + a.id;
 }
-function doImport() {
-  const md = S.modal; md.error = null;
-  md.value = $("#imp-text")?.value.trim() || ""; md.name = $("#imp-name")?.value.trim() || md.name || "";
-  if (md.name && !/^[a-z][a-z0-9_]*$/.test(md.name)) { md.error = "API names are lowercase letters, digits and _, starting with a letter, because tools use them in code."; return renderModal(); }
-  const file = $("#imp-file")?.files?.[0];
-  if (file) { const fr = new FileReader(); fr.onload = () => { try { finishImport(md, parseSpec(String(fr.result), md.name), file.name); } catch (e) { md.error = e.message; renderModal(); } }; fr.readAsText(file); return; }
-  try {
-    if (md.src === "curl") { if (!md.value) throw new Error("Paste at least one curl command."); const p = parseCurls(md.value); return finishImport(md, { ...p, kind: "curl" }, "pasted curl"); }
-    if (md.src === "blank") { let u; try { u = new URL(md.value); } catch { throw new Error("Enter the base URL, like https://erp.internal.example/api."); } return finishImport(md, { reqs: [], moved: [], base: md.value, host: u.host, kind: "by hand", title: md.name || u.host.split(".")[0] }, "by hand"); }
-    if (md.src === "postman") throw new Error("Choose the exported collection file.");
-    if (!md.value) throw new Error(md.src === "swagger" ? "Enter the docs page URL." : "Enter the spec URL, or choose a file.");
-    let u; try { u = new URL(md.value); } catch { throw new Error("That isn't a URL. Include https://."); }
-    const demo = { "127.0.0.1:9001": "crm", "127.0.0.1:9002": "billing", "127.0.0.1:9003": "support", "127.0.0.1:9004": "legacy" }[u.host];
-    if (demo) { const d = demoWorld().apis.find((x) => x.id === demo); if (!md.into && api(demo)) throw new Error(`${demo} is already here. Open it and use Import to update it.`); return finishImport({ ...md, name: md.name || demo }, { reqs: d.requests, moved: [], base: `http://${u.host}`, kind: d.kind, title: d.title }, md.value); }
-    if (/petstore/.test(u.host)) return finishImport(md, { reqs: PETSTORE.map(([f, id, M, p]) => R(id, f, M, p, ["GET"].includes(M) ? "read" : "write", {})), moved: [], base: "https://petstore3.swagger.io/api/v3", kind: "OpenAPI 3.0.4", title: "Swagger Petstore - OpenAPI 3.0", host: "petstore" }, u.host === "petstore3.swagger.io" && u.pathname.endsWith(".json") ? md.value : `${md.value} → /api/v3/openapi.json`);
-    throw new Error(md.src === "swagger" ? "This mockup can't reach the network. Try https://petstore3.swagger.io/ or a demo URL like http://127.0.0.1:9002/." : "This mockup can't reach the network. Try https://petstore3.swagger.io/api/v3/openapi.json, or choose a JSON file.");
-  } catch (e) { md.error = e.message; renderModal(); }
-}
-
 function token() { const a = "abcdefghijkmnpqrstuvwxyz23456789"; let s = "mcpd_"; const r = crypto.getRandomValues(new Uint8Array(32)); for (const b of r) s += a[b % a.length]; return s; }
 function connectModal(md) {
   const c = CLIENTS[md.client];
@@ -1183,7 +1237,7 @@ function paletteItems() {
   S.toolkits.forEach((k) => it.push(["Toolkit", k.id, "#toolkit-" + k.id]));
   S.tools.forEach((t) => it.push(["Tool", t.id, (t.status === "pending" ? "#review-" : "#tool-") + t.id]));
   S.agents.forEach((a) => it.push(["Agent", a.name, "#agent-" + a.id]));
-  it.push(["Action", "Switch theme", "act:theme"]);
+  it.push(["Action", "Switch theme", "act:theme"], ["Go to", "About", "#about"], ["Action", S.demo ? "Leave the demo world" : "Open the demo world", S.demo ? "act:leaveDemo" : "act:loadDemo"]);
   return it;
 }
 function paletteModal(md) {
@@ -1213,15 +1267,42 @@ const closePop = () => $("#pop")?.remove();
 const A = {
   copy: (el) => copy(CLIP.get(el.dataset.k), el.dataset.msg),
   tab: (el) => { S.ui.tabs[el.dataset.key] = el.dataset.v; if (!el.getAttribute("href")) render(); },
-  mockstate: (el) => { const v = el.dataset.v; if (v === "demo") { S = { ...S, mode: "demo", ...demoWorld() }; } else { S = { ...S, mode: "new", ...emptyWorld() }; } S.ui = { ...S.ui, tabs: {}, open: {}, sel: {}, drafts: {}, runs: {}, filters: { agent: "", tk: "", kind: "all", session: "" } }; closeModal(); location.hash = "#home"; render(); },
+  mockstate: (el) => {
+    const used = el.dataset.v === "used";
+    Object.assign(S, used ? demoWorld() : emptyWorld(), { mode: used ? "used" : "new", demo: false, saved: null, imp: null });
+    S.ui = { ...S.ui, tabs: {}, open: {}, sel: {}, drafts: {}, runs: {}, notice: {}, setupHidden: false, filters: { agent: "", tk: "", kind: "all", session: "" } };
+    closeModal(); location.hash = "#home"; render();
+  },
+  loadDemo: () => { S.saved = Object.fromEntries(DATA_KEYS.map((k) => [k, S[k]])); Object.assign(S, demoWorld(), { demo: true }); S.ui.open = {}; S.ui.sel = {}; location.hash = "#home"; render(); toast("Opened the demo world. Your own data is untouched."); },
+  leaveDemo: () => { Object.assign(S, S.saved, { demo: false, saved: null }); S.ui.open = {}; S.ui.sel = {}; location.hash = "#home"; render(); toast("Back to your own data"); },
+  toggleTheme: () => setTheme(darkNow() ? "light" : "dark"),
+  hideSetup: () => { S.ui.setupHidden = true; render(); toast("Hidden. Everything it pointed to is in the sidebar."); },
+  dismissNotice: (el) => { delete S.ui.notice[el.dataset.api]; render(); },
   palette: () => openModal({ type: "palette", q: "", i: 0 }),
   ask: (el) => openAsk(el, el.dataset.ctx),
   closePop,
   close: (el) => { if (el.dataset.tab && S.modal?.target) S.ui.tabs["api-" + S.modal.target] = el.dataset.tab; closeModal(); render(); },
   scrim: (el, e) => { if (e.target === el) closeModal(); },
-  addApi: (el) => openModal({ type: "addApi", step: 1, src: el.dataset.into ? "openapi" : "swagger", into: el.dataset.into || null }),
-  impSrc: (el) => { S.modal.value = $("#imp-text")?.value || ""; S.modal.name = $("#imp-name")?.value || S.modal.name; S.modal.src = el.dataset.v; S.modal.error = null; renderModal(); },
-  doImport,
+  addApi: (el) => { location.hash = el.dataset.into ? "#import-" + el.dataset.into : "#add-api"; },
+  impSrc: (el) => { Object.assign(S.imp, { src: el.dataset.v, parsed: null, parseError: null, error: null, found: null, url: "", fileName: null, envFileName: null, envFile: null }); render(); },
+  impLoad: () => { const st = S.imp; st.url = $("#imp-url").value.trim(); st.error = st.found = null; try { const r = loadUrl(st); setParsed(st, r.parsed); st.found = r.found; st.from = st.url; } catch (e) { st.error = e.message; st.parsed = null; } render(); },
+  impFile: (el) => readFile(el, (txt, name) => { const st = S.imp; st.fileName = name; st.error = st.found = null; try { setParsed(st, parseSpec(txt)); st.found = `Read ${name}: ${st.parsed.kind}${st.parsed.title ? `, "${st.parsed.title}"` : ""}.`; st.from = name; } catch (e) { st.error = e.message; st.parsed = null; } render(); }),
+  impEnvFile: (el) => readFile(el, (txt, name) => { const st = S.imp; try { const j = JSON.parse(txt); if (!Array.isArray(j.values)) throw new Error(); st.envFileName = name; st.envFile = { name: j.name || "Imported", vars: j.values.map((v) => [v.key, v.value, v.type === "secret" || /token|key|secret|password|auth/i.test(v.key)]) }; if (st.parsed) { st.parsed.envName = st.envFile.name; st.parsed.envVars = st.envFile.vars; } st.error = null; } catch { st.error = "That file isn't a Postman environment export."; } render(); }),
+  impSel: (el) => { keepImpFields(); const sel = S.imp.sel, i = +el.dataset.i; if (el.checked) sel.add(i); else sel.delete(i); $("#imp-prev").innerHTML = previewHtml(S.imp); },
+  impAll: (el) => { keepImpFields(); const st = S.imp; st.sel = new Set(el.checked ? st.parsed.reqs.map((_, i) => i) : []); $("#imp-prev").innerHTML = previewHtml(st); },
+  impGo: () => finishImport(),
+  impBlank: () => {
+    const st = S.imp; st.name = $("#imp-name").value.trim(); st.url = $("#imp-url").value.trim(); st.auth = $("#imp-auth").value; st.error = null;
+    let host = null; try { host = new URL(st.url).host; } catch {}
+    if (!/^[a-z][a-z0-9_]*$/.test(st.name)) st.error = "Name the API with lowercase letters, digits and _, like erp. Tools use the name in code.";
+    else if (api(st.name)) st.error = `There's already an API named ${st.name}.`;
+    else if (!host) st.error = "Enter the base URL, like https://erp.internal.example/api.";
+    if (st.error) return render();
+    S.apis.push({ id: st.name, title: st.name, kind: "by hand", from: "by hand", authType: st.auth, envs: ["Local"], vars: [["baseUrl", st.url, "", "text"]], creds: {}, hosts: [host], scripts: null, requests: [] });
+    S.ui.notice[st.name] = { n: 0, from: "by hand", moved: [], added: true };
+    S.audit.unshift(["now", "you", "Added API", st.name, "by hand"]);
+    const id = st.name; S.imp = null; location.hash = "#api-" + id;
+  },
   newRequest: (el) => { const a = api(el.dataset.api); let n = 1; while (a.requests.some((r) => r.id === "newRequest" + n)) n++; const r = R("newRequest" + n, "requests", "GET", "/", "read", {}); a.requests.push(r); (S.ui.open[a.id] ||= []).push(r.id); S.ui.sel[a.id] = r.id; S.ui.tabs["api-" + a.id] = "requests"; S.ui.tabs["tree-" + a.id] = "requests"; render(); toast(`Added ${r.id}. Set its method and URL, then Send.`); },
   openReq: (el) => { const o = (S.ui.open[el.dataset.api] ||= []); if (!o.includes(el.dataset.id)) o.push(el.dataset.id); S.ui.sel[el.dataset.api] = el.dataset.id; render(); },
   closeReq: (el, e) => { e.stopPropagation(); const o = S.ui.open[el.dataset.api]; o.splice(o.indexOf(el.dataset.id), 1); render(); },
@@ -1373,32 +1454,39 @@ function render() {
   $$("#mock-state button").forEach((b) => b.classList.toggle("on", b.dataset.v === S.mode));
   const fn = PAGES[page] || PAGES.home;
   const y = window.scrollY;
-  $("#main").innerHTML = fn(id);
+  const demoBar = S.demo ? `<div class="demobar">${ic("flask", 18)}<span class="grow"><b>Demo world.</b> Mock APIs on this computer, kept apart from your own APIs, toolkits and agents.</span><button type="button" class="btn light sm" data-a="leaveDemo">Leave demo</button></div>` : "";
+  $("#main").innerHTML = demoBar + fn(id);
   window.scrollTo(0, y);
   mountEditor();
-  document.title = `${page === "home" || !PAGES[page] ? "mcpDeck UI Mockups" : (id || page[0].toUpperCase() + page.slice(1)) + " · mcpDeck UI Mockups"}`;
+  document.title = page === "home" || !PAGES[page] ? "mcpDeck UI Mockups" : `${page === "add" ? "Add an API" : id || page[0].toUpperCase() + page.slice(1)} · mcpDeck UI Mockups`;
 }
 function route(scrollTop = true) {
   closePop();
-  if (scrollTop) { const h = location.hash; if (h === "#activity") S.ui.tabs.activity = "calls"; if (h === "#toolkits") S.ui.tabs.toolkits = "kits"; }
+  if (scrollTop) { const h = location.hash; if (h === "#activity") S.ui.tabs.activity = "calls"; if (h === "#toolkits") S.ui.tabs.toolkits = "kits"; if (h.startsWith("#add-") || h.startsWith("#import-")) S.imp = null; }
   render(); if (scrollTop) window.scrollTo(0, 0); }
 window.addEventListener("hashchange", () => route(true));
 document.addEventListener("click", (e) => {
   if (!e.target.closest("#pop") && !e.target.closest("[data-a=ask]")) closePop();
   const el = e.target.closest("[data-a]");
   const go = e.target.closest("[data-go]");
-  if (el && A[el.dataset.a] && el.tagName !== "SELECT" && el.type !== "checkbox") { A[el.dataset.a](el, e); return; }
+  if (el && A[el.dataset.a] && el.tagName !== "SELECT" && el.type !== "checkbox" && el.type !== "file") { A[el.dataset.a](el, e); return; }
   if (go && !e.target.closest("a,button,input,select,label")) location.hash = go.dataset.go;
 });
 document.addEventListener("change", (e) => {
   const el = e.target.closest("[data-a]"); if (!el || !A[el.dataset.a]) return;
-  if (el.tagName === "SELECT" || el.type === "checkbox") A[el.dataset.a](el, e);
+  if (el.tagName === "SELECT" || el.type === "checkbox" || el.type === "file") A[el.dataset.a](el, e);
   if (el.dataset.a === "env") { S.ui.env[el.dataset.api] = el.value; render(); }
 });
 document.addEventListener("input", (e) => {
   const f = e.target.closest("[data-filter]");
   if (f) { const q = f.value.toLowerCase(); $$(f.dataset.filter, $("#main")).forEach((x) => (x.hidden = q && !(x.dataset.text || x.textContent).toLowerCase().includes(q))); }
-  if (e.target.id === "imp-name") { const p = $("#imp-preview"); if (p) p.textContent = (e.target.value || "billing") + ".getInvoice()"; }
+  if (e.target.id === "imp-name") { const p = $("#imp-code"); if (p) p.textContent = (e.target.value || "api") + "." + (S.imp?.parsed?.reqs[0]?.id || "request") + "()"; }
+  if (e.target.id === "imp-curl") {
+    const st = S.imp; keepImpFields(); st.url = e.target.value; st.from = "pasted curl";
+    if (!st.url.trim()) { st.parsed = null; st.parseError = null; }
+    else { try { const p = parseCurls(st.url); setParsed(st, { ...p, kind: "curl" }); } catch (err) { st.parsed = null; st.parseError = err.message; } }
+    $("#imp-prev").innerHTML = previewHtml(st);
+  }
   if (e.target.id === "tk-name") { const p = $("#tk-prev"); if (p) p.textContent = e.target.value || "support"; }
   if (e.target.id === "nt-goal") { S.modal.goal = e.target.value; const c = e.target.selectionStart; renderModal(); const t = $("#nt-goal"); t.focus(); t.setSelectionRange(c, c); }
   if (e.target.id === "pal") { S.modal.q = e.target.value; S.modal.i = 0; const c = e.target.selectionStart; renderModal(); const t = $("#pal"); t.focus(); t.setSelectionRange(c, c); }

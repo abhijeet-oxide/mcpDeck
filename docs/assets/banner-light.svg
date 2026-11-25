@@ -11,15 +11,14 @@
       <circle cx="760" cy="380" r="170" fill="#D5E3EC"/>
       <circle cx="1210" cy="400" r="150" fill="#FFDCC8"/>
     </g>
-    <g transform="translate(72 92)">
-      <rect width="72" height="72" rx="17" fill="#1D1D1F"/>
+    <svg x="72" y="92" width="72" height="72" viewBox="8 8 56 56">
       <rect x="14.6" y="19.1" width="24.8" height="33.8" rx="5" fill="#0071E3" transform="rotate(-12 27 36)"/>
-      <rect x="30.4" y="16.9" width="24.8" height="33.8" rx="5" fill="#1D1D1F" transform="rotate(9 42.8 33.8)"/>
-      <rect x="32.1" y="18.6" width="21.4" height="30.4" rx="4" fill="#FFFFFF" transform="rotate(9 42.8 33.8)"/>
-      <g transform="rotate(9 42.8 33.8)" fill="none" stroke="#1D1D1F" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M38.3 28.8l-3.6 5 3.6 5"/><path d="M47.3 28.8l3.6 5-3.6 5"/>
+      <g transform="rotate(9 42.8 33.8)">
+        <rect x="30.4" y="16.9" width="24.8" height="33.8" rx="5" fill="#1D1D1F"/>
+        <rect x="32.1" y="18.6" width="21.4" height="30.4" rx="4" fill="#FFFFFF"/>
+        <g fill="none" stroke="#1D1D1F" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M38.3 28.8l-3.6 5 3.6 5"/><path d="M47.3 28.8l3.6 5-3.6 5"/></g>
       </g>
-    </g>
+    </svg>
     <text x="164" y="146" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="54" font-weight="700" letter-spacing="-1.5" fill="#1D1D1F">mcpDeck</text>
     <text x="72" y="236" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="30" font-weight="600" letter-spacing="-.6" fill="#1D1D1F">Build MCP tools from the APIs</text>
     <text x="72" y="274" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="30" font-weight="600" letter-spacing="-.6" fill="#1D1D1F">you already have.</text>
