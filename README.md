@@ -8,7 +8,8 @@
 <br>
 
 [![License](https://img.shields.io/badge/license-Apache_2.0-1d1d1f?style=for-the-badge)](LICENSE)
-![Pre-release](https://img.shields.io/badge/status-pre--release-0071e3?style=for-the-badge)
+[![Release](https://img.shields.io/github/v/release/abhijeet-oxide/mcpDeck?include_prereleases&style=for-the-badge&color=0071e3&label=release)](https://github.com/abhijeet-oxide/mcpDeck/releases/latest)
+[![Build](https://img.shields.io/github/actions/workflow/status/abhijeet-oxide/mcpDeck/release.yml?branch=main&style=for-the-badge&label=build)](https://github.com/abhijeet-oxide/mcpDeck/actions/workflows/release.yml)
 ![Windows · macOS · Linux](https://img.shields.io/badge/Windows_·_macOS_·_Linux-1d1d1f?style=for-the-badge)
 ![MCP](https://img.shields.io/badge/MCP-HTTP_·_stdio-1d1d1f?style=for-the-badge)
 
@@ -19,7 +20,7 @@
 <br>
 
 > [!NOTE]
-> mcpDeck is pre-release. This page describes what the first release does; follow the repo for it.
+> mcpDeck is early: releases are `0.x` and ship on every change to `main`, so expect changes between versions.
 
 ## Why
 
@@ -238,22 +239,44 @@ access, and improving tools from real usage. See the
 
 ## Install
 
-```sh
-# macOS
-brew install --cask abhijeet-oxide/tap/mcpdeck
+**Windows** (PowerShell, no admin needed):
 
-# Windows
-scoop bucket add mcpdeck https://github.com/abhijeet-oxide/scoop-bucket
-scoop install mcpdeck
+```powershell
+irm https://github.com/abhijeet-oxide/mcpDeck/releases/latest/download/install.ps1 | iex
 ```
 
-Linux, or no package manager: download the archive for your platform from
-[Releases](https://github.com/abhijeet-oxide/mcpDeck/releases). Then run
-`mcpdeck`; the UI opens at `http://127.0.0.1:47800`.
+**macOS and Linux**:
 
-To look around first, `mcpdeck dev` starts a demo world (CRM, billing,
-ticketing and a legacy service with a cookie login) in throwaway data, with
-tools, agents and calls already in it. From source:
+```sh
+curl -fsSL https://github.com/abhijeet-oxide/mcpDeck/releases/latest/download/install.sh | sh
+```
+
+Both check the download against the release checksums, install one file for
+your user and put `mcpdeck` on your `PATH`. Set `MCPDECK_VERSION=v0.1.0` to
+pin a version or `MCPDECK_INSTALL_DIR` to choose the folder.
+
+**Just the binary.** Every release has a file you can download and run, at a
+URL that always points at the latest version:
+
+```sh
+# Windows: download, then double-click it
+curl.exe -LO https://github.com/abhijeet-oxide/mcpDeck/releases/latest/download/mcpdeck_windows_amd64.exe
+
+# Linux (wget or curl); macOS: mcpdeck_darwin_arm64
+wget -O mcpdeck https://github.com/abhijeet-oxide/mcpDeck/releases/latest/download/mcpdeck_linux_amd64
+chmod +x mcpdeck && ./mcpdeck
+```
+
+Names are `mcpdeck_<os>_<arch>` for `windows`, `darwin`, `linux` and `amd64`,
+`arm64`, with `.zip` / `.tar.gz` archives beside them on
+[Releases](https://github.com/abhijeet-oxide/mcpDeck/releases). Releases
+aren't code-signed yet, so Windows SmartScreen may ask you to confirm (More
+info › Run anyway).
+
+Then run `mcpdeck`; the UI opens at `http://127.0.0.1:47800`. To look around
+first, `mcpdeck dev` starts a demo world (CRM, billing, ticketing and a legacy
+service with a cookie login) in throwaway data, with tools, agents and calls
+already in it. From source:
 
 ```sh
 make build && ./bin/mcpdeck dev

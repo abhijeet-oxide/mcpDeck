@@ -36,7 +36,11 @@ web/             React + Vite UI, embedded into the binary
 skills/          optional files `mcpdeck connect` installs into Claude / Copilot / Cursor
 examples/        demo world and sample imports
 e2e/             Playwright + MCP client tests against a running binary
-docs/            vision, requirements, design, testing, mockups, screenshots
+docs/            vision, requirements, design, testing, releasing, mockups
+scripts/         install.sh / install.ps1, shipped with every release
+tools/           release tooling: nextversion, checkdist (not in the binary)
+site/            the GitHub Pages site (abhijeet-oxide.github.io/mcpDeck)
+.github/         CI, release, security and Pages workflows
 ```
 
 ## Commands
@@ -68,6 +72,30 @@ Run `make test` and `make lint` before you say a change is done.
    unrelated code.
 5. **Say what you didn't do.** If you skipped a test, couldn't run something, or
    left a TODO, say so plainly in your summary.
+
+## Operating the repo
+
+Agents own this repo end to end: code, CI, releases, security and docs. The
+maintainer sets requirements; everything after that is ours, including
+noticing what's broken and fixing it without being asked.
+
+- **Releases are automatic** (NFR-8, [docs/releasing.md](docs/releasing.md)).
+  Merging to `main` runs CI, then tags and publishes if any commit since the
+  last tag is `feat`, `fix`, `perf` or breaking. **The commit type is the
+  release decision**: use `feat`/`fix` only for changes users can see, and
+  make PR titles conventional too (squash merges use them).
+- **CI is the gate, and it must be green before you say done.** After pushing
+  a PR, subscribe to its activity and fix failures yourself. A red check
+  you didn't cause still gets fixed or reported, never ignored.
+- **Workflow changes:** run `actionlint` (CI does too). Workflows use the
+  latest Go patch (`GO_VERSION: 1.26.x`) because patches carry stdlib security
+  fixes; bump the minor in go.mod and the workflows together.
+- **Security:** CodeQL, govulncheck (source and the shipped binary),
+  dependency review and Scorecard run in CI. A new advisory is a `fix:` PR,
+  which ships a patch release on merge.
+- **Dependabot PRs:** check the changelog for breaking changes, let CI run,
+  and recommend merging or say what blocks it.
+- Use the `ship` skill for the PR → CI → release loop.
 
 ## Invariants (never break these)
 
@@ -133,6 +161,7 @@ If a task seems to need breaking one of these, stop and ask.
 ## Commits and PRs
 
 - Conventional commits: `feat(proxy): block write methods for read grants`.
+  The type decides the release (see Operating the repo).
 - Reference requirement IDs in the body.
 - PR description: what changed, why, how it was tested (commands and results).
 - Never commit secrets, `.env` files, `.mcpdeck/` data or real API responses.

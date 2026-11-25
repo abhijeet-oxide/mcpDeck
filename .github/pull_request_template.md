@@ -1,3 +1,6 @@
+<!-- Title: a conventional commit, e.g. `feat(proxy): block write methods for read grants`.
+     feat/fix/perf release on merge; docs/ci/test/chore/build/refactor don't. -->
+
 ## What and why
 
 <!-- One or two sentences. -->

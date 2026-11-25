@@ -1,0 +1,60 @@
+name: pages
+
+# Publishes site/ to https://abhijeet-oxide.github.io/mcpDeck/ with the README
+# art and the install scripts. Needs Settings › Pages › Source: GitHub Actions
+# (one-time); until then the deploy is skipped with a notice, not a failure.
+on:
+  push:
+    branches: [main]
+    paths: [site/**, docs/assets/**, scripts/install.*, .github/workflows/pages.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${GITHUB_REPOSITORY}/pages" --jq .build_type 2>/dev/null | grep -qx workflow; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::GitHub Pages is not set to 'GitHub Actions' in Settings › Pages; skipping deploy."
+          fi
+      - name: assemble
+        run: |
+          mkdir -p _site/assets
+          cp -r site/. _site/
+          cp -r docs/assets/. _site/assets/
+          rm -f _site/assets/*.mjs
+          cp scripts/install.sh scripts/install.ps1 _site/
+      - uses: actions/upload-pages-artifact@v5
+        if: steps.check.outputs.enabled == 'true'
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5
