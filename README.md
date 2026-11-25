@@ -1,54 +1,148 @@
 <div align="center">
 
-<img src="docs/assets/logo.svg" width="72" height="72" alt="">
+<img src="docs/assets/logo.svg" width="80" height="80" alt="">
 
 # mcpDeck
 
-**Turn any API, old ones included, into small, safe tools for your AI agents.**
-
-One program on your laptop. Bring the APIs you already call from Postman or curl,<br>
-write a tool in a few lines of TypeScript, and add it to Claude Code, VS Code or Cursor.
+### Build MCP tools from the APIs you already have. Control what every agent can do.
 
 [![License](https://img.shields.io/badge/license-Apache_2.0-1d1d1f?style=flat-square)](LICENSE)
-![Status](https://img.shields.io/badge/status-design_phase-0071e3?style=flat-square)
+![Pre-release](https://img.shields.io/badge/status-pre--release-0071e3?style=flat-square)
 ![Single binary](https://img.shields.io/badge/single_binary-Windows_·_macOS_·_Linux-1d1d1f?style=flat-square)
-![MCP](https://img.shields.io/badge/MCP-Streamable_HTTP-1d1d1f?style=flat-square)
+![MCP](https://img.shields.io/badge/MCP-Streamable_HTTP_·_stdio-1d1d1f?style=flat-square)
 
-[The problem](#the-problem) · [What it does](#what-mcpdeck-does) · [How it fits together](#how-it-fits-together) · [Status](#status) · [Docs](docs/)
-
-</div>
+[Why](#why) · [Features](#features) · [How it works](#how-it-works) · [Install](#install) · [Roadmap](#roadmap) · [Docs](docs/)
 
 <br>
 
-## The problem
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/how-it-works-dark.svg">
+  <img src="docs/assets/how-it-works-light.svg" width="100%" alt="Your systems are imported into mcpDeck as APIs. Tools are TypeScript functions over those APIs. Toolkits group tools, and each toolkit is an MCP server that Claude Code, VS Code, Cursor or Claude Desktop connects to. Every call goes out through one proxy that blocks writes for read-only agents, adds keys and records the call. Recorded calls feed suggestions that improve the tools.">
+</picture>
 
-You ask your agent a simple question about a customer. The answer is spread
-across Salesforce, a billing service someone wrote in 2014, and Jira.
+</div>
 
-So the agent reads docs, guesses endpoints, and asks you for an API key, which
-now sits in an env var it can print. It makes a dozen calls, scrolls through
-thousands of lines of JSON to find four fields, and gets there in the end.
-Tomorrow it does all of that again, a little differently. Nobody can say
-exactly what it ran.
+## Why
 
-The usual fix is an MCP server. Someone writes one for Salesforce, maybe Jira.
-Nobody writes one for the billing service. Each change to a description or a
-field means a code change and a redeploy. And whichever agent connects gets
-every tool, including the ones that delete things.
+- **Building MCP servers is slow.** Every tool is code. A changed description,
+  a new field or a fixed bug means another build and another deploy.
+- **Legacy systems don't have MCP servers.** Internal services, vendor APIs and
+  SOAP endpoints have a spec at best, often just a Postman collection or a
+  curl command. Nobody writes and maintains a server for each one.
+- **Generated servers are rarely good tools.** OpenAPI-to-MCP generators
+  (FastMCP, Stainless, Speakeasy, Postman's MCP generator) are a quick start,
+  but by default you get one tool per endpoint and full responses, the agent
+  needs several calls for one answer, and every change is a regenerate and
+  redeploy. Without a spec, there's nothing to generate from.
+- **Integration platforms stop at their catalog.** Zapier MCP, Composio and
+  Arcade cover popular SaaS apps well. Your internal and legacy systems aren't
+  in the catalog, and adding them means writing integration code.
+- **Gateways need a server to start with.** MCP gateways (Docker MCP Gateway,
+  Kong) route and secure MCP servers you already have. They don't create tools
+  for systems that have none.
+- **Letting the agent write code doesn't stick.** It works, then the code is
+  gone. Next session it's written again, a little differently, nobody reviews
+  it, and the keys sit in its environment.
+- **There's no one place to control agents.** Every agent gets the same
+  credentials and every tool, including the ones that delete things, and
+  nobody can say which agent did what.
 
-## What mcpDeck does
+## What mcpDeck is
 
-You do the part you already know: send requests, look at responses. mcpDeck
-turns what works into a tool your agents can call in one step, gives each
-agent only the tools you choose, and keeps your keys to itself.
+mcpDeck makes it easy to build MCP tools from any HTTP API, and to keep them
+small and fast based on how agents actually use them. It's also the one place
+that holds the credentials and decides what each agent can do: which tools,
+read-only or read and write, all recorded.
 
-**1. Bring your APIs.** Paste a Swagger page URL, drop in an OpenAPI file or a
-Postman collection, or paste curl. It looks and works like Postman:
-collections, environments, `{{variables}}`, auth, Send. Old systems are fine:
-XML, form posts, and logins that hand you a cookie.
+One binary, on Windows, macOS or Linux. Your data stays on your machine.
 
-**2. Write the tool.** A tool is a short TypeScript function. Every API you
-added shows up with autocomplete, down to the response fields.
+## Features
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+#### Bring any API
+Import a Swagger page, an OpenAPI file, a Postman collection or curl, or add
+requests by hand. It works like Postman: environments, `{{variables}}`, auth,
+Send. XML bodies, form posts and cookie logins work for older systems.
+
+</td>
+<td width="50%" valign="top">
+
+#### Tools in a few lines of TypeScript
+Chain requests across systems, run them in parallel, return only what the
+agent needs. Every API you add has autocomplete, down to response fields.
+Fill known values like tenant or region from variables instead of asking the
+model.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+#### Change it in seconds
+Test against a real or saved response, save, and it's live as a new version.
+Nothing to build or deploy. Agents pinned to an older version keep working.
+
+</td>
+<td valign="top">
+
+#### One MCP server per toolkit
+Group tools into toolkits. Each is its own MCP server, added to Claude Code,
+VS Code, Cursor or Claude Desktop from the UI or with one command. An agent
+sees only the toolkits it's given.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+#### Central credentials, separate agents
+Keys are stored once, encrypted, and added to requests on the way out. Agents
+share them without ever holding them, while access and history stay separate
+per agent. Revoke an agent in one click.
+
+</td>
+<td valign="top">
+
+#### Read-only means read-only
+Give an agent read access and the proxy refuses POST, PUT, PATCH and DELETE,
+whatever a tool tries to do. Tools that write aren't even listed for it.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+#### Agents build, and share
+An agent missing a tool can ask for one, or build it if you allow that. New
+tools go live when they pass your approval rules (read-only, tested, small
+output), and every agent using that toolkit gets them. Tools that write
+always wait for you.
+
+</td>
+<td valign="top">
+
+#### Every call recorded, then improved
+Which agent called which tool, when, with what input, how long it took and
+how many tokens it returned. mcpDeck turns that into suggestions, using plain
+rules: merge calls that always happen together, trim large outputs, run
+independent calls in parallel.
+
+</td>
+</tr>
+</table>
+
+## How it works
+
+**1. Add an API.** Point mcpDeck at a Swagger page, or import a file:
+
+```sh
+mcpdeck import https://petstore3.swagger.io/api/v3/openapi.json
+```
+
+**2. Write a tool.** One file. `crm`, `billing` and `jira` are APIs you've added:
 
 ```ts
 export const tool = {
@@ -72,99 +166,88 @@ export default async function (input: Input) {
 }
 ```
 
-Three systems, one call for the agent, and only the fields it needs. The key
-for each system is added on the way out; this code never sees it.
+Three systems, one call for the agent. The keys are added by mcpDeck; this
+code never sees them.
 
-**3. Add it to your agent.** Put tools in a toolkit and click **Add to Claude
-Code** (or VS Code, Cursor, Claude Desktop). Each toolkit is its own MCP
-server, so a support agent sees support tools and nothing else.
+**3. Give it to an agent.**
 
-Then watch it work. Every call is recorded: which agent, which tool, when, how
-long, how many tokens. mcpDeck reads those calls and tells you what to fix,
-with plain rules and no LLM: *these three calls always happen together, make
-them one tool. This tool returns fields nobody uses. These two calls could run
-in parallel.*
+```sh
+mcpdeck connect claude --toolkit support        # or: vscode, cursor, claude-desktop
+```
 
-## Why it's built this way
+The agent gets read access by default. Give it read and write, or let it
+build tools, from the Agents page.
 
-|  |  |
-|---|---|
-| **Any system, including legacy** | If Postman or curl can call it, an agent can use it. No MCP server to write per system. |
-| **Change in seconds** | Edit, test against a real or saved response, save. It's live now as a new version, and agents pinned to the old one keep working. |
-| **Nothing new to learn** | Postman-style collections, TypeScript, JSON Schema, MCP. People know them, and so do agents, so an agent can build a tool here without extra instructions. |
-| **Fewer calls, fewer tokens** | Chain calls, run them in parallel, return only what matters, and fill known values like tenant or region from variables instead of asking the model. |
-| **Each agent gets only what it needs** | One MCP server per toolkit. Read-only agents can't send POST or DELETE: the proxy blocks it, whatever the tool says. Revoke with one click. |
-| **Keys stay put** | Credentials are encrypted, with the key in your OS keychain. Agents and tool code never see them. |
-| **Agents can fill the gaps** | Inside your limits an agent can try your APIs and save a tool. Read-only tools with passing tests go live; anything that writes waits for you. |
+## Install
 
-## How it fits together
+> [!NOTE]
+> mcpDeck is pre-release. These commands work from the first release.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/how-it-works-dark.svg">
-  <img src="docs/assets/how-it-works-light.svg" width="100%" alt="Your systems are imported into mcpDeck as APIs. Tools are TypeScript functions over those APIs. Toolkits group tools, and each toolkit is an MCP server that Claude Code, VS Code, Cursor or Claude Desktop connects to. Every call goes out through one proxy that blocks writes for read-only agents, adds keys and records the call. Recorded calls feed suggestions that improve the tools.">
-</picture>
+```sh
+# macOS, Linux
+brew install abhijeet-oxide/tap/mcpdeck
 
-**API** is one system you call, like the Jira API. A **request** is one saved
-call to it. A **tool** is what an agent calls. A **toolkit** is a set of tools
-an agent adds as one MCP server. More in [docs/vision.md](docs/vision.md#words-we-use).
+# Windows
+scoop bucket add mcpdeck https://github.com/abhijeet-oxide/scoop-bucket
+scoop install mcpdeck
+```
 
-## Dev now, prod later
+Or download the binary for your platform from
+[Releases](https://github.com/abhijeet-oxide/mcpDeck/releases). Then:
 
-The same binary does both.
+```sh
+mcpdeck          # starts and opens http://127.0.0.1:47800
+mcpdeck dev      # same, with demo APIs to try it on
+```
 
-| | **Dev** (what we're building now) | **Prod** (later) |
-|---|---|---|
-| Runs as | One file on your laptop. Double-click and the UI opens. | A service for your team |
-| Data | SQLite | Postgres |
-| Secrets | Encrypted, key in your OS keychain | HashiCorp Vault, AWS, Azure, GCP, 1Password |
-| People | You | SSO, roles, approvals |
-| Building tools | Code editor | Code editor and a visual builder |
+## Security
 
-## What it protects, and what it doesn't
+- Agents connected over MCP never receive credentials. Tool code can't read
+  them either.
+- Secrets are encrypted with AES-256-GCM. The key lives in your OS keychain
+  (Windows Credential Manager, macOS Keychain, Secret Service), not in the
+  database.
+- The server listens on `127.0.0.1` only and refuses requests from web pages.
+- Every change and approval goes into an append-only audit log.
 
-Agents connected over MCP never get your keys, and the database file is useless
-without the key in your keychain. The local server only answers on
-`127.0.0.1` and refuses requests from web pages.
+mcpDeck controls what agents can do through MCP. It doesn't sandbox the agent
+itself: a program running as you on the same machine can use your keychain
+or call an API directly.
 
-It can't stop a program running as you on the same machine, including an agent
-with a shell, from using your keychain or calling an API directly. mcpDeck
-controls what agents get through MCP. It isn't a sandbox for the agent itself.
+## Roadmap
 
-## Status
+**First release: on your machine**
+- APIs: Swagger page, OpenAPI, Postman and curl import; environments,
+  variables, auth (including login requests); runner, history, examples
+- Encrypted credential store
+- TypeScript tools with autocomplete, tests and versions; tools as files
+- Toolkits as MCP servers; one-step setup for Claude Code, VS Code, Cursor,
+  Claude Desktop
+- Agents with read or read+write access, building permission and revoke
+- Tool requests, approval rules, publishing to every agent in a toolkit
+- Call log, usage and suggestions
 
-**Design phase. There's nothing to download yet.** The plan, requirements and
-architecture are written down, and code lands milestone by milestone:
+**After that: for teams**
+- Server mode with Postgres, SSO and roles
+- External vaults: HashiCorp Vault, AWS, Azure, GCP, 1Password
+- Visual tool builder
+- Per-person credentials, so calls run as the person behind the agent
+- More imports: WSDL, HAR, Bruno, Insomnia
+- Existing MCP servers behind the same access rules and call log
 
-1. Walking skeleton: one binary, the UI, one request, one tool, one toolkit, added to Claude Code, the call recorded
-2. APIs: imports, environments, variables, auth, runner, scripts, examples
-3. Credentials: the local encrypted store
-4. Tools: editor with autocomplete, sandbox, tests, versions, tools as files
-5. Toolkits and MCP: one server per toolkit, one-click add, access, agent-built tools
-6. Calls and usage
-7. Suggestions
+## Docs
 
-<details>
-<summary>Early design mockups (some labels have changed since)</summary>
-<br>
-
-| | |
-|---|---|
-| <img src="docs/screenshots/home.png" alt="Home"> | <img src="docs/screenshots/application.png" alt="An API with its requests"> |
-| <img src="docs/screenshots/tool-builder.png" alt="A tool with versions"> | <img src="docs/screenshots/agent-sessions.png" alt="An agent's sessions and calls"> |
-
-</details>
-
-Read [requirements](docs/requirements.md) for what's being built and
-[design](docs/design.md) for how.
+[Vision](docs/vision.md) · [Requirements](docs/requirements.md) ·
+[Design](docs/design.md) · [Testing](docs/testing.md)
 
 ## Contributing
 
 We work test-first. Start with [`AGENTS.md`](AGENTS.md), which Claude Code,
-Copilot and Cursor also read, and [`docs/testing.md`](docs/testing.md).
+Copilot and Cursor also read.
 
 ```sh
 make dev     # Go backend + React UI with hot reload
-make test    # everything
+make test    # all tests
 make build   # one binary: ./bin/mcpdeck
 ```
 

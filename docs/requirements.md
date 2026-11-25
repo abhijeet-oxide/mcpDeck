@@ -29,7 +29,7 @@ early. Later milestones make each part complete.
 | **M2** | APIs | Postman-style collections: imports, environments, variables, auth, runner, history, examples, scripts |
 | **M3** | Credentials | Local encrypted store with the key in the OS keychain |
 | **M4** | Code tools | TypeScript editor with autocomplete, sandbox, tests, versions, tools as files |
-| **M5** | Toolkits and MCP | One endpoint per toolkit, connections, one-click add to clients, access rules, agent-built tools |
+| **M5** | Toolkits, agents and access | One endpoint per toolkit, agents and grants, one-click add to clients, approval rules, agent-built tools |
 | **M6** | Calls and usage | Who called what and when, time, bytes, tokens; usage views; audit log |
 | **M7** | Suggestions | Rule-based suggestions from usage, no LLM, with before/after |
 
@@ -47,9 +47,11 @@ Windows runner.
 clicking `mcpdeck.exe`) starts the server and opens the UI in the default
 browser. A second launch opens the browser on the running instance instead of
 starting another. `mcpdeck serve --no-open` starts without a browser.
+On Windows, a double-click opens a console window that shows the URL and
+says that closing it stops mcpDeck. `mcpdeck stop` stops a running instance.
 *Accept:* second launch exits 0 within 1 s and the first instance keeps running.
 
-**RUN-3 Local data.** All settings, APIs, tools, connections and calls
+**RUN-3 Local data.** All settings, APIs, tools, agents and calls
 live in one SQLite database in the user data folder: `%LOCALAPPDATA%\mcpDeck`
 on Windows, `~/Library/Application Support/mcpDeck` on macOS,
 `$XDG_DATA_HOME/mcpdeck` on Linux. `--data <dir>` overrides it. No other state
@@ -69,7 +71,7 @@ other machines:
 - the UI API requires a session cookie (`HttpOnly`, `SameSite=Strict`) issued
   through a one-time launch URL opened by RUN-2, and rejects cross-origin
   `Origin` headers; no CORS headers are ever sent;
-- MCP endpoints require a connection token and reject browser `Origin` headers
+- MCP endpoints require an agent token and reject browser `Origin` headers
   that aren't local.
 *Accept:* table test of Host × Origin × cookie × token for every route group;
 a page on another origin can't read or change anything.
@@ -77,6 +79,24 @@ a page on another origin can't read or change anything.
 **RUN-6 Everything has an API.** Every UI action is an HTTP API call described
 in the server's OpenAPI document. The CLI uses the same API. Agents can do
 anything a person can, except what ACC-6 forbids.
+
+**CLI-1 Commands.** The CLI covers the everyday flows, each a thin client of
+the HTTP API (RUN-6):
+
+| Command | Does |
+|---|---|
+| `mcpdeck` | Start and open the UI (RUN-2) |
+| `mcpdeck stop` | Stop the running instance |
+| `mcpdeck import <url-or-file> [--api <name>]` | Import a Swagger page, OpenAPI, Postman collection or curl file (IMP-1…4) |
+| `mcpdeck connect <client> --toolkit <name>` | Add a toolkit to a client: `claude`, `vscode`, `cursor` or `claude-desktop` (AGT-3) |
+| `mcpdeck agents [revoke <name>]` | List or revoke agents (AGT-4) |
+| `mcpdeck pull` / `push` | Tools as files (FILE-1) |
+| `mcpdeck stdio --toolkit <name>` | stdio bridge (TK-2) |
+| `mcpdeck dev` | Dev mode with the demo world (MOCK-4) |
+| `mcpdeck version` | Version and build info |
+
+Every command has `--help` with an example, and `--json` output where it
+lists things.
 
 **RUN-7 Settings.** Settings has: port, data folder (read-only), theme,
 default timeouts, retention, keychain status, and a "Reveal data folder"
@@ -98,7 +118,7 @@ are refused with `host_not_allowed` and recorded.
 
 **ENV-1 Environments.** An API has environments (e.g. Local, Dev,
 Staging), each a set of variables. One is active in the UI; each toolkit
-connection picks one (CON-1).
+agent's grant picks one (AGT-2).
 
 **VAR-1 Variables.** `{{name}}` works in URL, params, headers, body and auth,
 with Postman's scopes and order: request-local → environment → API →
@@ -271,11 +291,11 @@ exactly what the agent gets.
   `{ path, query, headers, body }` or flat params when unambiguous. Returns
   the parsed body; non-2xx throws an `ApiError` with status and body.
 - `call(app, "METHOD /path", args)` for anything without a named request.
-- `vars.<name>`: toolkit and connection variables (TOOL-9). Secrets read as
+- `vars.<name>`: toolkit and grant variables (TOOL-9). Secrets read as
   `"[secret]"`.
 - `console.log`, `console.error`: shown in test output and recorded.
 - `pm.test`, `pm.expect` in tool test files (TOOL-8).
-All network goes through the proxy with the connection's grants.
+All network goes through the proxy with the agent's grant.
 
 **TOOL-3 Code editor.** The editor is Monaco (the VS Code editor) with the
 TypeScript language service:
@@ -315,10 +335,10 @@ dev tools.
 `pm.test` / `pm.expect` on the output. They can be created from a test run or
 a recorded call ("Save as test"). Saving runs them against examples.
 
-**TOOL-9 Bound inputs.** A toolkit and a connection MAY define variables
+**TOOL-9 Bound inputs.** A toolkit and an agent's grant MAY define variables
 (VAR-2 sources) that tools read as `vars.<name>`. They are not part of the
 input schema, so the agent never sees or supplies them.
-*Accept:* `vars.tenantId` set on a connection is used in the call and does
+*Accept:* `vars.tenantId` set on a grant is used in the call and does
 not appear in `tools/list`.
 
 **TOOL-10 Create from requests.** In the runner or History, select one or more
@@ -330,12 +350,12 @@ per request, values that flow from one response into a later request wired up
 **VER-1 Versions are immutable.** Saving creates version N+1. A version never
 changes after creation.
 
-**VER-2 Pinning.** A connection gets each tool at `latest` or a pinned
-version. Pinned connections keep getting it after newer saves.
+**VER-2 Pinning.** A grant gets each tool at `latest` or a pinned
+version. Pinned grants keep getting it after newer saves.
 
 **VER-3 Breaking change check.** On save, compare input schema and output shape
 (from tests and recent calls) with the previous version and flag breaking
-changes; connections on `latest` move only when non-breaking or confirmed.
+changes; grants on `latest` move only when non-breaking or confirmed.
 
 **VER-4 Diff and roll back.** Any two versions can be diffed side by side, like
 a code review. "Roll back" creates a new version equal to an older one.
@@ -347,111 +367,165 @@ tools. `mcpdeck push <dir>` saves changed files as new versions, runs tests,
 and prints a diff summary. Same file format as TOOL-1.
 *Accept:* pull → edit → `tsc --noEmit` passes → push creates a version.
 
-## Toolkits and MCP (M5)
+## Toolkits, agents and access (M5)
 
-**TK-1 Toolkits.** A toolkit is a named set of tools. Its tools can use
-requests from any API. A toolkit has variables (TOOL-9), a default
-environment per API, and a "can build tools" switch for its
-connections (MCP-3).
+**TOOL-11 Tool library.** Tools live in one library. A toolkit lists tools
+from it, and a tool can be in more than one toolkit: same tool, same
+versions. Removing a tool from a toolkit doesn't delete it.
+
+**TK-1 Toolkits.** A toolkit is a named set of tools from the library. It
+also has: variables (TOOL-9), a default environment per API, a build scope
+(TK-4) and approval rules (AB-2).
 
 **TK-2 One endpoint per toolkit.** Each toolkit is its own MCP server at
 `/mcp/<toolkit>`, Streamable HTTP. `mcpdeck stdio --toolkit <name>` bridges
-it for clients that only speak stdio. An agent connected to one toolkit
-can't see or call another's tools.
+it for clients that only speak stdio. An agent granted one toolkit can't see
+or call another's tools.
 
 **TK-3 Server instructions.** Each endpoint sends MCP `instructions` on
-initialize: what the toolkit is for, and, when building is allowed, the
+initialize: what the toolkit is for and, when the agent may build, the
 loop in five lines (search tools → search APIs → describe → run → save). No
 skill file is needed for an agent to use it.
 
-**CON-1 Connections.** Adding a toolkit to a client creates a connection: a
-name ("Claude Code on this laptop"), a token (stored hashed), an access level
-(`read` or `read_write`), an environment per API, variables, and
-version pins. Shown on the Agents page.
+**TK-4 Build scope.** A toolkit lists the APIs its agents may explore when
+building. Default: the APIs its tools already use. `search_apis`,
+`describe_api`, `run_api` and `run_script` can only reach requests in those
+APIs.
+*Accept:* `run_api` on a request outside the scope fails with an MCP-4
+error naming the toolkit setting to change.
 
-**CON-2 Add to client.** The toolkit page has "Add to…" for Claude Code,
-VS Code (Copilot), Cursor and Claude Desktop. For each it offers, in this
-order:
+**AGT-1 Agents.** An agent is a client you've added, like "Claude Code on
+this laptop": a name, a client type and one token (shown once, stored as a
+hash). Every call is attributed to an agent.
+
+**AGT-2 Grants.** An agent is granted one or more toolkits. Each grant has:
+access (`read` or `read_write`), whether the agent may build tools, an
+environment per API, variables (TOOL-9) and version pins (VER-2). Adding a
+toolkit to a client grants `read` without building unless the person
+chooses otherwise.
+
+**AGT-3 Add to client.** The toolkit page has "Add to…" for Claude Code,
+VS Code (Copilot), Cursor and Claude Desktop. It reuses the agent for that
+client if one exists, otherwise creates one, adds the grant, then offers, in
+this order:
 1. the client's own command, ready to copy (e.g.
    `claude mcp add --transport http <name> http://127.0.0.1:47800/mcp/<name> --header "Authorization: Bearer …"`);
 2. "Write config for me": updates the client's config file (user or project
    scope, chosen), after showing the exact change, keeping a backup;
 3. the JSON snippet to paste.
-Paths are correct for Windows, macOS and Linux.
+The CLI does the same: `mcpdeck connect <client> --toolkit <name>
+[--access read|read_write] [--build]`. Paths are correct for Windows, macOS
+and Linux. The token is stored in the client's config file in plain text,
+as every MCP client requires; the UI says so next to Revoke.
 *Accept:* on each OS in CI, the written file parses and lists the server;
 existing entries in the file are kept.
 
-**CON-3 Revoke and rotate.** Revoking a connection refuses its token
-immediately and ends its open sessions within one second. Rotating issues a
-new token and offers to rewrite the client config.
+**AGT-4 Revoke and rotate.** Revoking an agent refuses its token at once and
+ends its open sessions within one second. A single grant can also be
+removed. Rotating issues a new token and offers to rewrite the client config.
 
-**ACC-2 Writes blocked at the proxy.** With `read` access, any request whose
-classification is `write` (after overrides and API-1 flags) is refused at
-the proxy, whatever the tool says. Write tools are also left out of
-`tools/list` for read connections.
+**AGT-5 Shared credentials, separate agents.** All agents use the
+credentials stored for an API; agents never hold them. Access, calls and
+limits are per agent, so two agents using the same Jira key can still have
+different access and separate call logs. The upstream system sees one
+identity; the UI says so on the API's Credentials tab. Per-person
+credentials are Phase 2 (TEAM-4).
+
+**ACC-2 Writes blocked at the proxy.** With a `read` grant, any request whose
+classification is `write` (after overrides and API-1 flags) is refused at the
+proxy, whatever the tool says. Write tools are also left out of `tools/list`
+for read grants.
 *Accept:* table-driven test across all methods × access levels.
 
-**ACC-3 Least exposure.** `tools/list` returns only the toolkit's tools that the
-connection may use, at its pinned versions. If a toolkit has more than 25
-tools (configurable), the list holds the 15 most used plus `find_tool` and
-`use_tool`, so the context stays small.
+**ACC-3 Least exposure.** `tools/list` returns only the toolkit's tools that
+the agent's grant allows, at its pinned versions. If a toolkit has more than
+25 tools (configurable), the list holds the 15 most used plus `find_tool`
+and `use_tool`, so the context stays small.
 
-**ACC-6 Agents can't escalate.** A connection token MUST NOT be able to:
-change access, approve anything, make a write tool live, read or change
-credentials or variables, or change its own limits. Tested per endpoint.
+**ACC-6 Agents can't escalate.** An agent token MUST NOT be able to: change
+access or build scope, approve anything, make a write tool live, read or
+change credentials or variables, or change its own limits. Tested per
+endpoint.
 
 **MCP-2 Published tools.** Tools appear as normal MCP tools. `description`
 is built from description, "Use when" and "Don't use when". `readOnlyHint`
 and `destructiveHint` annotations follow the tool's access.
 
-**MCP-3 Build tools.** When the toolkit allows building, connections also get:
+**MCP-3 Build tools.** When the grant allows building, the agent also gets:
 
 | Tool | Purpose |
 |---|---|
-| `search_apis` | Find requests by intent across the toolkit's APIs. Returns one line each: `crm.getAccount({ id }) → Account · GET /accounts/{id} · read` |
+| `search_tools` | Find tools in this toolkit before building one |
+| `search_apis` | Find requests by intent in the build scope. One line each: `crm.getAccount({ id }) → Account · GET /accounts/{id} · read` |
 | `describe_api` | The TypeScript signature and response type, and one masked example |
 | `run_api` | Send one request through the proxy, with a compact response (large arrays trimmed, with a count) |
 | `run_script` | Run TypeScript in the tool sandbox with the same runtime as TOOL-2, for exploring |
-| `save_tool` | Save a tool file (TOOL-1); returns version, access and test results |
+| `save_tool` | Save a tool file (TOOL-1); returns version, status, and which approval rules passed |
 | `test_tool` | Run a tool file against examples or real APIs |
-| `request_tool` | Ask a person for a tool the agent can't build (missing API, write access) |
+| `request_tool` | Ask for a tool the agent can't build (missing API, write access, out of scope) |
+| `list_tool_requests` | Open requests in this toolkit, so a building agent can fulfil one |
 
+Agents without build access get `request_tool` only, so they can still ask.
 Responses are short by default; an agent asks for more with `detail: true`.
 
 **MCP-4 Actionable errors.** Every error says what went wrong and what to do
-next. E.g. "write blocked: this connection is read-only. Use a read tool,
-or ask the user to switch this connection to read+write in mcpDeck."
+next. E.g. "write blocked: this agent has read access to the support
+toolkit. Use a read tool, or ask the user to give this agent read+write in
+mcpDeck."
 
-**AB-1 Agents save tools.** A version saved by an agent records the
-connection, session and the calls it was built from.
+**AB-1 Agents save tools.** A tool saved by an agent goes into the library
+and into the toolkit it was saved through. The version records the agent,
+session and the calls it was built from.
 
-**AB-2 Read tools go live.** A version that only reads, whose tests pass and
-whose description passes AB-6, goes live automatically (can be turned off per
-toolkit).
+**AB-2 Approval rules.** Each toolkit has rules for versions saved by agents.
+A version goes live without a person only if every enabled rule passes:
 
-**AB-3 Write tools wait.** A version that writes is `pending` until the user
+| Rule | Default |
+|---|---|
+| Only reads (no write requests) | Always on, can't be turned off (AB-3) |
+| Has at least one test, and all tests pass | On |
+| Description check (AB-6) | On |
+| Uses only APIs in the build scope (TK-4) | Always on |
+| Output under a token limit on its tests (default 2,000) | On |
+| Not a duplicate of an existing tool (AB-5) | On |
+
+Turning auto-approval off for a toolkit makes every agent-saved version
+pending. Versions saved by a person go live on save.
+*Accept:* a table test of rule combinations against live/pending.
+
+**AB-3 Write tools wait.** A version that writes is `pending` until a person
 approves it in the UI or CLI. The review shows the diff, the requests and
-methods it uses, test results and the session it came from.
+methods it uses, test results and the session it came from. Approval with an
+agent token is refused.
 
-**AB-4 Requests.** `request_tool` creates an item on Home with the agent's
-description and the calls it tried.
+**AB-4 Tool requests.** `request_tool` creates a request with the agent's
+description and the calls it tried. It shows on Home and to building agents
+of the same toolkit through `list_tool_requests`. Saving a tool with
+`fulfils: <request id>` links them; the request closes when that version
+goes live.
 
 **AB-5 Duplicate check.** `save_tool` warns, and the UI shows, when a new tool
-uses the same requests as an existing one, suggesting the existing tool.
+uses the same requests as an existing one in the library, naming it.
 
 **AB-6 Description check.** Agent-written descriptions are checked for length
 and for text that addresses other agents ("ignore", "always call", "you
 must", URLs). Matches keep the version pending for review.
 
+**AB-7 Publish to every agent.** When a version goes live, mcpDeck sends
+`notifications/tools/list_changed` to every connected agent granted a
+toolkit that contains the tool. Clients that ignore the notification see it
+in their next session. A person can add the tool to other toolkits, so
+other agents can use it too.
+
 ## Calls and usage (M6)
 
 **SES-1 Sessions.** A session is an MCP session (`Mcp-Session-Id`) on a
-connection. It records the client name and version from `initialize`, start,
+agent. It records the client name and version from `initialize`, start,
 last activity and how it ended (closed, idle 30 min, revoked).
 
 **SES-2 Every call recorded.** Tool calls, build tool calls, `tools/list`, and
 every upstream request (from tools, the runner and scripts) are recorded
-with: who (connection or "you"), session, time, duration, tool and version or
+with: who (an agent or "you"), session, time, duration, tool and version or
 request, input (masked), output size, status, error, tokens, and the parent
 call for upstream requests.
 
@@ -460,12 +534,12 @@ including the `tools/list` payload (the standing cost of a toolkit), with a
 named offline encoder. The UI labels these "tokens returned by mcpDeck" and
 never estimates tokens it didn't see.
 
-**SES-4 Call views.** Agents page: connections with last seen, calls today,
-errors. A connection: its sessions. A session: a table of calls like the
+**SES-4 Call views.** Agents page: agents with their toolkits, last seen,
+calls today, errors. An agent: its sessions. A session: a table of calls like the
 browser Network tab (name, status, type, duration, size, tokens, waterfall),
 with filters and a detail pane (Input, Output, Upstream calls, Timing).
 
-**USE-1 Usage.** Per tool, per toolkit and per connection, over 24 h / 7 d /
+**USE-1 Usage.** Per tool, per toolkit and per agent, over 24 h / 7 d /
 30 d: calls, error rate, p50 and p95 duration, average output tokens,
 upstream calls per call, and `tools/list` cost.
 
@@ -474,8 +548,8 @@ metadata, set in Settings.
 
 **AUD-1 Audit log.** Append-only record of changes to APIs, requests,
 credentials (that they changed, never values), tools, versions, toolkits,
-connections and access; approvals; revocations. Each entry: actor (you or a
-connection), action, target, time, detail.
+agents and grants; approvals; revocations. Each entry: actor (you or an
+agent), action, target, time, detail.
 
 **AUD-2 Tamper evidence.** Each audit entry stores the hash of the previous
 entry; `mcpdeck audit verify` checks the chain.
@@ -509,7 +583,7 @@ input → show the common error and the fix, and suggest a better schema or
 description.
 
 **INS-8 Known values.** The same literal value is passed for an input in most
-calls of a connection → suggest a bound variable (TOOL-9).
+calls of an agent → suggest a bound variable (TOOL-9).
 
 **INS-9 Unused tools.** A tool in a toolkit is not called for 14 days →
 suggest removing it, showing the `tools/list` tokens saved.
@@ -536,7 +610,7 @@ billing, ticketing, and a legacy SOAP-style service with cookie login) with
 consistent seeded data, used by `mcpdeck dev`, e2e tests and demos.
 
 **MOCK-4 Dev mode.** `mcpdeck dev` starts mcpDeck with a throwaway data
-directory, the demo world, a `dev` toolkit, and a connection with a fixed
+directory, the demo world, a `dev` toolkit, and an agent with a fixed
 token, so a coding agent working on this repo can test end to end.
 
 **MOCK-5 Record → mock.** Recorded calls from a session MAY be turned into mock
@@ -570,7 +644,7 @@ console error and no unhandled request.
 "revolutionize", "AI-powered", "elevate". Checked in CI.
 
 **UI-6 Command palette.** `Ctrl+K` / `⌘K` finds any API, request,
-toolkit, tool, connection or setting, and runs actions ("New request",
+toolkit, tool, agent or setting, and runs actions ("New request",
 "Add toolkit to Claude Code").
 
 **UI-7 Accessible.** Keyboard reachable, visible focus, WCAG AA contrast,
@@ -597,6 +671,13 @@ endings, file locking and the keychain are handled per OS.
 
 **NFR-5 Trustworthy release.** Release binaries are signed (Authenticode on
 Windows, notarised on macOS), with checksums and an SBOM.
+
+**NFR-7 Install channels.** Each release is published by GoReleaser to:
+GitHub Releases (zip / tar.gz per platform), the Homebrew tap
+`abhijeet-oxide/homebrew-tap` (`brew install abhijeet-oxide/tap/mcpdeck`),
+the Scoop bucket `abhijeet-oxide/scoop-bucket`, and winget. An install script for macOS and Linux downloads the
+release for the platform and checks its checksum. `mcpdeck version` says
+when a newer release exists, and never updates itself.
 
 **NFR-6 Test-first.** See [testing.md](testing.md). Coverage of `internal/`
 ≥ 80%, and every MUST requirement has at least one test referencing its ID.
@@ -635,7 +716,7 @@ as the person behind the agent.
 **ACC-4 Hold for approval.** Mark write requests or tools as needing approval
 per call; the call waits until a person approves or a timeout.
 
-**ACC-5 Rate limits and budgets.** Per connection requests per minute and a
+**ACC-5 Rate limits and budgets.** Per agent requests per minute and a
 daily token budget, with actionable errors.
 
 **USE-2 Client usage.** Receive token usage reported by clients (e.g.

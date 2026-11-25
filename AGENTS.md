@@ -80,7 +80,7 @@ These protect users' systems. Each has a test; don't weaken it.
 - **All outbound HTTP goes through `internal/proxy`.** No other package
   creates an `http.Client` for upstream calls. That's where allow-lists,
   grants, recording and token counting live.
-- **Read connections can't write.** Write requests are blocked at the proxy,
+- **Read grants can't write.** Write requests are blocked at the proxy,
   regardless of what a tool says. (ACC-2)
 - **Connection tokens can't escalate:** no changing access, approving, making
   write tools live, or reading secrets. (ACC-6)
@@ -133,3 +133,10 @@ If a task seems to need breaking one of these, stop and ask.
 - Reference requirement IDs in the body.
 - PR description: what changed, why, how it was tested (commands and results).
 - Never commit secrets, `.env` files, `.mcpdeck/` data or real API responses.
+- Branches: before starting new work, check whether your branch's PR has
+  merged. If it has, restart the branch from the latest `origin/main`, then
+  push and open a **new** PR. Never add commits to a merged PR's branch
+  without rebasing first.
+- README: purpose, features, install, roadmap. Every claim must be something
+  the requirements make achievable. No milestones, internal status or
+  invented numbers.

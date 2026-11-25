@@ -55,7 +55,7 @@ smaller and faster, with plain rules and no LLM.
    parallel, return only the fields that matter, and fill known values (tenant,
    region, user) from variables instead of asking the model.
 5. **Each agent sees only what it needs.** Every toolkit is its own MCP
-   endpoint. A read-only connection can't send POST or DELETE: the proxy blocks
+   endpoint. A read-only agent can't send POST or DELETE: the proxy blocks
    it whatever the tool says. Keys never leave mcpDeck. Revoking takes one
    click.
 6. **Every call is recorded, and it gets better.** Who called what, when, for
@@ -90,9 +90,9 @@ words in the UI, docs, CLI, errors and code.
 | **Request** | One saved call inside an API: method, URL, params, body. | Postman, Bruno and Insomnia all say request. |
 | **Environment**, **variable** | Named sets of `{{values}}` (Local, Staging) and the values themselves. | Same as Postman. |
 | **Credential** | A secret mcpDeck adds to requests. Never shown to agents. | Plain word; "secret" is also fine in the UI. |
-| **Tool** | One thing an agent can call: a TypeScript function over one or more requests, with a name, description and input schema. | It's an MCP tool, exactly. |
+| **Tool** | One thing an agent can call: a TypeScript function over one or more requests, with a name, description and input schema. Tools live in one library and can be in several toolkits. | It's an MCP tool, exactly. |
 | **Toolkit** | A named set of tools that an agent adds as one MCP server. | LangChain, the Stripe agent toolkit, Composio and Arcade all use "toolkit" for a set of tools given to an agent. "Project" says nothing about what it does. "Server" would clash with the mcpDeck server itself. |
-| **Agent** | A client you added a toolkit to, like "Claude Code on this laptop", with its own token and access. Called a *connection* in the data model. | It's what people see and say. |
+| **Agent** | A client you added a toolkit to, like "Claude Code on this laptop", with its own token and access. Its access to each toolkit is a *grant*. | It's what people see and say. |
 | **Call** | One recorded use of a tool or request: who, when, how long, tokens. | Plain word, matches "API call". |
 | **Suggestion** | A rule-based change mcpDeck proposes from recorded calls. | Says what it is; "insight" sounds like a dashboard. |
 
@@ -100,9 +100,10 @@ words in the UI, docs, CLI, errors and code.
 
 ```
 API → Requests → Environments + Variables → Credentials → Examples
-Toolkit → Tools (TypeScript, calling one or more APIs)
-Toolkit → MCP endpoint → Connections (Claude Code, VS Code, Cursor…; read or read+write)
-Connection → every call, with time, bytes and tokens → suggestions
+Tool library → Tools (TypeScript, calling one or more APIs)
+Toolkit → some of those tools → one MCP endpoint
+Agent (Claude Code, VS Code, Cursor…) → grants to toolkits (read or read+write, may build or not)
+Agent → every call, with time, bytes and tokens → suggestions
 ```
 
 1. Create an **API**, like a Postman collection: one per system.
@@ -115,7 +116,8 @@ Connection → every call, with time, bytes and tokens → suggestions
 5. Create a **toolkit** and write **tools** in TypeScript with autocomplete for
    every request you've added. Test, save; each save is a new version.
 6. Click **Add to Claude Code** (or VS Code, Cursor, Claude Desktop). The
-   toolkit becomes an MCP server in that client with its own connection.
+   toolkit becomes an MCP server in that client, with read access unless you
+   choose otherwise.
 7. Open **Agents** to see every call: who, when, how long, what it returned.
    Follow the suggestions to make tools smaller and faster.
 
@@ -133,7 +135,7 @@ Connection → every call, with time, bytes and tokens → suggestions
 5. **Agents never see credentials.** Secrets are added to requests at the proxy
    and are never readable from tool code.
 6. **Least exposure.** Each toolkit endpoint lists only its tools; each
-   connection gets only its access level.
+   agent gets only the access its grant allows.
 7. **Never break a caller.** Saving a tool creates a new version.
 8. **Measured, not claimed.** We show what we counted and say what we didn't.
 9. **Nothing fake in the UI.** Every button works. If it isn't built, it isn't
