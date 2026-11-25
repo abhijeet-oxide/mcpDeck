@@ -149,7 +149,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # The action needs Settings › Code security › Dependency graph. While it's
+      # off the API answers 403; skip with a notice instead of a red check.
+      - id: graph
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if gh api "repos/${GITHUB_REPOSITORY}/dependency-graph/compare/${BASE}...${HEAD}" >/dev/null 2>err.txt; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          elif grep -q 'HTTP 403' err.txt; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Dependency graph is off (Settings › Code security). Dependency review skipped."
+          else
+            cat err.txt; exit 1
+          fi
       - uses: actions/dependency-review-action@v5.0.1
+        if: steps.graph.outputs.enabled == 'true'
         with:
           fail-on-severity: high
 
