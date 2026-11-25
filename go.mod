@@ -3,7 +3,7 @@ module github.com/abhijeet-oxide/mcpdeck
 go 1.26.0
 
 require (
-	github.com/dlclark/regexp2/v2 v2.11.0
+	github.com/dlclark/regexp2/v2 v2.13.2
 	github.com/dop251/goja v0.0.0-20261124180248-00ef7861e082
 	github.com/evanw/esbuild v0.28.2
 	github.com/getkin/kin-openapi v0.153.0
