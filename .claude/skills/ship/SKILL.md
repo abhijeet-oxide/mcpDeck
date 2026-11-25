@@ -39,9 +39,16 @@ Read the failing job's log before changing anything. Common causes:
 |---|---|---|
 | Run is red with **no jobs** | The workflow file is invalid | `actionlint`; e.g. `hashFiles()` isn't allowed in a job-level `if:` |
 | `go (windows-latest)` only | Paths, line endings, file locking, `sh` assumptions | `filepath`, no hard-coded `/`; skip shell-only tests on Windows with a reason |
+| Installer test on Windows: "term 'X' is not recognized" | Windows PowerShell 5.1 started from PowerShell 7 can't load script cmdlets (`Get-FileHash`, `Expand-Archive`) | Use .NET in `install.ps1`; the test runs both `powershell` and `pwsh` |
+| Passes locally, "permission denied" in CI | The cloud container runs as **root**, CI runners don't (e.g. binding ports < 1024) | Reproduce the condition in a test that fails as root too |
+| scorecard: "workflow contains global env vars" | Scorecard won't publish from a workflow with top-level `env:`/`defaults:` | Keep `security.yml` free of them |
 | `release-dry-run` / checkdist | An artifact name, size or the version string changed | Fix `.goreleaser.yaml`; ldflags must target `internal/version` |
 | govulncheck on the binary | A Go stdlib advisory | CI already uses the latest 1.26 patch; if the fix is in a newer minor, bump go.mod and `GO_VERSION` together |
 | dependency-review | A new dependency with a high-severity advisory | Pick another version or package |
+
+This container has no PowerShell and runs as root, so Windows and
+permission behaviour is only proven in CI: wait for every OS before calling
+a change done, and don't merge-ready a PR whose Windows job hasn't finished.
 
 Never skip, delete or weaken a test to get green. A flaky test is a bug:
 fix it with an injected clock, not with retries or sleeps.
