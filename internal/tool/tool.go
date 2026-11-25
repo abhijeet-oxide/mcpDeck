@@ -371,8 +371,22 @@ func runJS(ctx context.Context, js string, input any, env Env) Result {
 				structured = false
 			}
 		}
+		// headers is always headers, also next to flat params (FLOW-1).
+		if h, ok := m["headers"].(map[string]any); ok {
+			a.Headers = map[string]string{}
+			for k, v := range h {
+				a.Headers[k] = fmt.Sprint(v)
+			}
+		}
 		if !structured {
-			a.Flat = m
+			flat := map[string]any{}
+			for k, v := range m {
+				if _, isHdr := v.(map[string]any); k == "headers" && isHdr {
+					continue
+				}
+				flat[k] = v
+			}
+			a.Flat = flat
 			return a
 		}
 		if p, ok := m["path"].(map[string]any); ok {
@@ -380,12 +394,6 @@ func runJS(ctx context.Context, js string, input any, env Env) Result {
 		}
 		if q, ok := m["query"].(map[string]any); ok {
 			a.Query = q
-		}
-		if h, ok := m["headers"].(map[string]any); ok {
-			a.Headers = map[string]string{}
-			for k, v := range h {
-				a.Headers[k] = fmt.Sprint(v)
-			}
 		}
 		if b, ok := m["body"]; ok {
 			a.Body, a.HasBody = b, true

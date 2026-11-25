@@ -80,9 +80,18 @@ type Deck struct {
 	DataDir string
 	Port    int
 	Demo    bool
+	// Practice is the demo scanner API to walk the builder flow with (MOCK-6).
+	Practice *Practice
 
 	mu        sync.RWMutex
 	listeners []Listener
+}
+
+// Practice is a mock API for trying the full flow: import, log in, chain.
+type Practice struct {
+	SpecURL  string `json:"specUrl"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 // New wires a Deck.

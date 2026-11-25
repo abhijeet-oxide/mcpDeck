@@ -127,6 +127,16 @@ are refused with `host_not_allowed` and recorded.
 Staging), each a set of variables. One is active in the UI; each toolkit
 agent's grant picks one (AGT-2).
 
+**ENV-2 Import and rename environments.** An environment can be renamed
+(including the Default one created with the API) and imported from an
+exported file: a Postman environment, a Bruno environment (`.bru` or its
+JSON export), a `.env` file or a flat JSON object. The import shows the
+variables first; secret ones (marked secret in the file, or named like a
+credential) go to the vault, and secrets the file left empty (Bruno never
+exports them) are created empty, to fill in.
+*Accept:* each format imports with the right names, values and secret flags;
+no secret value appears in the import response.
+
 **VAR-1 Variables.** `{{name}}` works in URL, params, headers, body and auth,
 with Postman's scopes and order: request-local → environment → API →
 global. Unresolved variables are highlighted in red in the editor and listed
@@ -193,6 +203,13 @@ per test.
 **RNR-6 Script trust.** Imported scripts don't run until the user trusts that
 API ("Run scripts in this collection"), like Bruno's safe mode.
 
+**API-9 TLS per application.** Each application has TLS settings: verify
+certificates (default), trust extra CA certificates (PEM, on top of the
+system roots), or skip verification for servers with self-signed
+certificates. Import from a URL has the same "skip certificate check", and an
+application imported that way starts with verification off. A certificate
+failure says which setting fixes it. Changes are in the audit log.
+
 **API-1 Read / write.** Each request is `read` (GET, HEAD, OPTIONS) or `write`
 (everything else) by default. The user can override (a POST search is `read`).
 Requests that look non-REST (SOAP envelopes, XML-RPC, GraphQL mutations, or a
@@ -205,6 +222,12 @@ request is treated as `write` until confirmed.
 fields named like secrets or personal data (`password`, `token`, `secret`,
 `authorization`, `ssn`, `card`, `iban` and a configurable list) are masked
 before storage, and the user can mask more by clicking a field.
+
+**EX-3 Saved responses.** After a send, the response pane offers to save the
+response under its status (200 "Success", 401 "Not allowed", 404 "Not
+found"…), one per status, masked like EX-1. Saved responses are listed on the
+request and can be opened or deleted. A 2xx one also becomes the request's
+example, so output fields are known when building tools (EX-2, FLOW-2).
 
 **EX-2 Captured schema.** mcpDeck infers a JSON schema from saved examples,
 merges across examples and shows where it differs from the imported spec. The
@@ -375,6 +398,26 @@ and prints a diff summary. Same file format as TOOL-1.
 *Accept:* pull → edit → `tsc --noEmit` passes → push creates a version.
 
 ## Toolkits, agents and access (M5)
+
+**FLOW-1 Multi-request tools.** A new tool can start from several requests,
+picked in order (login → list applications → list images → list
+vulnerabilities). Each step's arguments can come from the tool's input, an
+earlier step's output field, a fixed value, or a template
+(`Bearer ${login.access_token}`), and `headers` can be set next to flat
+params.
+
+**FLOW-2 Visual and code are the same tool.** The tool editor has a
+"Visual / Code" switch. Visual shows the steps as connected nodes: requests
+are dragged in from a side panel (or added with a button), an earlier step's
+output fields, known from its saved response (EX-3), are connected to a later
+step's inputs. Both views edit the same TypeScript: a change in one shows in
+the other. Code the visual view can't represent (loops, conditions) stays
+editable as code and the visual view says why it can't show it.
+
+**FLOW-3 Choose output fields.** The flow's Output step lists the last
+step's fields as a tree with sizes; unticked fields are left out with
+`pick(value, ["items[].cve", …])`, a sandbox global. The run shows the
+tokens fetched versus returned.
 
 **TOOL-11 Tool library.** Tools live in one library. A toolkit lists tools
 from it, and a tool can be in more than one toolkit: same tool, same
@@ -615,6 +658,31 @@ agent), action, target, time, detail.
 **AUD-2 Tamper evidence.** Each audit entry stores the hash of the previous
 entry; `mcpdeck audit verify` checks the chain.
 
+## Guidelines for good MCP servers
+
+**GUIDE-1 Guidelines page.** Each toolkit has a Guidelines tab that explains,
+with sources, what makes a toolkit good for agents: few task-shaped tools
+rather than one per endpoint, clear names and descriptions, specific
+parameter names, small outputs, and no credentials in outputs. Rules are
+split into "Must fix" (breaks agents or clients) and "Avoid" (costs tokens
+or causes wrong picks), plus tips. Sources: docs/mcp-guidelines.md.
+
+**GUIDE-2 Live checks while building.** The toolkit and the tool editor run
+the rules with no model: tool count (avoid > 15, must fix > 40), `tools/list`
+tokens (avoid > 4,000, must fix > 10,000), endpoint wrappers, overlapping
+tools, generic names, starter or missing descriptions, vague or undocumented
+parameters, write tools without "don't use when", returning a whole response.
+The editor shows what saving the draft would do to the toolkit.
+
+**GUIDE-3 Output analysis.** Every run of a request or tool can be analysed:
+tokens (avoid > 2,000, must fix > 25,000), field count, long lists, deep
+nesting, always-empty fields, encoded blobs, long text, opaque IDs and
+credential-named fields (must fix), with the largest fields listed and a fix
+for each finding.
+
+**GUIDE-4 Score.** A toolkit shows a 0–100 score from its findings, so
+improvement is visible.
+
 ## Suggestions (M7)
 
 **INS-1 Rules, not models.** Suggestions come from deterministic rules over
@@ -705,6 +773,14 @@ and malformed responses per request, from flags or config.
 **MOCK-3 Demo.** A built-in set of related mock APIs (CRM,
 billing, ticketing, and a legacy SOAP-style service with cookie login) with
 consistent seeded data, used by `mcpdeck dev`, e2e tests and demos.
+
+**MOCK-6 Practice API.** The demo includes a container scanner over HTTPS
+with a self-signed certificate: log in for a bearer token, list
+applications, list an application's images, list an image's vulnerabilities
+(large on purpose). It serves its OpenAPI spec, and dev mode shows its URL and
+demo credentials, so the whole flow (import, TLS, environment, save
+responses, chain, trim, guidelines) can be tried locally.
+*Accept:* a test walks that flow end to end.
 
 **MOCK-4 Dev mode.** `mcpdeck dev` starts mcpDeck with a temporary data
 directory, the demo, a `dev` toolkit, and an agent with a fixed

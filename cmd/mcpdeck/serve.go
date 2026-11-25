@@ -122,6 +122,7 @@ func serve(o serveOpts) error {
 			return err
 		}
 		defer world.Close()
+		d.Practice = &deck.Practice{SpecURL: world.URL("scanner") + "/openapi.json", Username: mock.ScannerUser, Password: mock.ScannerPass}
 		if apis, _ := st.APIs(ctx); len(apis) == 0 {
 			if err := mock.Seed(ctx, d, world, true); err != nil {
 				return err
@@ -199,9 +200,10 @@ func serve(o serveOpts) error {
 		fmt.Printf("  UI          %s\n", launch)
 		fmt.Printf("  dev toolkit %s/mcp/dev   (Authorization: Bearer %s)\n", base, mock.DevToken)
 		fmt.Printf("  builder     %s/mcp/dev/build\n\n", base)
-		for _, n := range []string{"crm", "billing", "support", "legacy"} {
+		for _, n := range []string{"crm", "billing", "support", "legacy", "scanner"} {
 			fmt.Printf("  mock %-8s %s\n", n, world.URL(n))
 		}
+		fmt.Printf("               scanner: self-signed HTTPS, spec at /openapi.json, log in as %s / %s\n", mock.ScannerUser, mock.ScannerPass)
 		fmt.Println()
 	} else {
 		fmt.Printf("mcpDeck is running at %s\n", base)

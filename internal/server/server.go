@@ -179,7 +179,7 @@ func (s *Server) routes() {
 	m := s.mux
 	m.HandleFunc("GET /api/info", h(func(r *http.Request) (any, error) {
 		return map[string]any{"version": version.Version, "port": d.Port, "baseUrl": d.BaseURL(), "os": s.opt.OS.GOOS(),
-			"demo": d.Demo, "returnUrl": s.opt.ReturnURL, "dataDir": d.DataDir}, nil
+			"demo": d.Demo, "practice": d.Practice, "returnUrl": s.opt.ReturnURL, "dataDir": d.DataDir}, nil
 	}))
 	m.HandleFunc("GET /api/home", h(func(r *http.Request) (any, error) { return d.Home(r.Context()) }))
 
@@ -271,6 +271,30 @@ func (s *Server) routes() {
 		}
 		return d.CreateEnvironment(r.Context(), r.PathValue("id"), in.Name)
 	}))
+	m.HandleFunc("PATCH /api/environments/{id}", h(func(r *http.Request) (any, error) {
+		in, err := body[struct{ Name string }](r)
+		if err != nil {
+			return nil, err
+		}
+		return d.RenameEnvironment(r.Context(), r.PathValue("id"), in.Name)
+	}))
+	m.HandleFunc("POST /api/apis/{id}/environments/import", h(func(r *http.Request) (any, error) {
+		in, err := body[deck.ImportEnvironmentInput](r)
+		if err != nil {
+			return nil, err
+		}
+		return d.ImportEnvironment(r.Context(), r.PathValue("id"), in)
+	}))
+	m.HandleFunc("POST /api/requests/{id}/responses", h(func(r *http.Request) (any, error) {
+		in, err := body[deck.SaveResponseInput](r)
+		if err != nil {
+			return nil, err
+		}
+		return d.SaveResponse(r.Context(), r.PathValue("id"), in)
+	}))
+	m.HandleFunc("DELETE /api/requests/{id}/responses/{rid}", h(func(r *http.Request) (any, error) {
+		return d.DeleteResponse(r.Context(), r.PathValue("id"), r.PathValue("rid"))
+	}))
 	m.HandleFunc("DELETE /api/environments/{id}", h(func(r *http.Request) (any, error) { return nil, d.DeleteEnvironment(r.Context(), r.PathValue("id")) }))
 	m.HandleFunc("PUT /api/apis/{id}/variables", h(func(r *http.Request) (any, error) {
 		in, err := body[deck.SetVariableInput](r)
@@ -312,6 +336,22 @@ func (s *Server) routes() {
 	}))
 	m.HandleFunc("DELETE /api/toolkits/{ref}/tools/{tool}", h(func(r *http.Request) (any, error) {
 		return nil, d.RemoveToolFromToolkit(r.Context(), r.PathValue("ref"), r.PathValue("tool"))
+	}))
+	m.HandleFunc("POST /api/toolkits/{ref}/lint", h(func(r *http.Request) (any, error) {
+		in, err := body[deck.LintInput](r)
+		if err != nil {
+			return nil, err
+		}
+		return d.LintToolkit(r.Context(), r.PathValue("ref"), in)
+	}))
+	m.HandleFunc("POST /api/lint/output", h(func(r *http.Request) (any, error) {
+		in, err := body[struct {
+			Value json.RawMessage `json:"value"`
+		}](r)
+		if err != nil {
+			return nil, err
+		}
+		return d.LintOutput(in.Value)
 	}))
 	m.HandleFunc("GET /api/toolkits/{ref}/types.d.ts", func(w http.ResponseWriter, r *http.Request) {
 		t, err := d.TypesFor(r.Context(), r.PathValue("ref"))

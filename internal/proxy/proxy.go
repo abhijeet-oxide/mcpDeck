@@ -9,6 +9,8 @@ package proxy
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +40,7 @@ const (
 	CodeUpstream       = "upstream_error"
 	CodeNotFound       = "not_found"
 	CodeNoExample      = "no_example"
+	CodeBadTLS         = "bad_tls"
 )
 
 // Error is an actionable proxy error.
@@ -127,6 +130,13 @@ type Proxy struct {
 	jars     map[string]*cookiejar.Jar
 	captured map[string]string // apiID → captured login header value
 	loggedIn map[string]time.Time
+	tls      map[string]tlsTransport // apiID → transport for its TLS settings
+}
+
+type tlsTransport struct {
+	key store.TLS
+	rt  http.RoundTripper
+	err error
 }
 
 // New returns a proxy. tr may be nil for the default transport.
@@ -135,19 +145,67 @@ func New(s *store.Store, v *vault.Vault, c clock.Clock, ids clock.IDs, tr http.R
 		tr = &http.Transport{Proxy: http.ProxyFromEnvironment, MaxIdleConnsPerHost: 16, IdleConnTimeout: 60 * time.Second}
 	}
 	return &Proxy{store: s, vault: v, clock: c, ids: ids, tr: tr,
-		jars: map[string]*cookiejar.Jar{}, captured: map[string]string{}, loggedIn: map[string]time.Time{}}
+		jars: map[string]*cookiejar.Jar{}, captured: map[string]string{}, loggedIn: map[string]time.Time{}, tls: map[string]tlsTransport{}}
 }
 
-func (p *Proxy) client(apiID string, timeout time.Duration) *http.Client {
+func (p *Proxy) client(api store.API, timeout time.Duration) (*http.Client, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	jar, ok := p.jars[apiID]
+	jar, ok := p.jars[api.ID]
 	if !ok {
 		jar, _ = cookiejar.New(nil)
-		p.jars[apiID] = jar
+		p.jars[api.ID] = jar
 	}
-	return &http.Client{Transport: p.tr, Jar: jar, Timeout: timeout,
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	rt, err := p.transportLocked(api)
+	if err != nil {
+		return nil, err
+	}
+	return &http.Client{Transport: rt, Jar: jar, Timeout: timeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, nil
+}
+
+// transportLocked is the transport for an API's TLS settings (API-9): the
+// shared one by default, or a clone with its own TLS config.
+func (p *Proxy) transportLocked(api store.API) (http.RoundTripper, error) {
+	if !api.TLS.Insecure && strings.TrimSpace(api.TLS.CACerts) == "" {
+		return p.tr, nil
+	}
+	if t, ok := p.tls[api.ID]; ok && t.key == api.TLS {
+		return t.rt, t.err
+	}
+	base, ok := p.tr.(*http.Transport)
+	if !ok {
+		// A test transport: TLS settings don't apply.
+		return p.tr, nil
+	}
+	cfg, err := TLSConfig(api.TLS)
+	t := tlsTransport{key: api.TLS, err: err}
+	if err == nil {
+		c := base.Clone()
+		c.TLSClientConfig = cfg
+		t.rt = c
+	}
+	p.tls[api.ID] = t
+	return t.rt, t.err
+}
+
+// TLSConfig builds the client TLS config for an API's settings.
+func TLSConfig(s store.TLS) (*tls.Config, error) {
+	cfg := &tls.Config{MinVersion: tls.VersionTLS12}
+	if s.Insecure {
+		cfg.InsecureSkipVerify = true //nolint:gosec // the person turned verification off for this API (API-9)
+	}
+	if pem := strings.TrimSpace(s.CACerts); pem != "" {
+		pool, err := x509.SystemCertPool()
+		if err != nil || pool == nil {
+			pool = x509.NewCertPool()
+		}
+		if !pool.AppendCertsFromPEM([]byte(pem)) {
+			return nil, &Error{Code: CodeBadTLS, Message: "the trusted certificates in this API's TLS settings aren't valid PEM; paste certificates that start with -----BEGIN CERTIFICATE-----"}
+		}
+		cfg.RootCAs = pool
+	}
+	return cfg, nil
 }
 
 // ClearCookies empties an API's cookie jar.
@@ -156,11 +214,14 @@ func (p *Proxy) ClearCookies(apiID string) {
 	delete(p.jars, apiID)
 	delete(p.captured, apiID)
 	delete(p.loggedIn, apiID)
+	delete(p.tls, apiID)
 	p.mu.Unlock()
 }
 
 // Fetch GETs a public document (an OpenAPI spec or docs page) for import.
-func (p *Proxy) Fetch(ctx context.Context, rawURL string) ([]byte, string, error) {
+// insecure skips certificate checks, for servers with self-signed
+// certificates (API-9).
+func (p *Proxy) Fetch(ctx context.Context, rawURL string, insecure bool) ([]byte, string, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return nil, "", &Error{Code: CodeUpstream, Message: "use an http or https URL"}
@@ -170,8 +231,20 @@ func (p *Proxy) Fetch(ctx context.Context, rawURL string) ([]byte, string, error
 		return nil, "", err
 	}
 	req.Header.Set("Accept", "application/json, application/yaml, text/html;q=0.9, */*;q=0.8")
-	res, err := (&http.Client{Transport: p.tr, Timeout: 20 * time.Second}).Do(req)
+	rt := p.tr
+	if insecure {
+		p.mu.Lock()
+		rt, err = p.transportLocked(store.API{ID: "\x00fetch", TLS: store.TLS{Insecure: true}})
+		p.mu.Unlock()
+		if err != nil {
+			return nil, "", err
+		}
+	}
+	res, err := (&http.Client{Transport: rt, Timeout: 20 * time.Second}).Do(req)
 	if err != nil {
+		if isCertErr(err) {
+			return nil, "", &Error{Code: CodeBadTLS, Message: "couldn't fetch " + u.Host + ": its certificate isn't trusted (" + err.Error() + "). If you trust this server, turn on “Skip certificate check” and try again."}
+		}
 		return nil, "", &Error{Code: CodeUpstream, Message: "couldn't fetch " + u.Host + ": " + err.Error()}
 	}
 	defer res.Body.Close()
@@ -589,7 +662,10 @@ func (p *Proxy) Do(ctx context.Context, c Call) (*Response, error) {
 	if r != nil && r.Auth != nil && r.Auth.Type != "" && r.Auth.Type != "inherit" {
 		auth = *r.Auth
 	}
-	cl := p.client(api.ID, 30*time.Second)
+	cl, err := p.client(api, 30*time.Second)
+	if err != nil {
+		return fail("error", err)
+	}
 	send := func() (*http.Response, []byte, error) {
 		req, err := http.NewRequestWithContext(ctx, b.method, b.url, bytes.NewReader(b.body))
 		if err != nil {
@@ -621,6 +697,9 @@ func (p *Proxy) Do(ctx context.Context, c Call) (*Response, error) {
 		var pe *Error
 		if errors.As(err, &pe) {
 			return fail("error", pe)
+		}
+		if isCertErr(err) {
+			return fail("error", &Error{Code: CodeBadTLS, Message: res.secrets.String(fmt.Sprintf("%s: the server's certificate isn't trusted (%v). In mcpDeck, open the %s application's Settings → TLS and add its CA certificate, or turn off verification for this application.", b.name, err, api.Name))})
 		}
 		return fail("error", &Error{Code: CodeUpstream, Message: res.secrets.String(fmt.Sprintf("%s couldn't be reached: %v. Check the %s API's base URL and that the service is running.", b.name, err, api.Name))})
 	}
@@ -715,7 +794,11 @@ func (p *Proxy) login(ctx context.Context, api store.API, a store.Auth, res reso
 		return err
 	}
 	req.Header = b.headers
-	hr, err := p.client(api.ID, 30*time.Second).Do(req)
+	cl, err := p.client(api, 30*time.Second)
+	if err != nil {
+		return err
+	}
+	hr, err := cl.Do(req)
 	if err != nil {
 		return &Error{Code: CodeLoginFailed, Message: res.secrets.String("login request failed: " + err.Error())}
 	}
@@ -731,4 +814,13 @@ func (p *Proxy) login(ctx context.Context, api store.API, a store.Auth, res reso
 	p.loggedIn[api.ID] = p.clock.Now()
 	p.mu.Unlock()
 	return nil
+}
+
+// isCertErr reports whether err is a TLS certificate verification failure.
+func isCertErr(err error) bool {
+	var ua x509.UnknownAuthorityError
+	var hn x509.HostnameError
+	var ci x509.CertificateInvalidError
+	var tv *tls.CertificateVerificationError
+	return errors.As(err, &ua) || errors.As(err, &hn) || errors.As(err, &ci) || errors.As(err, &tv)
 }

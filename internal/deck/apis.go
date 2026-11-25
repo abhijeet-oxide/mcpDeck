@@ -140,6 +140,7 @@ type CreateAPIInput struct {
 	BaseURL string     `json:"baseUrl"`
 	Auth    store.Auth `json:"auth"`
 	Secret  string     `json:"secret"` // value for the auth's secret variable, if any
+	TLS     store.TLS  `json:"tls"`
 }
 
 func (d *Deck) CreateAPI(ctx context.Context, in CreateAPIInput) (*store.API, error) {
@@ -150,7 +151,7 @@ func (d *Deck) CreateAPI(ctx context.Context, in CreateAPIInput) (*store.API, er
 		return nil, conflict("an API named %s already exists; import into it instead", in.Name)
 	}
 	now := d.Clock.Now()
-	a := store.API{ID: d.IDs.New(), Name: in.Name, Title: in.Title, Source: "manual", Auth: in.Auth, CreatedAt: now}
+	a := store.API{ID: d.IDs.New(), Name: in.Name, Title: in.Title, Source: "manual", Auth: in.Auth, TLS: in.TLS, CreatedAt: now}
 	if a.Title == "" {
 		a.Title = in.Name
 	}
@@ -197,6 +198,7 @@ type UpdateAPIInput struct {
 	Auth           *store.Auth `json:"auth"`
 	ActiveEnvID    *string     `json:"activeEnvId"`
 	ScriptsTrusted *bool       `json:"scriptsTrusted"`
+	TLS            *store.TLS  `json:"tls"`
 }
 
 func (d *Deck) UpdateAPI(ctx context.Context, id string, in UpdateAPIInput) (*store.API, error) {
@@ -249,6 +251,22 @@ func (d *Deck) UpdateAPI(ctx context.Context, id string, in UpdateAPIInput) (*st
 	if in.ScriptsTrusted != nil {
 		a.ScriptsTrusted = *in.ScriptsTrusted
 	}
+	if in.TLS != nil {
+		t := *in.TLS
+		t.CACerts = strings.TrimSpace(t.CACerts)
+		if t.CACerts != "" {
+			if _, err := proxy.TLSConfig(t); err != nil {
+				return nil, badRequest("%s", err.(*proxy.Error).Message)
+			}
+		}
+		a.TLS = t
+		what := "tls: verify certificates"
+		if t.Insecure {
+			what = "tls: certificate verification off"
+		}
+		changed = append(changed, what)
+		d.Proxy.ClearCookies(a.ID)
+	}
 	if err := d.Store.PutAPI(ctx, a); err != nil {
 		return nil, err
 	}
@@ -288,26 +306,29 @@ type ImportSource struct {
 	URL         string `json:"url"`
 	Text        string `json:"text"`
 	Environment string `json:"environment"` // Postman environment JSON
+	// Insecure fetches the URL without checking its certificate, and turns
+	// verification off on the new API (API-9).
+	Insecure bool `json:"insecure"`
 }
 
 func (d *Deck) parseSource(ctx context.Context, src ImportSource) (*importer.Result, error) {
 	data := []byte(src.Text)
 	if strings.TrimSpace(src.URL) != "" {
-		b, ct, err := d.Proxy.Fetch(ctx, strings.TrimSpace(src.URL))
+		b, ct, err := d.Proxy.Fetch(ctx, strings.TrimSpace(src.URL), src.Insecure)
 		if err != nil {
 			return nil, badRequest("%s", err.Error())
 		}
 		if importer.IsHTML(ct, b) {
 			spec, script := importer.FindSpecURL(src.URL, b)
 			if spec == "" && script != "" {
-				if js, _, err := d.Proxy.Fetch(ctx, script); err == nil {
+				if js, _, err := d.Proxy.Fetch(ctx, script, src.Insecure); err == nil {
 					spec, _ = importer.FindSpecURL(script, js)
 				}
 			}
 			if spec == "" {
 				return nil, badRequest(importer.NoSpecFound)
 			}
-			b, _, err = d.Proxy.Fetch(ctx, spec)
+			b, _, err = d.Proxy.Fetch(ctx, spec, src.Insecure)
 			if err != nil {
 				return nil, badRequest("found the spec at %s but couldn't fetch it: %s", spec, err.Error())
 			}
@@ -377,6 +398,7 @@ func (d *Deck) Import(ctx context.Context, in ImportInput) (*ImportReport, error
 			if a.Auth.Type == "" {
 				a.Auth.Type = "none"
 			}
+			a.TLS.Insecure = in.Insecure
 			env := store.Environment{ID: d.IDs.New(), APIID: a.ID, Name: "Default"}
 			if len(res.Environments) > 0 {
 				env.Name = res.Environments[0]
@@ -611,6 +633,88 @@ func (d *Deck) SaveExample(ctx context.Context, id string, body json.RawMessage)
 	return &r, nil
 }
 
+// SaveResponseInput keeps a response on a request (EX-3).
+type SaveResponseInput struct {
+	Name   string          `json:"name"`
+	Status int             `json:"status"`
+	Body   json.RawMessage `json:"body"`
+}
+
+// SaveResponse keeps a response on a request, masked, named after its
+// outcome. A 2xx response also becomes the request's example, so tool
+// types and the flow builder know its output fields (EX-2).
+func (d *Deck) SaveResponse(ctx context.Context, id string, in SaveResponseInput) (*store.Request, error) {
+	r, err := d.Store.Request(ctx, id)
+	if err != nil {
+		return nil, notFound("request")
+	}
+	if !json.Valid(in.Body) {
+		return nil, badRequest("only JSON responses can be saved")
+	}
+	if in.Status < 100 || in.Status > 599 {
+		return nil, badRequest("status must be an HTTP status code")
+	}
+	name := strings.TrimSpace(in.Name)
+	if name == "" {
+		name = defaultResponseName(in.Status)
+	}
+	body := proxy.MaskJSON(in.Body)
+	sr := store.SavedResponse{ID: d.IDs.New(), Name: name, Status: in.Status, Body: body, SavedAt: d.Clock.Now()}
+	// One response per status: saving another 200 replaces the old one.
+	kept := []store.SavedResponse{}
+	for _, o := range r.Responses {
+		if o.Status != in.Status {
+			kept = append(kept, o)
+		}
+	}
+	r.Responses = append(kept, sr)
+	sort.SliceStable(r.Responses, func(i, j int) bool { return r.Responses[i].Status < r.Responses[j].Status })
+	if in.Status >= 200 && in.Status < 300 {
+		r.Example = body
+	}
+	r.UpdatedAt = d.Clock.Now()
+	if err := d.Store.PutRequest(ctx, r); err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// DeleteResponse removes a saved response.
+func (d *Deck) DeleteResponse(ctx context.Context, id, responseID string) (*store.Request, error) {
+	r, err := d.Store.Request(ctx, id)
+	if err != nil {
+		return nil, notFound("request")
+	}
+	kept := []store.SavedResponse{}
+	for _, o := range r.Responses {
+		if o.ID != responseID {
+			kept = append(kept, o)
+		}
+	}
+	r.Responses = kept
+	r.UpdatedAt = d.Clock.Now()
+	_ = d.Store.PutRequest(ctx, r)
+	return &r, nil
+}
+
+func defaultResponseName(status int) string {
+	switch {
+	case status >= 200 && status < 300:
+		return "Success"
+	case status == 401 || status == 403:
+		return "Not allowed"
+	case status == 404:
+		return "Not found"
+	case status == 422 || status == 400:
+		return "Bad input"
+	case status == 429:
+		return "Rate limited"
+	case status >= 500:
+		return "Server error"
+	}
+	return fmt.Sprintf("Status %d", status)
+}
+
 // SendInput is a send from the runner (RNR-1).
 type SendInput struct {
 	APIID     string         `json:"apiId"`
@@ -696,6 +800,115 @@ func (d *Deck) CreateEnvironment(ctx context.Context, apiID, name string) (*stor
 	}
 	d.audit(ctx, audit.You, "environment.create", a.Name+"/"+name, "")
 	return &e, nil
+}
+
+// RenameEnvironment renames an environment (ENV-1).
+func (d *Deck) RenameEnvironment(ctx context.Context, id, name string) (*store.Environment, error) {
+	e, err := d.Store.Environment(ctx, id)
+	if err != nil {
+		return nil, notFound("environment")
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, badRequest("name the environment, like Staging")
+	}
+	envs, _ := d.Store.Environments(ctx, e.APIID)
+	for _, o := range envs {
+		if o.ID != id && strings.EqualFold(o.Name, name) {
+			return nil, conflict("there's already an environment called %s", o.Name)
+		}
+	}
+	old := e.Name
+	e.Name = name
+	if err := d.Store.PutEnvironment(ctx, e); err != nil {
+		return nil, err
+	}
+	a, _ := d.Store.API(ctx, e.APIID)
+	d.audit(ctx, audit.You, "environment.rename", a.Name+"/"+old, "to "+name)
+	return &e, nil
+}
+
+// ImportEnvironmentInput is an exported environment file (ENV-2).
+type ImportEnvironmentInput struct {
+	Filename string `json:"filename"`
+	Content  string `json:"content"`
+	// Name overrides the name found in the file.
+	Name string `json:"name"`
+	// Preview parses without saving.
+	Preview bool `json:"preview"`
+}
+
+// ImportEnvironmentResult is what an environment import found or made.
+type ImportEnvironmentResult struct {
+	Environment *store.Environment    `json:"environment,omitempty"`
+	Parsed      *importer.Environment `json:"parsed"`
+	Secrets     int                   `json:"secrets"`
+	EmptySecret []string              `json:"emptySecrets"`
+}
+
+// ImportEnvironment makes a new environment from a Postman, Bruno or .env
+// export. Secret values go to the vault; secrets the file didn't include
+// (Bruno never exports them) are created empty for you to fill in.
+func (d *Deck) ImportEnvironment(ctx context.Context, apiID string, in ImportEnvironmentInput) (*ImportEnvironmentResult, error) {
+	a, err := d.Store.API(ctx, apiID)
+	if err != nil {
+		return nil, notFound("API")
+	}
+	parsed, err := importer.ParseEnvironment([]byte(in.Content), in.Filename)
+	if err != nil {
+		return nil, badRequest("%s", err.Error())
+	}
+	if n := strings.TrimSpace(in.Name); n != "" {
+		parsed.Name = n
+	}
+	out := &ImportEnvironmentResult{Parsed: parsed, EmptySecret: []string{}}
+	for _, v := range parsed.Vars {
+		if v.Secret {
+			out.Secrets++
+			if v.Value == "" {
+				out.EmptySecret = append(out.EmptySecret, v.Name)
+			}
+		}
+	}
+	if in.Preview {
+		return out, nil
+	}
+	envs, _ := d.Store.Environments(ctx, apiID)
+	name := parsed.Name
+	for i := 2; ; i++ {
+		taken := false
+		for _, e := range envs {
+			if strings.EqualFold(e.Name, name) {
+				taken = true
+			}
+		}
+		if !taken {
+			break
+		}
+		name = fmt.Sprintf("%s %d", parsed.Name, i)
+	}
+	e := store.Environment{ID: d.IDs.New(), APIID: apiID, Name: name}
+	if err := d.Store.PutEnvironment(ctx, e); err != nil {
+		return nil, err
+	}
+	for _, v := range parsed.Vars {
+		if !varNameRe.MatchString(v.Name) {
+			continue
+		}
+		nv := store.Variable{ID: d.IDs.New(), APIID: apiID, EnvID: e.ID, Name: v.Name, Source: "literal", Value: v.Value, UpdatedAt: d.Clock.Now()}
+		if v.Secret {
+			nv.Source, nv.Value = "secret", ""
+			if v.Value != "" {
+				if nv.Ciphertext, err = d.Vault.Seal(v.Value); err != nil {
+					return nil, err
+				}
+			}
+		}
+		_ = d.Store.PutVariable(ctx, nv)
+	}
+	d.audit(ctx, audit.You, "environment.import", a.Name+"/"+name, fmt.Sprintf("%d variables from %s, %d secret", len(parsed.Vars), parsed.Kind, out.Secrets))
+	out.Environment = &e
+	return out, nil
 }
 
 func (d *Deck) DeleteEnvironment(ctx context.Context, id string) error {

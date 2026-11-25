@@ -7,6 +7,7 @@ require (
 	github.com/dop251/goja v0.0.0-20261124180248-00ef7861e082
 	github.com/evanw/esbuild v0.28.2
 	github.com/getkin/kin-openapi v0.153.0
+	github.com/google/go-cmp v0.7.0
 	github.com/google/jsonschema-go v0.4.3
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/pkoukk/tiktoken-go v0.1.8

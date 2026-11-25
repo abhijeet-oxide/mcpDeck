@@ -27,6 +27,39 @@
     }
   }
   globalThis.ApiError = ApiError;
+  // pick(value, ["id", "items[].name", "owner.email"]) keeps only those
+  // fields, so a tool returns what an agent needs (FLOW-3).
+  function tree(paths) {
+    var root = {};
+    for (var i = 0; i < paths.length; i++) {
+      var segs = String(paths[i]).replace(/\[\]/g, ".[]").split(".");
+      var n = root;
+      for (var j = 0; j < segs.length; j++) {
+        if (segs[j] === "") continue;
+        if (!n[segs[j]]) n[segs[j]] = {};
+        n = n[segs[j]];
+      }
+    }
+    return root;
+  }
+  function apply(v, node) {
+    var keys = Object.keys(node);
+    if (keys.length === 0 || v === null || typeof v !== "object") return v;
+    if (Array.isArray(v)) {
+      var inner = node["[]"] || node;
+      return v.map(function (x) { return apply(x, inner); });
+    }
+    var out = {};
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (k !== "[]" && Object.prototype.hasOwnProperty.call(v, k)) out[k] = apply(v[k], node[k]);
+    }
+    return out;
+  }
+  globalThis.pick = function pick(value, paths) {
+    if (!Array.isArray(paths) || paths.length === 0) return value;
+    return apply(value, tree(paths));
+  };
   globalThis.module = { exports: {} };
   globalThis.exports = globalThis.module.exports;
 })();
