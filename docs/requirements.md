@@ -25,7 +25,7 @@ early. Later milestones make each part complete.
 
 | | Milestone | Outcome |
 |---|---|---|
-| **M1** | Walking skeleton | `mcpdeck.exe` starts, opens the UI, stores in SQLite; add one request by hand, send it through the proxy, write a one-step tool, put it in a toolkit, add it to Claude Code, call it, see the call |
+| **M1** | Walking skeleton | `mcpdeck.exe` starts, opens the UI, stores in SQLite; add one request manually, send it through the proxy, write a one-step tool, put it in a toolkit, add it to Claude Code, call it, see the call |
 | **M2** | APIs | Postman-style collections: imports, environments, variables, auth, runner, history, examples, scripts |
 | **M3** | Credentials | Local encrypted store with the key in the OS keychain |
 | **M4** | Code tools | TypeScript editor with autocomplete, sandbox, tests, versions, tools as files |
@@ -96,7 +96,7 @@ each a thin client of the HTTP API (RUN-6):
 | `mcpdeck agents [revoke <name>]` | List or revoke agents (AGT-4) |
 | `mcpdeck pull` / `push` | Tools as files (FILE-1) |
 | `mcpdeck stdio --toolkit <name>` | stdio bridge (TK-2) |
-| `mcpdeck dev` | Dev mode with the demo world (MOCK-4) |
+| `mcpdeck dev` | Dev mode with the demo (MOCK-4) |
 | `mcpdeck version [--check]` | Version and build info; `--check` asks GitHub whether a newer release exists |
 
 Every command has `--help` with an example, and `--json` output where it
@@ -112,9 +112,12 @@ except the port.
 APIs behave like Postman or Bruno collections. Someone who has used
 either should not need to read anything.
 
-**APP-1 API.** Create, rename, duplicate and delete an API,
-with folders inside it. Deleting one that tools use is refused with a list of
-those tools.
+**APP-1 Applications.** An application is one system tools call (a CRM, a
+ticket desk, a SOAP service); in code and the CLI it's an "API" and tools call
+it by its code name (`crm.getAccount()`). Create, rename (its display name),
+duplicate and delete an application, with folders inside it. One application
+can take requests from several imports (collections, specs, curl). Deleting
+one that tools use is refused with a list of those tools.
 
 **APP-2 Allowed hosts.** Each API has an allow-list of outbound hosts,
 defaulting to the hosts of its environments' base URLs. Calls to any other host
@@ -287,7 +290,7 @@ export default async function (input: Input) {
 `tool` has the same shape as an MCP tool definition plus `useWhen` /
 `dontUseWhen`. `Input` is generated from `inputSchema`. The return value is
 exactly what the agent gets.
-*Accept:* the example above runs against the demo world (MOCK-3).
+*Accept:* the example above runs against the demo (MOCK-3).
 
 **TOOL-2 Runtime.** Globals available to tool code, and nothing else:
 - one client per API, named after it (`crm`, `billing`), with one
@@ -400,6 +403,12 @@ building. Default: the APIs its tools already use. `search_apis`,
 APIs.
 *Accept:* `run_api` on a request outside the scope fails with an MCP-4
 error naming the toolkit setting to change.
+
+**TK-5 See what an agent sees.** The toolkit page has "Preview as agent":
+for a chosen access (read, or read and write), whether the agent may build,
+and a client, it shows the `instructions` the endpoint sends on initialize
+and the exact `tools/list` it returns, with the token cost of that list.
+*Accept:* the preview equals what an MCP client with that grant receives.
 
 **AGT-1 Agents.** An agent is a client you've added, like "Claude Code on
 this laptop": a name, a client type and one token (shown once, stored as a
@@ -693,12 +702,12 @@ deterministic, seeded, schema-valid responses.
 **MOCK-2 Fault injection.** Mocks MAY add latency, error rates, rate limiting
 and malformed responses per request, from flags or config.
 
-**MOCK-3 Demo world.** A built-in set of related mock APIs (CRM,
+**MOCK-3 Demo.** A built-in set of related mock APIs (CRM,
 billing, ticketing, and a legacy SOAP-style service with cookie login) with
 consistent seeded data, used by `mcpdeck dev`, e2e tests and demos.
 
-**MOCK-4 Dev mode.** `mcpdeck dev` starts mcpDeck with a throwaway data
-directory, the demo world, a `dev` toolkit, and an agent with a fixed
+**MOCK-4 Dev mode.** `mcpdeck dev` starts mcpDeck with a temporary data
+directory, the demo, a `dev` toolkit, and an agent with a fixed
 token, so a coding agent working on this repo can test end to end.
 
 **MOCK-5 Record → mock.** Recorded calls from a session MAY be turned into mock
@@ -707,19 +716,19 @@ responses, so a bug seen against a real system can be reproduced offline.
 ## UI
 
 **DOC-1 Real screenshots.** Once a screen exists, the README and docs show
-it with a real screenshot of the running app on the demo world, captured
+it with a real screenshot of the running app on the demo, captured
 by a script (`make screenshots`) at a fixed size, light and dark. Mockups
 are never shown as the product.
 
-**UI-1 The sidebar is the mental model.** Navigation is Home, APIs,
-Toolkits, Agents, Activity, with About and Settings at the bottom. Read top to bottom
-it's the pipeline: systems you call → tools grouped into MCP servers →
+**UI-1 The sidebar is the mental model.** Navigation is Home, Applications,
+Toolkits, Agents, Activity, with About and Settings at the bottom. Read top to
+bottom it's the pipeline: systems you call → tools grouped into MCP servers →
 clients that use them → what they did. Each thing has one home: requests are
-added inside an API, tools are created inside a toolkit, agents connect to a
-toolkit, and every recorded call is in Activity. No onboarding wizard. Home
-shows what needs a person (pending versions, tool requests, suggestions) and
-today's numbers. Screens follow [ui.md](ui.md) and the
-[mockup](mockups/index.html).
+added inside an application, tools are created inside a toolkit, agents
+connect to a toolkit, and every recorded call is in Activity. Home shows what
+needs a person (pending versions, tool requests, suggestions) and today's
+numbers. Every page says what it's for in one line, and every empty page says
+what to do first. Screens follow [ui.md](ui.md).
 
 **UI-10 Ask an agent.** Home, an API, a toolkit and a tool have an "Ask an
 agent" button with two or three prompts for that page. Prompts use real
@@ -729,42 +738,53 @@ Tool requests, suggestions and failed calls each have a "Copy prompt".
 *Accept:* every prompt in the UI names only tools and requests that exist
 and that the named agent's grant allows.
 
-**UI-11 Onboarding that gets out of the way.** With no APIs, Home is a first-run
-page: what mcpDeck does and four steps (Add an API, Create a toolkit, Connect
-an agent, Build the first tool), each disabled until the one before is done,
-with the reason shown. Once the first API exists, Home is the normal Home with
-a small "Getting started · n of 4" card showing the next step. The card
-disappears for good when all four are done or the user hides it, and it never
-comes back on its own.
-*Accept:* after the four steps, or after Hide, no onboarding text appears
+**UI-11 Guided, never in the way.** The first time mcpDeck opens with no
+data, a welcome page says what it does in three ideas (applications, toolkits,
+agents) and offers the demo tour or "Set up my own"; it's shown once. A
+"Getting started" list then follows the journey: create an application, send
+a request, save a response as an example, create a toolkit, build a tool,
+connect an agent. Steps can be done in any order; one that needs another first
+says so. Home shows the list; a small card at the bottom of the sidebar shows
+the next step on every page. Pages also suggest the next step in place (after
+a send: save it as an example; after an example: create a tool). The guide
+can be hidden, and shown again from Settings.
+*Accept:* after the six steps, or after Hide, no onboarding text appears
 anywhere.
 
-**UI-12 Demo world kept apart.** "Open the demo world" (first-run Home and
-Settings › Data) opens the demo world in its own throwaway data folder, as
-`mcpdeck dev` does, never mixed with the user's data. While it's open, every
-page shows a bar saying so with "Leave demo", which returns to the user's own
-data unchanged. The first-run Home stops offering it once the user has added
-an API.
+**UI-12 Demo kept apart.** "Demo" (on Home, the welcome page and About)
+opens the demo in a new tab: its own instance and temporary data folder, as
+`mcpdeck dev` does, never mixed with the user's data, in the same light or
+dark theme. While it's open, every page shows a bar saying so with "Tour" and
+"Leave demo", which returns to the user's own data unchanged and still
+signed in. The tour walks through applications, a request, toolkits, what an
+agent sees, agents and activity, one short step at a time, and can be closed
+at any step.
 
-**UI-13 About and the repository.** The sidebar shows the GitHub repository
-(`abhijeet-oxide/mcpDeck`) with a Star link, and an About page says what
-mcpDeck does and links to the repository, docs, releases, how to contribute,
-the license and "Report a bug" (a new issue). Links open in the browser;
-mcpDeck itself makes no network calls for them (no star counts).
+**UI-13 About and the repository.** The sidebar has a Star on GitHub
+link, and the About page says what mcpDeck does, how it works and how keys are
+protected, offers the demo or its tour, and links to the repository (Star),
+docs, releases, how to contribute, the license and "Report a bug" (a new
+issue). Links open in the browser; mcpDeck itself makes no network calls for
+them (no star counts).
 
-**UI-14 Add an API is a page.** Adding an API, and importing into one, is a
-full page: sources on the left (Swagger or Redoc page, OpenAPI file or URL,
-Postman collection with optional environment, curl, start empty), the input
-for the chosen source, then a preview of every request found with method,
-path, folder and read/write, each with a checkbox. The API name is shown as
-code (`crm.getAccount()`). curl previews update as you paste. Credentials
-found in curl or a Postman environment are listed as moving into an encrypted
+**UI-14 New application is a page.** Creating an application, and
+importing into one, is a full page. Sources: upload files (drop several at
+once: Postman collections with their environment, OpenAPI or Swagger, JSON or
+YAML; the type is detected), a link (spec URL or Swagger/Redoc docs page),
+curl, or add manually. Each source shows a preview of every request found with
+method, path, folder and read/write, each with a checkbox. The display name
+suggests a code name (`acmeCrm`), checked as you type, shown as code
+(`acmeCrm.getAccount()`). curl previews update as you paste. Credentials found
+in curl or a Postman environment are listed as moving into an encrypted
 credential before anything is saved.
 
-**UI-2 Look.** Calm, compact and professional: solid panels with hairline
-borders on a neutral background, Inter, black and blue pill actions, coloured
-mono chips for HTTP methods. Pages answer their question in the first screen.
-No glass, glows, purple, emoji or gradients on content. See
+**UI-2 Look.** Calm, modern and professional: solid panels with hairline
+borders and short soft shadows on a neutral background, Inter, 8px-radius
+controls, ink for the main action and blue to confirm, coloured mono chips for
+HTTP methods. Actions sit on the right: page actions top right, destructive
+ones in the "…" menu, Save in the panel footer or a save bar that appears only
+when something changed. Pages answer their question in the first screen. No
+glass, glows, purple, emoji or gradients on content. See
 [design.md](design.md#ui).
 
 **UI-3 Familiar patterns.** Each screen follows the pattern listed in

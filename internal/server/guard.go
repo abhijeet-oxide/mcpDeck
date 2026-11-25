@@ -23,7 +23,12 @@ type Guard struct {
 	sessions map[string]bool      // UI cookie values
 }
 
-const cookieName = "mcpdeck_session"
+// cookiePrefix is per port: browsers share 127.0.0.1 cookies across ports,
+// and the demo runs as a second instance next to the user's (UI-12).
+const cookiePrefix = "mcpdeck_session_"
+
+// CookieName is this instance's UI session cookie.
+func (g *Guard) CookieName() string { return cookiePrefix + strconv.Itoa(g.Port) }
 
 func randHex(n int) string {
 	b := make([]byte, n)
@@ -82,7 +87,7 @@ func (g *Guard) Authed(r *http.Request) (who string, ok bool) {
 		}
 		return "", false
 	}
-	c, err := r.Cookie(cookieName)
+	c, err := r.Cookie(g.CookieName())
 	if err != nil {
 		return "", false
 	}
@@ -107,7 +112,7 @@ func (g *Guard) Launch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "This launch link was already used or has expired. Run mcpdeck again to open a new one.", http.StatusForbidden)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: sid, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode})
+	http.SetCookie(w, &http.Cookie{Name: g.CookieName(), Value: sid, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode})
 	next := r.URL.Query().Get("next")
 	if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") {
 		next = "/"

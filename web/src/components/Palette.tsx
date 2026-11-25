@@ -1,4 +1,4 @@
-import { Bot, Code2, Layers, Plug, Search, Settings, Zap } from "lucide-react";
+import { AppWindow, Bot, Code2, Search, Settings, ToolCase, Zap } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useAgents, useAPIs, useLibrary, useToolkits } from "../lib/hooks";
 import { navigate } from "../lib/router";
@@ -15,7 +15,7 @@ export function Palette({ onClose, onConnect }: { onClose: () => void; onConnect
   const agents = useAgents();
   const items = useMemo<Item[]>(() => {
     const out: Item[] = [
-      { label: "Add API", hint: "Action", icon: <Zap size={15} />, go: () => navigate("/apis/new") },
+      { label: "New application", hint: "Action", icon: <Zap size={15} />, go: () => navigate("/apps/new") },
       { label: "New toolkit", hint: "Action", icon: <Zap size={15} />, go: () => navigate("/toolkits?new=1") },
       { label: "Connect agent", hint: "Action", icon: <Zap size={15} />, go: () => onConnect() },
       { label: "Activity: calls", hint: "Page", icon: <Search size={15} />, go: () => navigate("/activity") },
@@ -26,6 +26,7 @@ export function Palette({ onClose, onConnect }: { onClose: () => void; onConnect
         icon: <Search size={15} />,
         go: () => navigate("/activity?tab=audit"),
       },
+      { label: "About mcpDeck", hint: "Page", icon: <Search size={15} />, go: () => navigate("/about") },
       { label: "Settings", hint: "Page", icon: <Settings size={15} />, go: () => navigate("/settings") },
       {
         label: "Settings: security",
@@ -37,15 +38,15 @@ export function Palette({ onClose, onConnect }: { onClose: () => void; onConnect
     for (const a of apis.data ?? [])
       out.push({
         label: a.name,
-        hint: `API · ${a.title}`,
-        icon: <Plug size={15} />,
-        go: () => navigate(`/apis/${a.id}`),
+        hint: `Application · ${a.title}`,
+        icon: <AppWindow size={15} />,
+        go: () => navigate(`/apps/${a.id}`),
       });
     for (const t of tks.data ?? []) {
       out.push({
         label: t.name,
         hint: "Toolkit",
-        icon: <Layers size={15} />,
+        icon: <ToolCase size={15} />,
         go: () => navigate(`/toolkits/${t.name}`),
       });
       out.push({

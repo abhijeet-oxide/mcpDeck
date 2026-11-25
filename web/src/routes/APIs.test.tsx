@@ -4,13 +4,14 @@ import { mockAPI, renderApp } from "../test/render";
 import { APIs } from "./APIs";
 
 // REQ: UI-4, APP-1
-describe("APIs", () => {
+describe("Applications", () => {
   it("has a real empty state", async () => {
     mockAPI({ "/api/apis": [] });
     renderApp(<APIs />);
-    expect(await screen.findByText("No APIs yet")).toBeInTheDocument();
+    expect(await screen.findByText("Add your first application")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create application" })).toBeInTheDocument();
   });
-  it("shows each API with what needs attention", async () => {
+  it("shows each application with what needs attention", async () => {
     mockAPI({
       "/api/apis": [
         {
@@ -27,8 +28,10 @@ describe("APIs", () => {
       ],
     });
     renderApp(<APIs />);
-    expect(await screen.findByText("crm")).toBeInTheDocument();
-    expect(screen.getByText("add credential")).toBeInTheDocument();
-    expect(screen.getByText("1 to check")).toBeInTheDocument();
+    expect(await screen.findByText("Acme CRM")).toBeInTheDocument();
+    expect(screen.getByText("crm")).toBeInTheDocument();
+    expect(screen.getByText(/Needs a credential/)).toBeInTheDocument();
+    expect(screen.getByText(/1 to check/)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /New application/ }).length).toBeGreaterThan(0);
   });
 });

@@ -195,7 +195,7 @@ internal/
   insight/         suggestion rules over recorded calls
   connect/         client config writers (Claude Code, VS Code, Cursor, Claude Desktop)
   audit/           append-only hash-chained log
-  mock/            mock servers from specs + examples; demo world
+  mock/            mock servers from specs + examples; demo
   store/           SQLite, migrations/, queries/ (sqlc)
   clock/, version/ injected clock and IDs; build info
 web/               React app; embed.go exposes dist/
@@ -366,47 +366,56 @@ docs/assets/how-it-works.mjs`). Edit the script, not the SVGs. README uses
 
 ### Look
 
-Calm, compact and professional: a modern tool, not a showcase. Solid
-surfaces with hairline borders on a neutral page, one blue accent, ink for the
-main action, coloured mono chips for HTTP methods and states. Dense where
-work happens (request editor, code, call table) and short everywhere else: a
-page answers its question in the first screen. No glass, background glows,
-purple, emoji or gradients on content.
+Calm, modern and professional: a tool people enjoy using every day, not a
+showcase. Neutral zinc greys, solid surfaces with hairline borders and short
+soft shadows, one blue accent, ink for the main action, coloured mono chips
+for HTTP methods and states. Dense where work happens (request editor, code,
+call table) and short everywhere else: a page answers its question in the
+first screen. No glass, background glows, purple, emoji or gradients on
+content (the welcome and About heroes use a faint dot grid, nothing more).
+
+Placement rules:
+
+- Page actions sit top right, main action last (ink). Destructive actions
+  (delete a toolkit or application, revoke) live in the "…" menu, confirmed
+  in a dialog that names what's lost.
+- Save sits on the right: in a panel footer, or a save bar that appears only
+  when something changed, with Discard next to it.
+- Every list has an empty state that says what the thing is and offers the
+  first action. Every page says what it's for in one line.
+- After an action, suggest the next one in place (sent → save as example →
+  create tool), quietly, never as a modal.
 
 ### Tokens
 
 The source of truth is [`web/src/styles/tokens.css`](../web/src/styles/tokens.css),
-with dark values for UI-8.
+with dark values for UI-8. Component classes live in `web/src/styles/app.css`
+inside Tailwind's `components` layer so utilities can override them.
 
 ```css
 :root {
-  --bg:          #F5F6F8;   /* page */
+  --bg:          #F7F7F8;   /* page */
   --surface:     #FFFFFF;   /* panels, dialogs */
-  --surface-2:   #F9FAFB;   /* table heads, copy fields */
-  --sidebar:     #FBFBFC;
-  --line:        #E6E8EC;   /* hairline borders */
-  --line-strong: #D4D8DE;   /* inputs, light buttons */
-  --text:        #1D1D1F;
-  --text-2:      #3A3A3C;
-  --muted:       #6E6E73;   /* >= 4.5:1 on white */
-  --accent:      #0071E3;   /* confirm, links #0066CC */
-  --ink:         #1D1D1F;   /* main page action */
-  --ok:   #1F7A35 on rgba(52,199,89,.14)    /* GET, live, passed */
-  --info: #0058B0 on rgba(0,113,227,.10)    /* POST, read */
-  --warn: #9A3F00 on rgba(255,149,0,.16)    /* PUT, needs review */
-  --bad:  #B3261E on rgba(255,59,48,.11)    /* DELETE, blocked, revoke */
-  --r-panel: 10px; --r-ctl: 7px; --r-pill: 999px;
+  --surface-2:   #FAFAFA;   /* table heads, footers */
+  --line:        #E7E7EA;   /* hairline borders */
+  --line-strong: #D6D6DB;   /* inputs, light buttons */
+  --text:        #18181B;
+  --muted:       #6B6B73;   /* >= 4.5:1 on white */
+  --accent:      #2563EB;   /* confirm, focus */
+  --ink:         #18181B;   /* main page action */
+  --ok / --info / --warn / --bad  with matching -bg tints
+  --r-panel: 12px; --r-ctl: 8px;
   --font: "Inter Variable", -apple-system, "Segoe UI Variable", system-ui, sans-serif;  /* 13.5px base */
   --mono: "JetBrains Mono Variable", ui-monospace, Consolas, monospace;
 }
 ```
 
-Rules: panels are white with a 1px `--line` border and a barely visible
-shadow; buttons are 30px pills (ink for the main page action, blue to
-confirm, light for secondary, red tint for destructive); page titles are 20px;
-HTTP methods are always mono chips; numbers use tabular figures. The first
-mockup (`docs/mockups/`) used frosted glass and larger spacing; the layouts
-and flows still apply, the surfaces and sizes follow the tokens above.
+Rules: panels are white with a 1px `--line` border and a short shadow;
+buttons are 32px with an 8px radius (ink for the main page action, blue to
+confirm, light for secondary, red text for destructive); page titles are 22px;
+HTTP methods are always mono chips; numbers use tabular figures. Client marks
+(Claude, VS Code, Cursor) are small inline SVGs in `ClientIcon.tsx`; every
+other icon is Lucide.
 
 ## Decisions
 

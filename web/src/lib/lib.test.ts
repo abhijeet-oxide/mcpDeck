@@ -27,3 +27,13 @@ describe("bytes", () => {
     expect(bytes(4300)).toBe("4.2 KB");
   });
 });
+
+// REQ: APP-1
+describe("nameFromURL", async () => {
+  const { nameFromURL } = await import("../routes/APIWorkspace");
+  it("names a manually added request from its method and path", () => {
+    expect(nameFromURL("GET", "{{baseUrl}}/accounts/{id}")).toBe("getAccounts");
+    expect(nameFromURL("POST", "{{baseUrl}}/v1/invoices?x=1")).toBe("createV1Invoices");
+    expect(nameFromURL("GET", "{{baseUrl}}/account.json")).toBe("getAccount");
+  });
+});

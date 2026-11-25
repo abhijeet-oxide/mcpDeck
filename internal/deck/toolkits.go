@@ -780,3 +780,35 @@ func (d *Deck) DeleteTool(ctx context.Context, ref string) error {
 	d.toolsChanged(ids)
 	return nil
 }
+
+// AgentView is what an agent with a given grant receives from a toolkit's
+// use endpoint: the initialize instructions and tools/list (TK-5).
+type AgentView struct {
+	Toolkit      string    `json:"toolkit"`
+	Endpoint     string    `json:"endpoint"`
+	Access       string    `json:"access"`
+	CanBuild     bool      `json:"canBuild"`
+	Client       string    `json:"client"`
+	Instructions string    `json:"instructions"`
+	Tools        []ToolDef `json:"tools"`
+	Tokens       int       `json:"tokens"`
+}
+
+// AgentView builds the preview from the same functions the MCP server uses.
+func (d *Deck) AgentView(ctx context.Context, ref, access string, canBuild bool, client string) (*AgentView, error) {
+	tk, err := d.toolkitByRef(ctx, ref)
+	if err != nil {
+		return nil, err
+	}
+	if access != "read" && access != "read_write" {
+		access = "read"
+	}
+	defs, truncated := d.mcpToolDefs(ctx, tk, access)
+	defs = append(defs, d.useExtras(truncated)...)
+	// MCP servers list tools by name; show them in the order a client gets them.
+	sort.SliceStable(defs, func(i, j int) bool { return defs[i].Name < defs[j].Name })
+	b, _ := json.Marshal(map[string]any{"tools": defs})
+	g := store.Grant{Access: access, CanBuild: canBuild}
+	return &AgentView{Toolkit: tk.Name, Endpoint: d.Endpoint(tk.Name, false), Access: access, CanBuild: canBuild, Client: client,
+		Instructions: d.UseInstructions(tk, g, client), Tools: defs, Tokens: tokens.Count(string(b))}, nil
+}

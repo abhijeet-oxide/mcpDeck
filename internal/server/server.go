@@ -291,6 +291,10 @@ func (s *Server) routes() {
 		return d.CreateToolkit(r.Context(), in)
 	}))
 	m.HandleFunc("GET /api/toolkits/{ref}", h(func(r *http.Request) (any, error) { return d.GetToolkit(r.Context(), r.PathValue("ref")) }))
+	m.HandleFunc("GET /api/toolkits/{ref}/agent-view", h(func(r *http.Request) (any, error) {
+		q := r.URL.Query()
+		return d.AgentView(r.Context(), r.PathValue("ref"), q.Get("access"), q.Get("build") == "1", q.Get("client"))
+	}))
 	m.HandleFunc("PATCH /api/toolkits/{ref}", h(func(r *http.Request) (any, error) {
 		in, err := body[deck.ToolkitInput](r)
 		if err != nil {
@@ -439,7 +443,7 @@ func (s *Server) routes() {
 	}))
 	m.HandleFunc("POST /api/demo", h(func(r *http.Request) (any, error) {
 		if s.opt.StartDemo == nil {
-			return nil, &deck.Error{Status: 501, Code: "unsupported", Message: "run mcpdeck dev to open the demo world"}
+			return nil, &deck.Error{Status: 501, Code: "unsupported", Message: "run mcpdeck dev to open the demo"}
 		}
 		u, err := s.opt.StartDemo(r.Context())
 		if err != nil {

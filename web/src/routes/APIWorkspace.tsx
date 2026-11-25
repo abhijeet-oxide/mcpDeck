@@ -1,20 +1,39 @@
-import { Code2, Copy, Download, KeyRound, Plus, Save, Send, Trash2 } from "lucide-react";
+import {
+  ArrowRight,
+  BookmarkPlus,
+  CheckCircle2,
+  Code2,
+  Cookie,
+  Copy,
+  Download,
+  FileUp,
+  KeyRound,
+  Plus,
+  Save,
+  Send,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AskAgentButton } from "../components/AskAgent";
 import { KVEditor } from "../components/KVEditor";
 import {
   AccessChip,
+  Avatar,
   Button,
   Chip,
   Empty,
+  EmptyState,
   ErrorBox,
   Field,
   Loading,
+  Menu,
   MethodChip,
   PageHead,
   Panel,
+  SaveBar,
   Seg,
   Tabs,
+  useConfirm,
   useCopy,
   useToast,
 } from "../components/ui";
@@ -45,36 +64,40 @@ export function APIWorkspace({ id }: { id: string }) {
   return (
     <div className="page page-wide">
       <PageHead
+        icon={<Avatar name={a.name} size="lg" />}
         crumbs={
           <>
-            <Link to="/apis">APIs</Link> › {a.name}
+            <Link to="/apps">Applications</Link> / {a.title || a.name}
           </>
         }
-        title={a.name}
-        mono
+        title={a.title || a.name}
         sub={
           <>
-            {a.title} · {a.source} · tools call it as{" "}
+            Tools call it as{" "}
             <code>
               {a.name}.{first}()
-            </code>
+            </code>{" "}
+            · {a.requests.length} requests · from {a.source}
           </>
         }
         actions={
           <>
-            <select
-              className="select"
-              style={{ width: 150 }}
-              aria-label="Environment"
-              value={a.activeEnvId}
-              onChange={(e) => setActive.mutate(e.target.value)}
-            >
-              {a.environments.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name}
-                </option>
-              ))}
-            </select>
+            <label className="flex items-center gap-2 text-[12.5px]">
+              <span className="muted">Environment</span>
+              <select
+                className="select"
+                style={{ width: 150 }}
+                aria-label="Environment"
+                value={a.activeEnvId}
+                onChange={(e) => setActive.mutate(e.target.value)}
+              >
+                {a.environments.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <AskAgentButton
               prompts={[
                 {
@@ -84,21 +107,36 @@ export function APIWorkspace({ id }: { id: string }) {
                 },
               ]}
             />
-            <Button icon={<Download size={14} />} onClick={() => navigate(`/apis/${id}/import`)}>
-              Import
+            <Button kind="ink" icon={<Download size={14} />} onClick={() => navigate(`/apps/${id}/import`)}>
+              Import requests
             </Button>
+            <AppMenu a={a} onTab={setTab} />
           </>
         }
       />
       {imported && (
-        <div className="banner ok mb-3">
-          Imported {imported} requests.
-          {missing.length > 0 && " Add the credential on the Auth and credentials tab before sending."}
+        <div className="banner ok mb-4 items-center">
+          <CheckCircle2 size={15} className="flex-none" />
+          <span>
+            {imported} requests added.{" "}
+            {missing.length > 0
+              ? "Add the credential next, then send a request to check it works."
+              : "Next: pick a request and press Send to see what it returns."}
+          </span>
+          {missing.length > 0 && (
+            <Button size="sm" className="ml-auto" icon={<KeyRound size={13} />} onClick={() => setTab("auth")}>
+              Add credential
+            </Button>
+          )}
         </div>
       )}
       {!imported && missing.length > 0 && (
-        <div className="banner warn mb-3 items-center">
-          <KeyRound size={15} /> No value for {missing.map((m) => m.name).join(", ")} yet.
+        <div className="banner warn mb-4 items-center">
+          <KeyRound size={15} className="flex-none" />
+          <span>
+            {missing.map((m) => m.name).join(", ")} {missing.length === 1 ? "has" : "have"} no value yet, so requests
+            that need it will fail.
+          </span>
           <Button size="sm" className="ml-auto" onClick={() => setTab("auth")}>
             Add credential
           </Button>
@@ -110,15 +148,62 @@ export function APIWorkspace({ id }: { id: string }) {
         tabs={[
           { id: "requests", label: "Requests", n: a.requests.length },
           { id: "environments", label: "Environments", n: a.environments.length },
-          { id: "auth", label: "Auth and credentials" },
+          { id: "auth", label: "Auth and credentials", n: missing.length || undefined },
           { id: "settings", label: "Settings" },
         ]}
       />
-      {tab === "requests" && <Requests a={a} />}
+      {tab === "requests" && <Requests a={a} onTab={setTab} />}
       {tab === "environments" && <Environments a={a} />}
       {tab === "auth" && <AuthTab a={a} />}
       {tab === "settings" && <SettingsTab a={a} />}
     </div>
+  );
+}
+
+function AppMenu({ a, onTab }: { a: APIDetail; onTab: (t: Tab) => void }) {
+  const toast = useToast();
+  const confirm = useConfirm();
+  const cookies = useAction(() => post(`/api/apis/${a.id}/cookies/clear`), {
+    onSuccess: () => toast("Cookie jar cleared; the next call logs in again"),
+  });
+  const remove = useAction(() => del(`/api/apis/${a.id}`), {
+    onSuccess: () => {
+      toast(`${a.title || a.name} deleted`);
+      navigate("/apps");
+    },
+    onError: (e) => toast((e as Error).message, true),
+  });
+  const used = a.tools ?? [];
+  return (
+    <Menu
+      label="More application actions"
+      items={[
+        { label: "Import requests", icon: <FileUp size={14} />, onClick: () => navigate(`/apps/${a.id}/import`) },
+        { label: "Edit name and hosts", icon: <Code2 size={14} />, onClick: () => onTab("settings") },
+        { label: "Clear cookie jar", icon: <Cookie size={14} />, onClick: () => cookies.mutate(undefined) },
+        "sep",
+        {
+          label: "Delete application",
+          icon: <Trash2 size={14} />,
+          danger: true,
+          onClick: async () => {
+            if (used.length > 0) {
+              toast(`Used by ${used.join(", ")}. Change those tools first.`, true);
+              return;
+            }
+            if (
+              await confirm({
+                title: `Delete ${a.title || a.name}?`,
+                body: `Its ${a.requests.length} requests, environments and credentials are deleted. This can't be undone.`,
+                action: "Delete application",
+                danger: true,
+              })
+            )
+              remove.mutate(undefined);
+          },
+        },
+      ]}
+    />
   );
 }
 
@@ -140,6 +225,22 @@ const blank = (apiId: string): Request => ({
   accessFlag: false,
 });
 
+export function nameFromURL(method: string, url: string): string {
+  const parts = url
+    .replace(/\{\{baseUrl\}\}/, "")
+    .split("?")[0]
+    .split("/")
+    .filter((p) => p && !p.startsWith("{") && !p.startsWith(":"))
+    .map((p) => p.replace(/\.[a-z]+$/i, "").replace(/[^A-Za-z0-9]+/g, " "));
+  const last = parts.slice(-2).join(" ").trim() || "request";
+  const verb = { GET: "get", POST: "create", PUT: "update", PATCH: "update", DELETE: "delete" }[method] ?? "call";
+  const words = `${verb} ${last}`.split(" ").filter(Boolean);
+  return words
+    .map((w, i) => (i ? w[0].toUpperCase() + w.slice(1) : w.toLowerCase()))
+    .join("")
+    .slice(0, 48);
+}
+
 function curlOf(r: Request): string {
   const q = r.query.filter((k) => !k.disabled && k.value);
   const url = r.url + (q.length ? `?${q.map((k) => `${k.key}=${encodeURIComponent(k.value)}`).join("&")}` : "");
@@ -155,7 +256,7 @@ function toolCallOf(api: string, r: Request): string {
   return `await ${api}.${r.name}(${args ? `{ ${args} }` : ""})`;
 }
 
-function Requests({ a }: { a: APIDetail }) {
+function Requests({ a, onTab }: { a: APIDetail; onTab: (t: Tab) => void }) {
   const [sel, setSel] = useState<string>(a.requests[0]?.id ?? "");
   const [side, setSide] = useState<"requests" | "history">("requests");
   const [filter, setFilter] = useState("");
@@ -191,12 +292,13 @@ function Requests({ a }: { a: APIDetail }) {
           />
           <Button
             size="sm"
-            kind="ghost"
             className="ml-auto"
-            aria-label="New request"
-            icon={<Plus size={14} />}
+            title="Add a request manually"
+            icon={<Plus size={13} />}
             onClick={() => setSel("new")}
-          />
+          >
+            New
+          </Button>
         </div>
         {side === "requests" ? (
           <>
@@ -207,7 +309,7 @@ function Requests({ a }: { a: APIDetail }) {
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
             />
-            {a.requests.length === 0 && <Empty title="No requests">Import some, or add one with +.</Empty>}
+            {a.requests.length === 0 && <Empty title="No requests yet">Import them, or add one manually.</Empty>}
             {folders.map(([f, rs]) => (
               <div key={f} className="mb-1">
                 {f && <div className="muted px-2 py-1 text-[11.5px] font-semibold uppercase tracking-wide">{f}</div>}
@@ -259,17 +361,43 @@ function Requests({ a }: { a: APIDetail }) {
         )}
       </Panel>
       {draft ? (
-        <Editor key={draft.id || "new"} api={a} initial={draft} onSaved={(id) => setSel(id)} />
+        <Editor key={draft.id || "new"} api={a} initial={draft} onSaved={(id) => setSel(id)} onTab={onTab} />
       ) : (
         <Panel>
-          <Empty title="Pick a request" />
+          <EmptyState
+            icon={<Send size={20} />}
+            title="Add the first request"
+            actions={
+              <>
+                <Button icon={<Plus size={14} />} onClick={() => setSel("new")}>
+                  Add manually
+                </Button>
+                <Button kind="ink" icon={<FileUp size={14} />} onClick={() => navigate(`/apps/${a.id}/import`)}>
+                  Import requests
+                </Button>
+              </>
+            }
+          >
+            Import a Postman collection, an OpenAPI file or curl, or add a request manually: a method, a URL and any
+            parameters.
+          </EmptyState>
         </Panel>
       )}
     </div>
   );
 }
 
-function Editor({ api, initial, onSaved }: { api: APIDetail; initial: Request; onSaved: (id: string) => void }) {
+function Editor({
+  api,
+  initial,
+  onSaved,
+  onTab,
+}: {
+  api: APIDetail;
+  initial: Request;
+  onSaved: (id: string) => void;
+  onTab?: (t: Tab) => void;
+}) {
   const [r, setR] = useState<Request>(initial);
   const [sub, setSub] = useState<"params" | "headers" | "body" | "docs">(initial.body ? "body" : "params");
   const [res, setRes] = useState<SendResult | null>(null);
@@ -277,10 +405,16 @@ function Editor({ api, initial, onSaved }: { api: APIDetail; initial: Request; o
   const [sending, setSending] = useState(false);
   const copy = useCopy();
   const toast = useToast();
+  const confirm = useConfirm();
   const tks = useToolkits();
-  const dirty = JSON.stringify(r) !== JSON.stringify(initial);
+  const strip = ({ example: _e, ...x }: Request) => JSON.stringify(x);
+  const dirty = strip(r) !== strip(initial);
   const save = useAction(
-    () => (r.id ? put<Request>(`/api/requests/${r.id}`, r) : post<Request>(`/api/apis/${api.id}/requests`, r)),
+    () => {
+      // A request added manually gets a name from its method and path, like getAccount.
+      const body = r.id || r.name !== "newRequest" ? r : { ...r, name: nameFromURL(r.method, r.url) };
+      return r.id ? put<Request>(`/api/requests/${r.id}`, body) : post<Request>(`/api/apis/${api.id}/requests`, body);
+    },
     {
       onSuccess: (x) => {
         toast(`Saved ${api.name}.${x.name}`);
@@ -297,12 +431,17 @@ function Editor({ api, initial, onSaved }: { api: APIDetail; initial: Request; o
   const setAccess = useAction((acc: string) => post<Request>(`/api/requests/${r.id}/access`, { access: acc }), {
     onSuccess: (x) => setR((cur) => ({ ...cur, access: x.access, accessFlag: false, accessReason: x.accessReason })),
   });
+  const [exampleSaved, setExampleSaved] = useState(false);
   const saveExample = useAction(() => post(`/api/requests/${r.id}/example`, { body: JSON.parse(res!.body) }), {
-    onSuccess: () => toast("Saved as example; values that look like secrets were masked"),
+    onSuccess: () => {
+      setExampleSaved(true);
+      toast("Saved as example; values that look like secrets were masked");
+    },
   });
   const send = async () => {
     setSending(true);
     try {
+      setExampleSaved(false);
       setRes(await post<SendResult>("/api/send", { apiId: api.id, draft: r }));
     } catch (e) {
       setRes({ body: "", tokens: 0, error: (e as Error).message });
@@ -352,7 +491,14 @@ function Editor({ api, initial, onSaved }: { api: APIDetail; initial: Request; o
             value={r.url}
             onChange={(e) => setR({ ...r, url: e.target.value })}
           />
-          <Button kind="blue" icon={<Send size={13} />} disabled={sending} onClick={send} title={`${mod()}+Enter`}>
+          <Button
+            kind="blue"
+            icon={<Send size={13} />}
+            loading={sending}
+            onClick={send}
+            title={`${mod()}+Enter`}
+            data-tour="send"
+          >
             Send
           </Button>
           <Button
@@ -407,7 +553,7 @@ function Editor({ api, initial, onSaved }: { api: APIDetail; initial: Request; o
             <>
               <KVEditor rows={r.headers} onChange={(h) => setR({ ...r, headers: h })} keyLabel="Header" />
               <div className="muted mt-2 text-[12px]">
-                Auth headers come from the API's auth, so keys never sit on a request.
+                Auth headers come from the application's Authentication setting, so keys never sit on a request.
               </div>
             </>
           )}
@@ -456,12 +602,19 @@ function Editor({ api, initial, onSaved }: { api: APIDetail; initial: Request; o
                 />
               </Field>
               {r.id && (
-                <div>
+                <div className="flex justify-end sm:col-span-2">
                   <Button
                     kind="bad"
                     size="sm"
                     icon={<Trash2 size={13} />}
-                    onClick={() => confirm(`Delete ${api.name}.${r.name}?`) && remove.mutate(undefined)}
+                    onClick={async () =>
+                      (await confirm({
+                        title: `Delete ${api.name}.${r.name}?`,
+                        body: "Tools that call it will fail until they change.",
+                        action: "Delete request",
+                        danger: true,
+                      })) && remove.mutate(undefined)
+                    }
                   >
                     Delete request
                   </Button>
@@ -476,7 +629,7 @@ function Editor({ api, initial, onSaved }: { api: APIDetail; initial: Request; o
         title={
           res ? (
             res.error ? (
-              <Chip tone="bad">{res.code ?? "error"}</Chip>
+              <Chip tone="bad">Couldn't send</Chip>
             ) : (
               <span className="flex items-center gap-3">
                 <Chip tone={res.status! < 400 ? "ok" : "bad"}>{res.statusText}</Chip>
@@ -506,11 +659,25 @@ function Editor({ api, initial, onSaved }: { api: APIDetail; initial: Request; o
         }
       >
         {!res && (
-          <Empty title="Not sent yet">
-            Press Send or {mod()}+Enter. It goes through mcpDeck's proxy, like an agent's call.
-          </Empty>
+          <EmptyState icon={<Send size={20} />} title="Send the request to see its response">
+            Press Send or {mod()}+Enter. It goes through mcpDeck, the same way an agent's call will, and shows the size
+            in tokens an agent would read.
+          </EmptyState>
         )}
-        {res?.error && <div className="banner bad m-3">{res.error}</div>}
+        {res?.error && (
+          <div className="banner bad m-3 items-center">
+            <span className="min-w-0 flex-1">{res.error}</span>
+            {res.code === "unresolved_variables" && onTab && (
+              <Button
+                size="sm"
+                icon={<KeyRound size={13} />}
+                onClick={() => onTab(/token|key|secret|password/i.test(res.error ?? "") ? "auth" : "environments")}
+              >
+                {/token|key|secret|password/i.test(res.error ?? "") ? "Add credential" : "Open environments"}
+              </Button>
+            )}
+          </div>
+        )}
         {res && !res.error && (
           <pre className="code" style={{ border: 0, borderRadius: 0, maxHeight: 440 }}>
             {view === "headers"
@@ -522,33 +689,87 @@ function Editor({ api, initial, onSaved }: { api: APIDetail; initial: Request; o
                 : res.body}
           </pre>
         )}
-        <div className="flex flex-wrap gap-2 p-3" style={{ borderTop: "1px solid var(--line)" }}>
+        {res && !res.error && (res.status ?? 0) < 400 && r.id && (
+          <div className="next-card m-3" style={{ borderLeftColor: exampleSaved ? "var(--ok-dot)" : undefined }}>
+            {exampleSaved ? (
+              <>
+                <CheckCircle2 size={18} style={{ color: "var(--ok)" }} className="flex-none" />
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium">Example saved. Turn this request into a tool?</div>
+                  <div className="muted text-[12.5px]">
+                    A tool calls it for an agent and returns only the fields that are needed.
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  kind="ink"
+                  icon={<ArrowRight size={13} />}
+                  onClick={() =>
+                    tks.data?.length
+                      ? navigate(
+                          `/toolkits/${tks.data[0].name}/tools/new?from=${encodeURIComponent(`${api.name}.${r.name}`)}`,
+                        )
+                      : navigate("/toolkits?new=1")
+                  }
+                >
+                  {tks.data?.length ? "Create tool" : "Create a toolkit first"}
+                </Button>
+              </>
+            ) : (
+              isJSON && (
+                <>
+                  <BookmarkPlus size={18} className="muted flex-none" />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium">Looks right? Save it as an example.</div>
+                    <div className="muted text-[12.5px]">
+                      Tools can then be tested without the network, and agents see what this request returns.
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    kind="ink"
+                    loading={saveExample.isPending}
+                    onClick={() => saveExample.mutate(undefined)}
+                  >
+                    Save as example
+                  </Button>
+                </>
+              )
+            )}
+          </div>
+        )}
+        <div className="flex flex-wrap justify-end gap-2 p-3" style={{ borderTop: "1px solid var(--line)" }}>
           <Button
             size="sm"
-            icon={<Code2 size={13} />}
-            disabled={!r.id || !tks.data?.length}
-            title={tks.data?.length ? "" : "Create a toolkit first"}
-            onClick={() =>
-              navigate(`/toolkits/${tks.data![0].name}/tools/new?from=${encodeURIComponent(`${api.name}.${r.name}`)}`)
-            }
-          >
-            Create tool
-          </Button>
-          <Button size="sm" icon={<Copy size={13} />} onClick={() => copy(toolCallOf(api.name, r), "Tool call copied")}>
-            Copy as tool call
-          </Button>
-          <Button
-            size="sm"
+            kind="ghost"
             icon={<Copy size={13} />}
             onClick={() => copy(curlOf(r), "curl copied; variables stay as {{names}}")}
           >
             Copy as curl
           </Button>
-          {isJSON && r.id && (
-            <Button size="sm" icon={<Save size={13} />} onClick={() => saveExample.mutate(undefined)}>
-              Save as example
-            </Button>
-          )}
+          <Button
+            size="sm"
+            kind="ghost"
+            icon={<Copy size={13} />}
+            onClick={() => copy(toolCallOf(api.name, r), "Tool call copied")}
+          >
+            Copy as tool call
+          </Button>
+          <Button
+            size="sm"
+            icon={<Code2 size={13} />}
+            disabled={!r.id}
+            title={!r.id ? "Save the request first" : tks.data?.length ? "" : "Create a toolkit first"}
+            onClick={() =>
+              tks.data?.length
+                ? navigate(
+                    `/toolkits/${tks.data[0].name}/tools/new?from=${encodeURIComponent(`${api.name}.${r.name}`)}`,
+                  )
+                : navigate("/toolkits?new=1")
+            }
+          >
+            Create tool
+          </Button>
         </div>
       </Panel>
     </div>
@@ -730,18 +951,36 @@ function Environments({ a }: { a: APIDetail }) {
 function AuthTab({ a }: { a: APIDetail }) {
   const [auth, setAuth] = useState<Auth>(a.auth ?? { type: "none" });
   const toast = useToast();
-  const save = useAction(() => patch(`/api/apis/${a.id}`, { auth }), { onSuccess: () => toast("Auth saved") });
+  const save = useAction(() => patch(`/api/apis/${a.id}`, { auth }), {
+    onSuccess: () => toast("Authentication saved"),
+  });
   const secrets = a.variables.filter((v) => v.source === "secret");
   const set = (p: Partial<Auth>) => setAuth({ ...auth, ...p });
+  const dirty = JSON.stringify(auth) !== JSON.stringify(a.auth ?? { type: "none" });
   return (
-    <div className="grid items-start gap-4 lg:grid-cols-2">
-      <Panel title="Auth" bodyClass="panel-body flex flex-col gap-3">
-        <Field label="Type" hint="Requests inherit this unless they set their own.">
+    <div className="grid items-start gap-5 lg:grid-cols-2">
+      <Panel
+        title="Authentication"
+        bodyClass="panel-body flex flex-col gap-4"
+        footer={
+          <>
+            {dirty && (
+              <Button kind="ghost" onClick={() => setAuth(a.auth ?? { type: "none" })}>
+                Discard
+              </Button>
+            )}
+            <Button kind="ink" disabled={!dirty} loading={save.isPending} onClick={() => save.mutate(undefined)}>
+              Save authentication
+            </Button>
+          </>
+        }
+      >
+        <Field label="Type" hint="Every request uses this unless it sets its own.">
           <select className="select" value={auth.type} onChange={(e) => set({ type: e.target.value })}>
-            <option value="none">No auth</option>
+            <option value="none">None</option>
             <option value="bearer">Bearer token</option>
             <option value="apikey">API key</option>
-            <option value="basic">Basic</option>
+            <option value="basic">Username and password</option>
             <option value="login">Login request (cookie or header)</option>
           </select>
         </Field>
@@ -825,11 +1064,6 @@ function AuthTab({ a }: { a: APIDetail }) {
             </Field>
           </div>
         )}
-        <div>
-          <Button kind="ink" onClick={() => save.mutate(undefined)}>
-            Save auth
-          </Button>
-        </div>
         <ErrorBox error={save.error} />
       </Panel>
       <Panel title="Credentials" icon={<KeyRound size={15} className="muted" />}>
@@ -853,77 +1087,73 @@ function AuthTab({ a }: { a: APIDetail }) {
 }
 
 function SettingsTab({ a }: { a: APIDetail }) {
-  const [title, setTitle] = useState(a.title);
-  const [desc, setDesc] = useState(a.description);
-  const [hosts, setHosts] = useState((a.allowedHosts ?? []).join("\n"));
+  const init = { title: a.title, desc: a.description, hosts: (a.allowedHosts ?? []).join("\n") };
+  const [v, setV] = useState(init);
   const toast = useToast();
+  const dirty = JSON.stringify(v) !== JSON.stringify(init);
   const save = useAction(
-    () => patch(`/api/apis/${a.id}`, { title, description: desc, allowedHosts: hosts.split(/[\s,]+/).filter(Boolean) }),
-    { onSuccess: () => toast("Saved") },
+    () =>
+      patch(`/api/apis/${a.id}`, {
+        title: v.title,
+        description: v.desc,
+        allowedHosts: v.hosts.split(/[\s,]+/).filter(Boolean),
+      }),
+    { onSuccess: () => toast("Application saved") },
   );
-  const cookies = useAction(() => post(`/api/apis/${a.id}/cookies/clear`), {
-    onSuccess: () => toast("Cookie jar cleared"),
-  });
-  const remove = useAction(() => del(`/api/apis/${a.id}`), { onSuccess: () => navigate("/apis") });
   return (
-    <div className="grid items-start gap-4 lg:grid-cols-2">
-      <Panel title="General" bodyClass="panel-body flex flex-col gap-3">
-        <Field label="Title">
-          <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
-        </Field>
-        <Field label="Description">
+    <div style={{ maxWidth: 880 }}>
+      <Panel>
+        <div className="settings-row">
+          <div className="what">
+            <strong>Display name</strong>
+            <span>What people see in mcpDeck.</span>
+          </div>
+          <input className="input" value={v.title} onChange={(e) => setV({ ...v, title: e.target.value })} />
+        </div>
+        <div className="settings-row">
+          <div className="what">
+            <strong>Name in tool code</strong>
+            <span>Fixed once created, because tools call it by this name.</span>
+          </div>
+          <input className="input mono" value={a.name} readOnly aria-readonly />
+        </div>
+        <div className="settings-row">
+          <div className="what">
+            <strong>Description</strong>
+            <span>Agents that build tools read it to pick the right application.</span>
+          </div>
           <textarea
-            className="textarea"
-            style={{ fontFamily: "var(--font)" }}
+            className="textarea prose"
             rows={3}
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
+            placeholder="Customer accounts, contacts and owners"
+            value={v.desc}
+            onChange={(e) => setV({ ...v, desc: e.target.value })}
           />
-        </Field>
-        <Field
-          label="Allowed hosts"
-          hint={
-            <>
-              Calls to any other host are refused. Empty means the hosts of your environments:{" "}
+        </div>
+        <div className="settings-row">
+          <div className="what">
+            <strong>Allowed hosts</strong>
+            <span>
+              Calls to any other host are refused. Leave empty to allow the hosts in your environments:{" "}
               {(a.hosts ?? []).join(", ") || "none yet"}.
-            </>
-          }
-        >
+            </span>
+          </div>
           <textarea
             className="textarea"
             rows={3}
             placeholder="api.acme.example"
-            value={hosts}
-            onChange={(e) => setHosts(e.target.value)}
+            value={v.hosts}
+            onChange={(e) => setV({ ...v, hosts: e.target.value })}
           />
-        </Field>
-        <div>
-          <Button kind="ink" onClick={() => save.mutate(undefined)}>
-            Save
-          </Button>
         </div>
-        <ErrorBox error={save.error} />
       </Panel>
-      <Panel title="Data" bodyClass="panel-body flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <Button onClick={() => cookies.mutate(undefined)}>Clear cookie jar</Button>
-          <span className="muted text-[12.5px]">Forces the next call to log in again.</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            kind="bad"
-            onClick={() => confirm(`Delete ${a.name} and all its requests?`) && remove.mutate(undefined)}
-          >
-            Delete API
-          </Button>
-          <span className="muted text-[12.5px]">
-            {(a.tools ?? []).length > 0
-              ? `Used by ${(a.tools ?? []).join(", ")}; those tools must change first.`
-              : "No tool uses it."}
-          </span>
-        </div>
-        <ErrorBox error={remove.error} />
-      </Panel>
+      <ErrorBox error={save.error} />
+      <SaveBar
+        dirty={dirty}
+        saving={save.isPending}
+        onSave={() => save.mutate(undefined)}
+        onDiscard={() => setV(init)}
+      />
     </div>
   );
 }

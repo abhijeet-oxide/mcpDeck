@@ -64,9 +64,9 @@ flowchart LR
 | **WP-01** | Repo skeleton | `cmd/mcpdeck/main.go`, `internal/clock`, `internal/version`, `go.mod`, CI wiring | RUN-1 (build matrix), NFR-4 (Windows CI), NFR-6 | `make build` produces a binary on all six targets in CI; `mcpdeck version` prints build info; Windows runner green |
 | **WP-02** | Schema | `internal/store/migrations`, `internal/store/queries`, `sqlc.yaml` | RUN-3 | Every table in [design.md](design.md#data-model) migrates up on a temp dir; sqlc generates; a store test round-trips one row per table |
 | **WP-03** | Interfaces and fakes | `internal/*/iface.go` and `fake.go` for proxy, vault, tool runtime, session recorder, keychain, client config, browser open | — | Each interface has a fake used in at least one test; `go vet` clean; packages import interfaces, not each other |
-| **WP-04** | HTTP API contract | `internal/server/openapi.yaml`, generated TS client in `web/src/lib/api` | RUN-6 | Every UI action in [ui.md](ui.md) maps to an operation; client generates; a mock server (MSW) serves the demo world from the document's examples |
+| **WP-04** | HTTP API contract | `internal/server/openapi.yaml`, generated TS client in `web/src/lib/api` | RUN-6 | Every UI action in [ui.md](ui.md) maps to an operation; client generates; a mock server (MSW) serves the demo from the document's examples |
 | **WP-05** | UI shell | `web/src/app`, `web/src/styles/tokens.css`, `web/src/components` | UI-2, UI-3, UI-7, UI-8, UI-9 | Full-height sidebar with theme switch and repository link, Lucide icons, page header, tabs, chips, buttons, copy field, prompt card, modal, drawer and toast match the [mockup](mockups/index.html) in light and dark; fonts bundled; axe has no violations |
-| **WP-06** | Demo world | `internal/mock`, `examples/demo` | MOCK-1, MOCK-3 | `acme-crm`, `acme-billing`, `acme-support`, `acme-legacy` serve seeded, consistent data on :9001–:9004, including the cookie login and the bloated billing responses |
+| **WP-06** | Demo | `internal/mock`, `examples/demo` | MOCK-1, MOCK-3 | `acme-crm`, `acme-billing`, `acme-support`, `acme-legacy` serve seeded, consistent data on :9001–:9004, including the cookie login and the bloated billing responses |
 
 ## Wave 1: lanes in parallel
 
@@ -111,7 +111,7 @@ flowchart LR
 | ID | Package | Owns | Needs | Covers | Done when |
 |---|---|---|---|---|---|
 | WP-E1 | Sandbox | `internal/tool/sandbox` | 03 | TOOL-4, TOOL-6 | Escape suite passes (filesystem, network, prototype pollution, loops, memory, recursion, ReDoS, huge strings); limits enforced |
-| WP-E2 | Runtime globals and typegen | `internal/tool/runtime`, `internal/tool/typegen` | E1, A1 | TOOL-1, TOOL-2, TOOL-9 | The TOOL-1 example runs on the demo world; `.d.ts` generated per API; `vars` never in `tools/list` |
+| WP-E2 | Runtime globals and typegen | `internal/tool/runtime`, `internal/tool/typegen` | E1, A1 | TOOL-1, TOOL-2, TOOL-9 | The TOOL-1 example runs on the demo; `.d.ts` generated per API; `vars` never in `tools/list` |
 | WP-E3 | Test runs and tests | `internal/tool/test` | E2, D1 | TOOL-5, TOOL-7, TOOL-8 | Run against examples (no network) or an environment; per-call timeline and sizes; `pm.test` cases saved and run on save |
 | WP-E4 | Versions | `internal/tool/version` | E2 | VER-1, VER-2, VER-3, VER-4 | Immutable versions; pins honoured; breaking change detected; diff and roll back |
 | WP-E5 | Create from requests | `internal/tool/generate` | E2 | TOOL-10 | Golden tests: data flow wired, independent calls in `Promise.all`, ticked fields returned |
@@ -181,7 +181,7 @@ All UI lanes build against the WP-04 mock server, follow [ui.md](ui.md) and the
 | WP-Z1 | M1 walking skeleton | `e2e/m1` | 01–06, then thin slices of A1, D1, E2, F1, F2, H1, J1, U1–U4 | — | The M1 outcome in requirements.md runs on Linux and Windows CI |
 | WP-Z2 | End-to-end suites | `e2e/` | Each milestone | UI-0, UI-4, UI-5 | Every flow done in the UI alone; click-every-control test with no console errors; banned-words check; MCP client flows per milestone |
 | WP-Z3 | Release | `.goreleaser.yaml`, `.github/workflows/release.yml` | J3 | NFR-1, NFR-3, NFR-5, NFR-7 | Size, memory and start-time budgets measured per release; zero-config first run; checksums and SBOM published |
-| WP-Z4 | Screenshots | `scripts/screenshots`, README | U1–U6 | DOC-1 | `make screenshots` captures the real app on the demo world, light and dark, and replaces mockup images in the README |
+| WP-Z4 | Screenshots | `scripts/screenshots`, README | U1–U6 | DOC-1 | `make screenshots` captures the real app on the demo, light and dark, and replaces mockup images in the README |
 
 ## Milestones from packages
 

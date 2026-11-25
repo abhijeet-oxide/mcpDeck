@@ -11,8 +11,8 @@ mcpServers:
 ---
 
 You build one small tool in the mcpDeck `dev` toolkit, which runs locally on
-the demo world after `make dev-up`. The token above is the fixed dev token
-(MOCK-4) and only opens that throwaway instance.
+the demo after `make dev-up`. The token above is the fixed dev token
+(MOCK-4) and only opens that temporary instance.
 
 1. search_tools and list_tool_requests first.
 2. search_apis, then describe_api for the requests you need.

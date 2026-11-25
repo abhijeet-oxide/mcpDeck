@@ -52,7 +52,7 @@ read or also write. Every call is recorded.
 <img src="docs/assets/icons/api.svg" width="36" height="36" alt=""><br>
 <b>Any HTTP API, old ones too</b><br>
 Paste a Swagger page URL, import OpenAPI or a Postman collection, paste curl,
-or add requests by hand. Environments, <code>{{variables}}</code>, auth and a
+or add requests manually. Environments, <code>{{variables}}</code>, auth and a
 request runner, like Postman. XML bodies, form posts and cookie logins work.
 </td>
 <td width="50%" valign="top">
@@ -274,8 +274,8 @@ aren't code-signed yet, so Windows SmartScreen may ask you to confirm (More
 info › Run anyway).
 
 Then run `mcpdeck`; the UI opens at `http://127.0.0.1:47800`. To look around
-first, `mcpdeck dev` starts a demo world (CRM, billing, ticketing and a legacy
-service with a cookie login) in throwaway data, with tools, agents and calls
+first, `mcpdeck dev` starts a demo (CRM, billing, ticketing and a legacy
+service with a cookie login) in temporary data, with tools, agents and calls
 already in it. From source:
 
 ```sh

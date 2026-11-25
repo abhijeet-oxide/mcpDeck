@@ -1,9 +1,11 @@
-import { CheckCircle2, ExternalLink, FileCode2, Loader2 } from "lucide-react";
+import { CheckCircle2, ExternalLink, FileCode2, Loader2, ToolCase } from "lucide-react";
 import { useEffect, useState } from "react";
 import { post } from "../lib/api";
 import { useAction, useAgent, useAgents, useToolkits } from "../lib/hooks";
+import { navigate } from "../lib/router";
 import type { ConnectResponse, Plan } from "../lib/types";
-import { Button, Chip, CopyButton, CopyField, Dialog, ErrorBox, Field, Seg, Toggle, useToast } from "./ui";
+import { ClientIcon } from "./ClientIcon";
+import { Button, Chip, CopyButton, CopyField, Dialog, EmptyState, ErrorBox, Field, Seg, Toggle, useToast } from "./ui";
 
 const clients = [
   { id: "claude-code", label: "Claude Code", sub: "claude mcp add + builder subagent" },
@@ -81,16 +83,43 @@ export function ConnectDialog({
   const connected = res && live.data?.lastSeenAt && new Date(live.data.lastSeenAt).getTime() > startedAt - 2000;
   const tkName = tks.data?.find((t) => t.id === tk)?.name ?? "";
 
+  if (tks.data && tks.data.length === 0) {
+    return (
+      <Dialog title="Connect an agent" onClose={onClose}>
+        <EmptyState
+          icon={<ToolCase size={22} />}
+          title="Create a toolkit first"
+          actions={
+            <Button
+              kind="ink"
+              onClick={() => {
+                onClose();
+                navigate("/toolkits?new=1");
+              }}
+            >
+              Create toolkit
+            </Button>
+          }
+        >
+          An agent connects to a toolkit and gets its tools. Create one, then connect Claude Code, VS Code or Cursor to
+          it.
+        </EmptyState>
+      </Dialog>
+    );
+  }
   if (!res) {
     return (
       <Dialog
         title={existing ? `Add a toolkit to ${existing.name}` : "Connect an agent"}
+        sub="Pick the client, the toolkit it gets and what it may do. You'll get a command or a one-click link next."
         onClose={onClose}
         wide
         footer={
           <>
-            <Button onClick={onClose}>Cancel</Button>
-            <Button kind="ink" disabled={!tk || go.isPending} onClick={() => go.mutate(undefined)}>
+            <Button kind="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button kind="ink" disabled={!tk} loading={go.isPending} onClick={() => go.mutate(undefined)}>
               Connect
             </Button>
           </>
@@ -103,17 +132,18 @@ export function ConnectDialog({
                 <button
                   key={c.id}
                   type="button"
-                  className="panel p-2.5 text-left"
-                  style={
-                    client === c.id
-                      ? { borderColor: "var(--accent)", boxShadow: "0 0 0 3px var(--accent-soft)" }
-                      : { cursor: "pointer" }
-                  }
+                  className="choice"
+                  style={{ padding: 12 }}
                   aria-pressed={client === c.id}
                   onClick={() => setClient(c.id)}
                 >
-                  <div className="font-semibold">{c.label}</div>
-                  <div className="muted text-[12px]">{c.sub}</div>
+                  <span className="icon-tile plain">
+                    <ClientIcon client={c.id} size={18} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-semibold">{c.label}</span>
+                    <span className="muted block text-[12px]">{c.sub}</span>
+                  </span>
                 </button>
               ))}
             </div>

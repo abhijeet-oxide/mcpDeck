@@ -34,7 +34,7 @@ cmd/mcpdeck/      CLI entry and wiring
 internal/        Go packages, one per feature (see docs/design.md#packages)
 web/             React + Vite UI, embedded into the binary
 skills/          optional files `mcpdeck connect` installs into Claude / Copilot / Cursor
-examples/        demo world and sample imports
+examples/        demo and sample imports
 e2e/             Playwright + MCP client tests against a running binary
 docs/            vision, requirements, design, testing, releasing, mockups
 scripts/         install.sh / install.ps1, shipped with every release
@@ -151,13 +151,13 @@ If a task seems to need breaking one of these, stop and ask.
 - Styling with Tailwind and the tokens in `web/src/styles/tokens.css`. Match
   the layouts in `docs/mockups/` (spec in `docs/ui.md`) with the calmer look in
   `docs/design.md#look`: solid panels with hairline borders, neutral
-  background, compact sizes, black and blue pill buttons, coloured mono chips
+  background, compact sizes, ink and blue buttons on the right, coloured mono chips
   for HTTP methods. No glass, glows, purple, emoji or gradients on content.
 - Accessible by default: real `<button>`/`<a>`, labels on inputs, visible focus,
   AA contrast.
 - Icons are Lucide (`lucide-react`). Don't mix in other icon sets.
-- Navigation stays at Home, APIs, Toolkits, Agents, Activity, then About and
-  Settings at the bottom. Ask
+- Navigation stays at Home, Applications, Toolkits, Agents, Activity, then About and
+  Settings at the bottom. ("Application" in the UI is an API in code.) Ask
   before adding a top-level item.
 
 ## Commits and PRs

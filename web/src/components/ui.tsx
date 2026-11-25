@@ -1,4 +1,4 @@
-import { Check, Copy, X } from "lucide-react";
+import { Check, CheckCircle2, CircleAlert, Copy, Loader2, MoreHorizontal, X } from "lucide-react";
 import {
   type ButtonHTMLAttributes,
   createContext,
@@ -17,20 +17,27 @@ export function Button({
   icon,
   className = "",
   children,
+  loading,
   ...rest
-}: ButtonHTMLAttributes<HTMLButtonElement> & { kind?: BtnKind; size?: "sm"; icon?: ReactNode }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  kind?: BtnKind;
+  size?: "sm" | "lg";
+  icon?: ReactNode;
+  loading?: boolean;
+}) {
   const cls = [
     "btn",
     kind !== "default" && `btn-${kind}`,
     size === "sm" && "btn-sm",
+    size === "lg" && "btn-lg",
     !children && "btn-icon",
     className,
   ]
     .filter(Boolean)
     .join(" ");
   return (
-    <button type="button" className={cls} {...rest}>
-      {icon}
+    <button type="button" className={cls} {...rest} disabled={rest.disabled || loading}>
+      {loading ? <Loader2 size={14} className="animate-spin" /> : icon}
       {children}
     </button>
   );
@@ -84,6 +91,8 @@ export function Panel({
   children,
   className = "",
   bodyClass,
+  footer,
+  id,
 }: {
   title?: ReactNode;
   icon?: ReactNode;
@@ -91,9 +100,11 @@ export function Panel({
   children: ReactNode;
   className?: string;
   bodyClass?: string;
+  footer?: ReactNode;
+  id?: string;
 }) {
   return (
-    <section className={`panel ${className}`}>
+    <section className={`panel ${className}`} id={id}>
       {title !== undefined && (
         <div className="panel-head">
           {icon}
@@ -102,6 +113,7 @@ export function Panel({
         </div>
       )}
       <div className={bodyClass ?? ""}>{children}</div>
+      {footer && <div className="panel-foot">{footer}</div>}
     </section>
   );
 }
@@ -112,18 +124,21 @@ export function PageHead({
   crumbs,
   actions,
   mono,
+  icon,
 }: {
   title: ReactNode;
   sub?: ReactNode;
   crumbs?: ReactNode;
   actions?: ReactNode;
   mono?: boolean;
+  icon?: ReactNode;
 }) {
   return (
     <div className="page-head">
+      {icon}
       <div className="min-w-0">
-        {crumbs && <div className="crumbs">{crumbs}</div>}
-        <h1 className={mono ? "mono" : ""} style={mono ? { fontSize: 19 } : undefined}>
+        {crumbs && <nav className="crumbs">{crumbs}</nav>}
+        <h1 className={mono ? "mono" : ""} style={mono ? { fontSize: 21 } : undefined}>
           {title}
         </h1>
         {sub && <div className="sub">{sub}</div>}
@@ -138,7 +153,7 @@ export function Tabs<T extends string>({
   value,
   onChange,
 }: {
-  tabs: { id: T; label: ReactNode; n?: number }[];
+  tabs: { id: T; label: ReactNode; n?: number; icon?: ReactNode }[];
   value: T;
   onChange: (t: T) => void;
 }) {
@@ -146,6 +161,7 @@ export function Tabs<T extends string>({
     <div className="tabs" role="tablist">
       {tabs.map((t) => (
         <button key={t.id} type="button" role="tab" aria-selected={value === t.id} onClick={() => onChange(t.id)}>
+          {t.icon}
           {t.label}
           {t.n !== undefined && t.n > 0 && <span className="n">{t.n}</span>}
         </button>
@@ -178,12 +194,14 @@ export function Seg<T extends string>({
 
 export function Dialog({
   title,
+  sub,
   onClose,
   children,
   footer,
   wide,
 }: {
   title: ReactNode;
+  sub?: ReactNode;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
@@ -193,7 +211,9 @@ export function Dialog({
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", k);
-    const first = ref.current?.querySelector<HTMLElement>("input, select, textarea, button:not([aria-label='Close'])");
+    const first = ref.current?.querySelector<HTMLElement>(
+      ".dialog-body input, .dialog-body select, .dialog-body textarea, .dialog-body button",
+    );
     first?.focus();
     return () => window.removeEventListener("keydown", k);
   }, []);
@@ -208,9 +228,10 @@ export function Dialog({
             className="ml-auto"
             aria-label="Close"
             onClick={onClose}
-            icon={<X size={15} />}
+            icon={<X size={16} />}
           />
         </div>
+        {sub && <div className="dialog-sub">{sub}</div>}
         <div className="dialog-body">{children}</div>
         {footer && <div className="dialog-foot">{footer}</div>}
       </div>
@@ -234,7 +255,7 @@ export function Drawer({ title, onClose, children }: { title: ReactNode; onClose
           className="ml-auto"
           aria-label="Close"
           onClick={onClose}
-          icon={<X size={15} />}
+          icon={<X size={16} />}
         />
       </div>
       <div className="dialog-body flex-1">{children}</div>
@@ -242,6 +263,7 @@ export function Drawer({ title, onClose, children }: { title: ReactNode; onClose
   );
 }
 
+/** Empty is the small in-panel empty line. */
 export function Empty({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="empty">
@@ -251,13 +273,192 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
   );
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
+/** EmptyState is a page-level empty state: what this is, and what to do first. */
+export function EmptyState({
+  icon,
+  title,
+  children,
+  actions,
+}: {
+  icon: ReactNode;
+  title: string;
+  children?: ReactNode;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="empty-state">
+      <div className="ring">{icon}</div>
+      <h3>{title}</h3>
+      {children && <p>{children}</p>}
+      {actions && <div className="flex flex-wrap justify-center gap-2">{actions}</div>}
+    </div>
+  );
+}
+
+export function Field({
+  label,
+  hint,
+  error,
+  children,
+}: {
+  label: string;
+  hint?: ReactNode;
+  error?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <label className="field">
       <span>{label}</span>
       {children}
-      {hint && <div className="hint">{hint}</div>}
+      {error ? <div className="error">{error}</div> : hint && <div className="hint">{hint}</div>}
     </label>
+  );
+}
+
+/** Menu is a "more actions" button with a popover list. */
+export function Menu({
+  label = "More actions",
+  items,
+  trigger,
+}: {
+  label?: string;
+  trigger?: ReactNode;
+  items: ({ label: string; icon?: ReactNode; onClick: () => void; danger?: boolean } | "sep")[];
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const down = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const key = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("mousedown", down);
+    window.addEventListener("keydown", key);
+    ref.current?.querySelector<HTMLElement>(".menu button")?.focus();
+    return () => {
+      window.removeEventListener("mousedown", down);
+      window.removeEventListener("keydown", key);
+    };
+  }, [open]);
+  return (
+    <div className="relative" ref={ref}>
+      {trigger ? (
+        <span onClickCapture={() => setOpen((o) => !o)}>{trigger}</span>
+      ) : (
+        <Button
+          aria-label={label}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          icon={<MoreHorizontal size={16} />}
+          onClick={() => setOpen((o) => !o)}
+        />
+      )}
+      {open && (
+        <div className="menu" role="menu">
+          {items.map((it, i) =>
+            it === "sep" ? (
+              <hr key={`sep${i}`} />
+            ) : (
+              <button
+                key={it.label}
+                type="button"
+                role="menuitem"
+                className={it.danger ? "danger" : ""}
+                onClick={() => {
+                  setOpen(false);
+                  it.onClick();
+                }}
+              >
+                {it.icon}
+                {it.label}
+              </button>
+            ),
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** SaveBar shows only when there are unsaved changes. */
+export function SaveBar({
+  dirty,
+  onSave,
+  onDiscard,
+  saving,
+  label = "Save changes",
+  note = "You have unsaved changes",
+}: {
+  dirty: boolean;
+  onSave: () => void;
+  onDiscard: () => void;
+  saving?: boolean;
+  label?: string;
+  note?: string;
+}) {
+  if (!dirty) return null;
+  return (
+    <div className="savebar" role="region" aria-label="Unsaved changes">
+      <span className="dot warn" />
+      <span className="grow font-medium">{note}</span>
+      <Button kind="ghost" onClick={onDiscard}>
+        Discard
+      </Button>
+      <Button kind="ink" onClick={onSave} loading={saving}>
+        {label}
+      </Button>
+    </div>
+  );
+}
+
+const avatarTones = [
+  ["var(--info-bg)", "var(--info)"],
+  ["var(--ok-bg)", "var(--ok)"],
+  ["var(--warn-bg)", "var(--warn)"],
+  ["var(--teal-bg)", "var(--teal)"],
+  ["var(--bad-bg)", "var(--bad)"],
+  ["var(--neutral-bg)", "var(--text-2)"],
+];
+/** Avatar is a letter tile with a colour fixed by the name. */
+export function Avatar({ name, size }: { name: string; size?: "sm" | "lg" }) {
+  let h = 0;
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const [bg, fg] = avatarTones[h % avatarTones.length];
+  return (
+    <span className={`avatar${size ? ` ${size}` : ""}`} style={{ background: bg, color: fg }} aria-hidden>
+      {name.replace(/[^a-z0-9]/gi, "").slice(0, 2) || "?"}
+    </span>
+  );
+}
+
+export function StatCard({
+  icon,
+  label,
+  value,
+  foot,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: ReactNode;
+  foot?: ReactNode;
+  onClick?: () => void;
+}) {
+  const inner = (
+    <>
+      <div className="label">
+        {icon}
+        {label}
+      </div>
+      <div className="value">{value}</div>
+      {foot && <div className="foot">{foot}</div>}
+    </>
+  );
+  return onClick ? (
+    <button type="button" className="panel card-link stat-card text-left" onClick={onClick}>
+      {inner}
+    </button>
+  ) : (
+    <div className="panel stat-card">{inner}</div>
   );
 }
 
@@ -269,14 +470,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const push = useCallback((text: string, bad?: boolean) => {
     const id = Date.now() + Math.random();
     setList((l) => [...l, { id, text, bad }]);
-    setTimeout(() => setList((l) => l.filter((t) => t.id !== id)), bad ? 6000 : 3000);
+    setTimeout(() => setList((l) => l.filter((t) => t.id !== id)), bad ? 6000 : 3200);
   }, []);
   return (
     <ToastCtx.Provider value={push}>
-      {children}
+      <ConfirmProvider>{children}</ConfirmProvider>
       <div className="toast-wrap" role="status" aria-live="polite">
         {list.map((t) => (
           <div key={t.id} className={`toast${t.bad ? " bad" : ""}`}>
+            {t.bad ? <CircleAlert size={15} /> : <CheckCircle2 size={15} />}
             {t.text}
           </div>
         ))}
@@ -285,6 +487,40 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 export const useToast = () => useContext(ToastCtx);
+
+// Confirm: a real dialog instead of the browser's confirm().
+type ConfirmOpts = { title: string; body?: ReactNode; action: string; danger?: boolean };
+const ConfirmCtx = createContext<(o: ConfirmOpts) => Promise<boolean>>(async () => false);
+function ConfirmProvider({ children }: { children: ReactNode }) {
+  const [req, setReq] = useState<(ConfirmOpts & { resolve: (v: boolean) => void }) | null>(null);
+  const ask = useCallback((o: ConfirmOpts) => new Promise<boolean>((resolve) => setReq({ ...o, resolve })), []);
+  const done = (v: boolean) => {
+    req?.resolve(v);
+    setReq(null);
+  };
+  return (
+    <ConfirmCtx.Provider value={ask}>
+      {children}
+      {req && (
+        <Dialog
+          title={req.title}
+          onClose={() => done(false)}
+          footer={
+            <>
+              <Button onClick={() => done(false)}>Cancel</Button>
+              <Button kind={req.danger ? "bad" : "ink"} onClick={() => done(true)}>
+                {req.action}
+              </Button>
+            </>
+          }
+        >
+          <div className="text-2">{req.body}</div>
+        </Dialog>
+      )}
+    </ConfirmCtx.Provider>
+  );
+}
+export const useConfirm = () => useContext(ConfirmCtx);
 
 export function useCopy() {
   const toast = useToast();
@@ -325,11 +561,20 @@ export function CopyField({ value, label }: { value: string; label?: string }) {
 
 export function ErrorBox({ error }: { error: unknown }) {
   if (!error) return null;
-  return <div className="banner bad">{error instanceof Error ? error.message : String(error)}</div>;
+  return (
+    <div className="banner bad" role="alert">
+      <CircleAlert size={15} className="mt-0.5 flex-none" />
+      <span>{error instanceof Error ? error.message : String(error)}</span>
+    </div>
+  );
 }
 
 export function Loading() {
-  return <div className="empty">Loading…</div>;
+  return (
+    <div className="empty flex items-center justify-center gap-2">
+      <Loader2 size={15} className="animate-spin" /> Loading…
+    </div>
+  );
 }
 
 export function Toggle({
@@ -349,25 +594,27 @@ export function Toggle({
       aria-label={label}
       onClick={() => onChange(!checked)}
       style={{
-        width: 30,
-        height: 18,
+        width: 34,
+        height: 20,
         borderRadius: 999,
         border: 0,
         padding: 2,
         background: checked ? "var(--accent)" : "var(--line-strong)",
         cursor: "pointer",
         flex: "none",
+        transition: "background .15s",
       }}
     >
       <span
         style={{
           display: "block",
-          width: 14,
-          height: 14,
+          width: 16,
+          height: 16,
           borderRadius: "50%",
           background: "#fff",
-          transform: checked ? "translateX(12px)" : "none",
-          transition: "transform .12s",
+          boxShadow: "0 1px 2px rgba(0,0,0,.2)",
+          transform: checked ? "translateX(14px)" : "none",
+          transition: "transform .15s",
         }}
       />
     </button>

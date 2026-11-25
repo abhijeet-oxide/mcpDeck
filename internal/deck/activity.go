@@ -210,6 +210,7 @@ type Home struct {
 	Recent         []store.Call `json:"recent"`
 	Steps          []Step       `json:"steps"`
 	HideOnboarding bool         `json:"hideOnboarding"`
+	WelcomeSeen    bool         `json:"welcomeSeen"`
 	Demo           bool         `json:"demo"`
 	Daily          []DayPoint   `json:"daily"`
 }
@@ -291,24 +292,42 @@ func (d *Deck) Home(ctx context.Context) (*Home, error) {
 			hasLive = true
 		}
 	}
+	sent, _ := d.Store.Calls(ctx, store.CallFilter{Kind: "upstream", Status: "ok", Limit: 1})
+	hasExample := false
+	for _, r := range reqs {
+		if len(r.Example) > 0 && string(r.Example) != "null" {
+			hasExample = true
+			break
+		}
+	}
+	// The journey a new user is guided through (UI-11). Steps can be done in
+	// any order; Reason names what a step needs when it can't start yet.
 	h.Steps = []Step{
 		{Key: "api", Done: h.APIs > 0},
+		{Key: "send", Done: len(sent) > 0},
+		{Key: "example", Done: hasExample},
 		{Key: "toolkit", Done: h.Toolkits > 0},
-		{Key: "agent", Done: h.Agents > 0},
 		{Key: "tool", Done: hasLive},
+		{Key: "agent", Done: h.Agents > 0},
 	}
-	reasons := []string{"", "Add an API first", "Create a toolkit first", "Connect an agent first"}
-	for i := 1; i < len(h.Steps); i++ {
-		if !h.Steps[i-1].Done && !h.Steps[i].Done {
-			h.Steps[i].Reason = reasons[i]
+	needs := map[string]string{"send": "Add an application first", "example": "Send a request first", "tool": "Create a toolkit first", "agent": "Create a toolkit first"}
+	done := map[string]bool{}
+	for _, st := range h.Steps {
+		done[st.Key] = st.Done
+	}
+	prereq := map[string]string{"send": "api", "example": "send", "tool": "toolkit", "agent": "toolkit"}
+	for i, st := range h.Steps {
+		if p, ok := prereq[st.Key]; ok && !st.Done && !done[p] {
+			h.Steps[i].Reason = needs[st.Key]
 		}
 	}
 	h.HideOnboarding = d.Store.Setting(ctx, "hideOnboarding", "") == "true"
+	h.WelcomeSeen = d.Store.Setting(ctx, "welcomeSeen", "") == "true"
 	return h, nil
 }
 
 // Settings are the editable settings (RUN-7).
-var settingKeys = map[string]bool{"theme": true, "toolTimeoutSeconds": true, "retentionBodiesDays": true, "retentionCallsDays": true, "hideOnboarding": true}
+var settingKeys = map[string]bool{"theme": true, "toolTimeoutSeconds": true, "retentionBodiesDays": true, "retentionCallsDays": true, "hideOnboarding": true, "welcomeSeen": true}
 
 // SettingsView is Settings with read-only facts.
 type SettingsView struct {
@@ -326,7 +345,7 @@ func (d *Deck) Settings(ctx context.Context, version string) (*SettingsView, err
 	if err != nil {
 		return nil, err
 	}
-	vals := map[string]string{"theme": "system", "toolTimeoutSeconds": "10", "retentionBodiesDays": "30", "retentionCallsDays": "365", "hideOnboarding": "false"}
+	vals := map[string]string{"theme": "system", "toolTimeoutSeconds": "10", "retentionBodiesDays": "30", "retentionCallsDays": "365", "hideOnboarding": "false", "welcomeSeen": "false"}
 	for k, v := range all {
 		if settingKeys[k] {
 			vals[k] = v

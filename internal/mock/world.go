@@ -1,4 +1,4 @@
-// Package mock serves the demo world: four related fake APIs with seeded,
+// Package mock serves the demo: four related fake APIs with seeded,
 // consistent data (MOCK-3), used by `mcpdeck dev`, tests and demos.
 //
 //	crm      bearer token          accounts, contacts, owners
@@ -96,7 +96,7 @@ var seedIssues = []issue{
 	{"GLX-212", "GLX", "Usage report missing October", "In Progress", "Medium", "dana@acme.example", "2026-11-20T14:20:00Z"},
 }
 
-// World is the running demo world.
+// World is the running demo.
 type World struct {
 	Ports    map[string]int
 	servers  []*http.Server
