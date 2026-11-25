@@ -1,4 +1,17 @@
-import { BookOpen, Bug, CirclePlay, ExternalLink, GitPullRequest, Package, Scale, Star } from "lucide-react";
+import {
+  BookOpen,
+  Bug,
+  CirclePlay,
+  ExternalLink,
+  GitPullRequest,
+  KeyRound,
+  Package,
+  Scale,
+  Scissors,
+  ShieldCheck,
+  Star,
+  Workflow,
+} from "lucide-react";
 import { HowItWorks, Promises } from "../components/Explainer";
 import { startTour } from "../components/Guide";
 import { Logo, REPO } from "../components/Sidebar";
@@ -15,10 +28,33 @@ const links = [
   { icon: Scale, label: "License", sub: "Open source", href: `${REPO}/blob/main/LICENSE` },
 ];
 
+const ideas = [
+  {
+    icon: Workflow,
+    title: "Chain requests into one tool",
+    text: "Log in, list applications, pick one, list its images, fetch vulnerabilities: one tool call for the agent, not five. Build it on a canvas or in TypeScript; both edit the same code.",
+  },
+  {
+    icon: Scissors,
+    title: "Return only what's needed",
+    text: "Tick the fields to keep. mcpDeck shows tokens fetched versus returned, so a 40,000-token response becomes a 600-token answer.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Guided by MCP guidelines",
+    text: "Every toolkit and run is checked against what makes MCP servers work well for agents: tool count, descriptions, inputs, output size, credentials.",
+  },
+  {
+    icon: KeyRound,
+    title: "Credentials stay in mcpDeck",
+    text: "Keys, tokens and certificates are used inside the proxy only. Agents get answers, never secrets, and every call is recorded.",
+  },
+];
+
 export function About() {
   const info = useInfo();
   return (
-    <div className="page" style={{ maxWidth: 1120 }}>
+    <div className="page">
       <section className="hero mb-8 p-8">
         <div className="hero-grid" />
         <div className="relative flex flex-wrap items-start gap-6">
@@ -29,9 +65,9 @@ export function About() {
               <span className="tag">{info.data?.version ?? ""}</span>
             </div>
             <p className="text-2 m-0 max-w-[620px] text-[14.5px] leading-relaxed">
-              mcpDeck sits between AI agents and your APIs, including old ones. Import an API the way you would in
-              Postman, write small tools that return only what's needed, and give them to Claude Code, VS Code or
-              Cursor. Keys stay on this computer and every call is recorded.
+              mcpDeck turns the APIs you already have, including old ones, into small, fast MCP tools. Import them the
+              way you would in Postman, chain requests into tools that return only what an agent needs, and give each
+              toolkit to Claude Code, VS Code or Cursor as one MCP endpoint.
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
               {info.data?.demo ? (
@@ -48,6 +84,18 @@ export function About() {
           </div>
         </div>
       </section>
+
+      <div className="mb-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {ideas.map(({ icon: I, title, text }) => (
+          <div key={title} className="panel p-5">
+            <span className="icon-tile mb-3">
+              <I size={17} />
+            </span>
+            <h3 className="mb-1.5 text-[14px] font-semibold">{title}</h3>
+            <p className="text-2 m-0 text-[13px] leading-relaxed">{text}</p>
+          </div>
+        ))}
+      </div>
 
       <h2 className="mb-1 text-[16px] font-semibold">How it works</h2>
       <p className="muted mt-0 mb-4">Three ideas. Activity then shows every call and what it cost.</p>

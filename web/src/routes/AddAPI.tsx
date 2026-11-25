@@ -1,8 +1,31 @@
-import { FileJson, FileUp, Globe, KeyRound, Loader2, PencilLine, Terminal, Trash2, Upload, X } from "lucide-react";
+import {
+  FileJson,
+  FileUp,
+  FlaskConical,
+  Globe,
+  KeyRound,
+  Loader2,
+  PencilLine,
+  Terminal,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { AccessChip, Button, Chip, ErrorBox, Field, MethodChip, PageHead, Panel, useToast } from "../components/ui";
+import {
+  AccessChip,
+  Button,
+  Chip,
+  ErrorBox,
+  Field,
+  MethodChip,
+  PageHead,
+  Panel,
+  Select,
+  useToast,
+} from "../components/ui";
 import { patch, post } from "../lib/api";
-import { useAction, useAPI, useAPIs } from "../lib/hooks";
+import { useAction, useAPI, useAPIs, useInfo } from "../lib/hooks";
 import { appName, appNameError, detectImport, type ImportKind } from "../lib/names";
 import { Link, navigate } from "../lib/router";
 import type { API, ImportPreview, ImportReport } from "../lib/types";
@@ -34,12 +57,15 @@ type Item = {
   error?: string;
   loading?: boolean;
   skip: Set<number>;
+  /** Fetch without checking the certificate (API-9). */
+  insecure?: boolean;
 };
 
 let seq = 0;
 
 export function AddAPI({ apiId }: { apiId?: string }) {
   const target = useAPI(apiId ?? "");
+  const info = useInfo();
   const apis = useAPIs();
   const toast = useToast();
   const [src, setSrc] = useState<Source>("files");
@@ -62,6 +88,7 @@ export function AddAPI({ apiId }: { apiId?: string }) {
     try {
       const p = await post<ImportPreview>("/api/import/preview", {
         url: it.url,
+        insecure: !!it.insecure,
         text: it.text,
         environment: it.kind === "postman" ? envText : "",
       });
@@ -149,6 +176,7 @@ export function AddAPI({ apiId }: { apiId?: string }) {
         if (it.preview!.requests.length === it.skip.size) continue;
         const r = await post<ImportReport>("/api/import", {
           url: it.url,
+          insecure: !!it.insecure,
           text: it.text,
           environment: it.kind === "postman" ? (env?.text ?? "") : "",
           apiId: id,
@@ -291,6 +319,22 @@ export function AddAPI({ apiId }: { apiId?: string }) {
                   </Button>
                 </div>
               </Field>
+              {info.data?.practice && (
+                <div className="next-card mt-4">
+                  <FlaskConical size={18} className="muted flex-none" />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium">Practise the whole flow on the demo scanner</div>
+                    <div className="muted text-[12.5px]">
+                      Self-signed HTTPS, a login that returns a token, then applications → images → vulnerabilities. Log
+                      in as <code>{info.data.practice.username}</code> / <code>{info.data.practice.password}</code> (put
+                      them in the environment as <code>{"{{username}}"}</code> and <code>{"{{password}}"}</code>).
+                    </div>
+                  </div>
+                  <Button size="sm" onClick={() => setUrl(info.data!.practice!.specUrl)}>
+                    Use its link
+                  </Button>
+                </div>
+              )}
             </Panel>
           )}
           {src === "curl" && (
@@ -316,6 +360,11 @@ export function AddAPI({ apiId }: { apiId?: string }) {
               it={it}
               name={shownName}
               onRemove={() => remove(it.key)}
+              onInsecure={() => {
+                const next = { ...it, insecure: true };
+                setItems((l) => l.map((x) => (x.key === it.key ? next : x)));
+                previewItem(next);
+              }}
               onToggle={(i, on) => toggle(it.key, i, on)}
             />
           ))}
@@ -422,10 +471,12 @@ function ItemPreview({
   name,
   onRemove,
   onToggle,
+  onInsecure,
 }: {
   it: Item;
   name: string;
   onRemove: () => void;
+  onInsecure: () => void;
   onToggle: (i: number | "all", on: boolean) => void;
 }) {
   const reqs = it.preview?.requests ?? [];
@@ -459,6 +510,22 @@ function ItemPreview({
       {it.error && (
         <div className="p-4">
           <ErrorBox error={it.error} />
+          {/certificate/i.test(it.error) && !it.insecure && (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Button kind="ink" size="sm" onClick={onInsecure}>
+                Skip certificate check
+              </Button>
+              <span className="muted text-[12.5px]">
+                For a server with a self-signed certificate you trust. The new application starts with verification off;
+                add its CA under Settings → TLS later to turn it back on.
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+      {it.insecure && it.preview && (
+        <div className="banner warn mx-4 mt-3">
+          Certificate not checked. The application will skip verification too.
         </div>
       )}
       {it.loading && !it.preview && <div className="muted p-4 text-[13px]">Reading…</div>}
@@ -601,12 +668,18 @@ function Manual({ taken }: { taken: string[] }) {
           />
         </Field>
         <Field label="Authentication">
-          <select className="select" value={authType} onChange={(e) => setAuthType(e.target.value)}>
-            <option value="none">None</option>
-            <option value="bearer">Bearer token</option>
-            <option value="apikey">API key in a header</option>
-            <option value="basic">Username and password</option>
-          </select>
+          <Select
+            label="Authentication"
+            className="w-full"
+            value={authType}
+            onChange={setAuthType}
+            options={[
+              { value: "none", label: "None" },
+              { value: "bearer", label: "Bearer token" },
+              { value: "apikey", label: "API key in a header" },
+              { value: "basic", label: "Username and password" },
+            ]}
+          />
         </Field>
         {authType === "apikey" && (
           <Field label="Header name">

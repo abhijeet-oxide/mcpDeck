@@ -182,3 +182,21 @@ func TestUsedCalls(t *testing.T) {
 		t.Fatalf("got %v %v", calls, apis)
 	}
 }
+
+// REQ: FLOW-3
+func TestRun_PickKeepsOnlyChosenFields(t *testing.T) {
+	src := `export const tool = { name: "vulns", description: "x", inputSchema: { type: "object" } };
+export default async function () {
+  const v = { total: 2, items: [{ id: "a", sev: "high", cvss: { score: 9, vector: "x" }, long: "…" }, { id: "b", sev: "low", cvss: { score: 2 } }] };
+  return { picked: pick(v, ["total", "items[].id", "items[].cvss.score"]), arr: pick([{ a: 1, b: 2 }], ["[].a"]), none: pick(v, []).total };
+}`
+	r := Run(context.Background(), src, map[string]any{}, env(&fakeSender{}))
+	if r.Error != "" {
+		t.Fatal(r.Error)
+	}
+	b, _ := json.Marshal(r.Output)
+	want := `{"arr":[{"a":1}],"none":2,"picked":{"items":[{"cvss":{"score":9},"id":"a"},{"cvss":{"score":2},"id":"b"}],"total":2}}`
+	if string(b) != want {
+		t.Fatalf("got  %s\nwant %s", b, want)
+	}
+}

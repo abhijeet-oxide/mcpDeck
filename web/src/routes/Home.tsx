@@ -10,6 +10,8 @@ import {
   Inbox,
   MessageSquarePlus,
   Plus,
+  Scissors,
+  ShieldCheck,
   ToolCase,
 } from "lucide-react";
 import { useState } from "react";
@@ -68,37 +70,22 @@ export function DemoButton() {
   );
 }
 
-function Bars({ days }: { days: DayPoint[] }) {
+function Spark({ days }: { days: DayPoint[] }) {
   const max = Math.max(1, ...days.map((d) => d.calls));
-  const total = days.reduce((n, d) => n + d.calls, 0);
   return (
-    <div className="px-4 pt-3 pb-3">
-      <div className="mb-3 flex items-baseline gap-2">
-        <span className="text-[20px] font-semibold tracking-tight">{num(total)}</span>
-        <span className="muted text-[12.5px]">calls in the last 7 days</span>
-      </div>
-      <div className="flex items-end gap-2" role="img" aria-label="Calls per day, last 7 days">
-        {days.map((d) => (
-          <div
-            key={d.day}
-            className="flex flex-1 flex-col items-center gap-1.5"
-            title={`${d.day}: ${d.calls} calls, ${d.errors} errors`}
-          >
-            <div className="flex w-full flex-col justify-end" style={{ height: 64 }}>
-              <div
-                style={{
-                  height: Math.max(3, (d.calls / max) * 64),
-                  background: d.calls ? "var(--accent)" : "var(--line)",
-                  borderRadius: 4,
-                }}
-              />
-            </div>
-            <span className="muted text-[11px]">
-              {new Date(`${d.day}T00:00:00Z`).toLocaleDateString([], { weekday: "short" })}
-            </span>
-          </div>
-        ))}
-      </div>
+    <div className="mt-2 flex h-7 items-end gap-1" role="img" aria-label="Calls per day, last 7 days">
+      {days.map((d) => (
+        <div
+          key={d.day}
+          className="flex-1 rounded-sm"
+          title={`${d.day}: ${d.calls} calls, ${d.errors} errors`}
+          style={{
+            height: `${Math.max(10, (d.calls / max) * 100)}%`,
+            background: d.calls ? "var(--accent)" : "var(--line)",
+            opacity: d.calls ? 0.85 : 1,
+          }}
+        />
+      ))}
     </div>
   );
 }
@@ -181,11 +168,19 @@ export function Home() {
   ];
   const showSteps = !h.hideOnboarding && !h.demo && h.steps.some((s) => !s.done);
   const hasToolkit = (tks.data?.length ?? 0) > 0;
+  const fetched = h.fetched ?? 0;
+  const returned = h.returned ?? 0;
+  const saved = fetched > 0 ? Math.max(0, Math.round((1 - returned / fetched) * 100)) : 0;
+  const calls7 = h.calls7d ?? 0;
+  const errRate = calls7 ? Math.round(((h.errors7d ?? 0) / calls7) * 1000) / 10 : 0;
+  const health = h.health ?? [];
+  const heaviest = h.heaviest ?? [];
+  const maxTok = Math.max(1, ...heaviest.map((r) => r.avgTokens));
   return (
     <div className="page">
       <PageHead
         title="Home"
-        sub="What needs you, and what your agents did today."
+        sub="How your toolkits are doing, and anything that needs you."
         actions={
           <>
             <DemoButton />
@@ -207,62 +202,13 @@ export function Home() {
           <GettingStarted compact />
         </div>
       )}
-      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          icon={<AppWindow size={14} />}
-          label="Applications"
-          value={h.apis}
-          foot={`${num(h.requests)} requests`}
-          onClick={() => navigate("/apps")}
-        />
-        <StatCard
-          icon={<ToolCase size={14} />}
-          label="Toolkits"
-          value={h.toolkits}
-          foot={`${num(h.tools)} tools in the library`}
-          onClick={() => navigate("/toolkits")}
-        />
-        <StatCard
-          icon={<Bot size={14} />}
-          label="Agents"
-          value={h.agents}
-          foot={
-            <span className="flex items-center gap-1.5">
-              {h.activeAgents > 0 && <span className="dot on" />}
-              {h.activeAgents} connected now
-            </span>
-          }
-          onClick={() => navigate("/agents")}
-        />
-        <StatCard
-          icon={<ChartNoAxesColumn size={14} />}
-          label="Calls today"
-          value={num(h.callsToday)}
-          foot={
-            <span>
-              {num(h.tokensToday)} tokens returned
-              {h.errorsToday + h.blockedToday > 0 && (
-                <span style={{ color: "var(--bad)" }}>
-                  {" "}
-                  · {h.errorsToday} errors, {h.blockedToday} blocked
-                </span>
-              )}
-            </span>
-          }
-          onClick={() => navigate("/activity")}
-        />
-      </div>
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(300px,1fr)]">
+      {h.needsYou.length > 0 && (
         <Panel
+          className="mb-5"
           title="Needs you"
           icon={<Inbox size={15} className="muted" />}
-          right={h.needsYou.length > 0 && <Chip tone="warn">{h.needsYou.length} waiting</Chip>}
+          right={<Chip tone="warn">{h.needsYou.length} waiting</Chip>}
         >
-          {h.needsYou.length === 0 && (
-            <Empty title="You're all caught up">
-              Tool versions to review, tool requests from agents and blocked writes show up here.
-            </Empty>
-          )}
           {h.needsYou.map((n) => (
             <div key={n.kind + n.id} className="list-row items-start">
               <div className={`icon-tile ${n.kind === "review" ? "warn" : n.kind === "blocked" ? "bad" : ""}`}>
@@ -312,18 +258,182 @@ export function Home() {
             </div>
           ))}
         </Panel>
-        <div className="flex flex-col gap-5">
+      )}
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          icon={<ChartNoAxesColumn size={14} />}
+          label="Agent calls, 7 days"
+          value={num(calls7)}
+          foot={
+            <span>
+              {num(h.callsToday)} today
+              {errRate > 0 && <span style={{ color: "var(--bad)" }}> · {errRate}% errors</span>}
+            </span>
+          }
+          onClick={() => navigate("/activity")}
+        >
+          <Spark days={h.daily} />
+        </StatCard>
+        <StatCard
+          icon={<Scissors size={14} />}
+          label="Tokens kept out of context"
+          value={fetched ? `${saved}%` : "–"}
+          foot={
+            fetched ? (
+              <span>
+                {num(returned)} returned of {num(fetched)} fetched
+              </span>
+            ) : (
+              "Shows once agents call tools"
+            )
+          }
+          onClick={() => navigate("/activity?tab=usage")}
+        />
+        <StatCard
+          icon={<ToolCase size={14} />}
+          label="Toolkits"
+          value={h.toolkits}
+          foot={`${num(h.tools)} tools · ${num(h.apis)} applications`}
+          onClick={() => navigate("/toolkits")}
+        />
+        <StatCard
+          icon={<Bot size={14} />}
+          label="Agents"
+          value={h.agents}
+          foot={
+            <span className="flex items-center gap-1.5">
+              {h.activeAgents > 0 && <span className="dot on" />}
+              {h.activeAgents} connected now
+            </span>
+          }
+          onClick={() => navigate("/agents")}
+        />
+      </div>
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,1fr)]">
+        <div className="flex min-w-0 flex-col gap-5">
           <Panel
-            title="Last 7 days"
-            icon={<ChartNoAxesColumn size={15} className="muted" />}
+            title="Toolkit health"
+            icon={<ShieldCheck size={15} className="muted" />}
             right={
-              <Link to="/activity?tab=usage" className="text-[12.5px]">
-                Usage
+              <Link to="/guidelines" className="text-[12.5px]">
+                Guidelines
               </Link>
             }
           >
-            <Bars days={h.daily} />
+            {health.length === 0 ? (
+              <Empty title="No toolkits yet">
+                A toolkit is one MCP endpoint. Create one to see how it scores against the MCP guidelines.
+              </Empty>
+            ) : (
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Toolkit</th>
+                    <th>Score</th>
+                    <th className="num">Tools</th>
+                    <th className="num">tools/list</th>
+                    <th>Top finding</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {health.map((t) => (
+                    <tr
+                      key={t.name}
+                      className="clickable"
+                      onClick={() => navigate(`/toolkits/${t.name}?tab=guidelines`)}
+                    >
+                      <td>
+                        <Link
+                          to={`/toolkits/${t.name}`}
+                          className="mono font-medium"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {t.name}
+                        </Link>
+                        <div className="muted text-[12px]">
+                          {t.agents} {t.agents === 1 ? "agent" : "agents"}
+                        </div>
+                      </td>
+                      <td style={{ width: 150 }}>
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 text-right font-semibold">{t.score}</span>
+                          <div className="meter flex-1">
+                            <span
+                              style={{
+                                width: `${t.score}%`,
+                                background:
+                                  t.score >= 85
+                                    ? "var(--ok-dot)"
+                                    : t.score >= 60
+                                      ? "var(--warn-dot)"
+                                      : "var(--bad-dot)",
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="num">{t.tools}</td>
+                      <td className="num">{num(t.listTokens)} tok</td>
+                      <td>
+                        {t.top ? (
+                          <span className="flex items-center gap-2">
+                            <Chip tone={t.must ? "bad" : "warn"}>
+                              {t.must ? `${t.must} must fix` : `${t.avoid} to avoid`}
+                            </Chip>
+                            <span className="text-2 truncate text-[12.5px]">{t.top}</span>
+                          </span>
+                        ) : (
+                          <Chip tone="ok">Looks good</Chip>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </Panel>
+          <Panel
+            title="Heaviest tools this week"
+            icon={<Scissors size={15} className="muted" />}
+            right={<span className="muted text-[12px]">Average output per call</span>}
+          >
+            {heaviest.length === 0 ? (
+              <Empty title="No tool calls this week">
+                When agents call tools, the ones with the biggest outputs show here, so you know what to trim first.
+              </Empty>
+            ) : (
+              <div className="px-4 py-3">
+                {heaviest.map((r) => (
+                  <div key={r.key} className="flex items-center gap-3 py-1.5">
+                    <span className="mono w-56 truncate text-[12.5px]">{r.label}</span>
+                    <div className="meter flex-1">
+                      <span
+                        style={{
+                          width: `${(r.avgTokens / maxTok) * 100}%`,
+                          background: r.avgTokens > 2000 ? "var(--warn-dot)" : "var(--accent)",
+                        }}
+                      />
+                    </div>
+                    <span className="w-20 text-right text-[12.5px]">{num(r.avgTokens)} tok</span>
+                    <span className="muted w-16 text-right text-[12px]">{r.calls} calls</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+        </div>
+        <div className="flex min-w-0 flex-col gap-5">
+          {h.needsYou.length === 0 && (
+            <div className="panel flex items-center gap-3 px-4 py-3.5">
+              <span className="icon-tile ok">
+                <Inbox size={15} />
+              </span>
+              <div>
+                <div className="font-semibold">You're all caught up</div>
+                <div className="muted text-[12.5px]">Reviews, tool requests and blocked writes show up here.</div>
+              </div>
+            </div>
+          )}
           <Panel
             title="Latest calls"
             right={
@@ -344,7 +454,8 @@ export function Home() {
               >
                 <span className={`dot ${c.status === "ok" ? "on" : c.status === "blocked" ? "warn" : "bad"}`} />
                 <span className="mono min-w-0 flex-1 truncate text-[12.5px]">{c.name}</span>
-                <span className="muted truncate text-[12px]" style={{ maxWidth: 120 }}>
+                <span className="muted text-[12px]">{num(c.tokens)} tok</span>
+                <span className="muted truncate text-[12px]" style={{ maxWidth: 110 }}>
                   {c.actorName}
                 </span>
                 <span className="faint text-[12px]">{time(c.startedAt)}</span>

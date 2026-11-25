@@ -8,6 +8,7 @@
 package mock
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -104,16 +105,24 @@ type World struct {
 	issues   []issue
 	comments map[string][]map[string]any
 	holds    map[string]bool
+	// ScannerCert is the scanner's self-signed certificate (PEM).
+	ScannerCert []byte
 }
 
-// Start serves the four APIs from basePort (crm), +1 billing, +2 support, +3 legacy.
+// Start serves the demo APIs from basePort (crm), +1 billing, +2 support,
+// +3 legacy, +4 scanner (HTTPS, self-signed).
 func Start(basePort int) (*World, error) {
 	w := &World{Ports: map[string]int{}, issues: append([]issue{}, seedIssues...), comments: map[string][]map[string]any{},
 		holds: map[string]bool{"001Ab00000FBRKM": true}}
 	handlers := []struct {
 		name string
 		h    http.Handler
-	}{{"crm", w.crm()}, {"billing", w.billing()}, {"support", w.support()}, {"legacy", w.legacy()}}
+	}{{"crm", w.crm()}, {"billing", w.billing()}, {"support", w.support()}, {"legacy", w.legacy()}, {"scanner", w.scanner()}}
+	cert, certPEM, err := selfSigned()
+	if err != nil {
+		return nil, err
+	}
+	w.ScannerCert = certPEM
 	for i, x := range handlers {
 		port := 0 // 0: any free port, for each API
 		if basePort != 0 {
@@ -130,13 +139,23 @@ func Start(basePort int) (*World, error) {
 		w.Ports[x.name] = port
 		srv := &http.Server{Handler: x.h, ReadHeaderTimeout: 5 * time.Second}
 		w.servers = append(w.servers, srv)
+		if x.name == "scanner" {
+			srv.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
+			go func() { _ = srv.ServeTLS(ln, "", "") }()
+			continue
+		}
 		go func() { _ = srv.Serve(ln) }()
 	}
 	return w, nil
 }
 
 // URL of one demo API.
-func (w *World) URL(name string) string { return fmt.Sprintf("http://127.0.0.1:%d", w.Ports[name]) }
+func (w *World) URL(name string) string {
+	if name == "scanner" {
+		return fmt.Sprintf("https://127.0.0.1:%d", w.Ports[name])
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d", w.Ports[name])
+}
 
 // Close stops the servers.
 func (w *World) Close() {

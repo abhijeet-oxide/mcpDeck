@@ -30,4 +30,26 @@ describe("Settings", () => {
     expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
     expect(screen.queryByText(/demo/i)).not.toBeInTheDocument();
   });
+
+  // REQ: UI-8
+  it("shows one section per page and sets the accent colour", async () => {
+    mockAPI({
+      "/api/settings": {
+        values: { toolTimeoutSeconds: "10" },
+        port: 47800,
+        dataDir: "/tmp/x",
+        keychain: "os keychain",
+        demo: false,
+        version: "dev",
+      },
+    });
+    renderApp(<Settings section="appearance" />);
+    await screen.findByText("Accent colour");
+    expect(screen.queryByText("Tool timeout")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Appearance/ })).toHaveAttribute("aria-current", "page");
+    fireEvent.click(screen.getByRole("button", { name: "Teal" }));
+    expect(document.documentElement.dataset.accent).toBe("teal");
+    fireEvent.click(screen.getByRole("button", { name: "Blue" }));
+    expect(document.documentElement.dataset.accent).toBeUndefined();
+  });
 });

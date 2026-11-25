@@ -21,7 +21,7 @@ func TestStart_PortZeroPicksFreePortsForEveryAPI(t *testing.T) {
 		}
 		seen[port] = name
 	}
-	if len(w.Ports) != 4 {
-		t.Fatalf("want 4 demo APIs, got %v", w.Ports)
+	if len(w.Ports) != 5 {
+		t.Fatalf("want 5 demo APIs, got %v", w.Ports)
 	}
 }

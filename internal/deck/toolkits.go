@@ -292,13 +292,24 @@ func (d *Deck) UpdateToolkit(ctx context.Context, ref string, in ToolkitInput) (
 }
 
 func (d *Deck) DeleteToolkit(ctx context.Context, ref string) error {
+	return d.DeleteToolkitForce(ctx, ref, false)
+}
+
+// DeleteToolkitForce deletes a toolkit; with force, agents' access to it is
+// removed first (the person confirmed by typing its name in the UI).
+func (d *Deck) DeleteToolkitForce(ctx context.Context, ref string, force bool) error {
 	tk, err := d.toolkitByRef(ctx, ref)
 	if err != nil {
 		return err
 	}
 	grants, _ := d.Store.Grants(ctx, "", tk.ID)
-	if len(grants) > 0 {
+	if len(grants) > 0 && !force {
 		return conflict("%d agents use %s; remove their access first", len(grants), tk.Name)
+	}
+	for _, g := range grants {
+		if err := d.DeleteGrant(ctx, g.ID); err != nil {
+			return err
+		}
 	}
 	tools, _ := d.Store.ToolkitTools(ctx, tk.ID)
 	for _, t := range tools {

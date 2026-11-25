@@ -27,9 +27,26 @@ const base = {
   welcomeSeen: true,
   demo: false,
   daily: [],
+  health: [
+    {
+      name: "security",
+      tools: 2,
+      listTokens: 410,
+      score: 70,
+      must: 1,
+      avoid: 1,
+      top: "Generic name new_tool",
+      agents: 1,
+    },
+  ],
+  heaviest: [],
+  fetched: 4000,
+  returned: 400,
+  calls7d: 20,
+  errors7d: 0,
 };
 
-// REQ: UI-1, UI-11
+// REQ: UI-1, UI-11, GUIDE-4
 describe("Home", () => {
   it("lists what needs a person, with the action inline", async () => {
     mockAPI({
@@ -63,7 +80,11 @@ describe("Home", () => {
     expect(await screen.findByText("reassign_ticket v1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Review" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Copy prompt" })).toBeInTheDocument();
-    expect(screen.getByText("12")).toBeInTheDocument();
+    expect(screen.getByText(/12 today/)).toBeInTheDocument();
+    // Toolkit health and savings (GUIDE-4).
+    expect(screen.getByText("Generic name new_tool")).toBeInTheDocument();
+    expect(screen.getByText("1 must fix")).toBeInTheDocument();
+    expect(screen.getByText("90%")).toBeInTheDocument();
     // All four steps done: no onboarding text anywhere.
     expect(screen.queryByText(/Getting started/)).not.toBeInTheDocument();
   });

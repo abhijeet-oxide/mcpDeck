@@ -67,7 +67,7 @@ func root() *cobra.Command {
 			return serve(do)
 		}}
 	devCmd.Flags().IntVar(&do.port, "port", defaultPort, "port on 127.0.0.1")
-	devCmd.Flags().IntVar(&do.mockPort, "mock-port", 9001, "first port of the four demo APIs (0 picks free ports)")
+	devCmd.Flags().IntVar(&do.mockPort, "mock-port", 9001, "first port of the five demo APIs (0 picks free ports)")
 	devCmd.Flags().BoolVar(&do.noOpen, "no-open", false, "don't open the browser")
 	devCmd.Flags().StringVar(&do.launchFile, "launch-file", "", "write the launch URL to this file")
 	devCmd.Flags().StringVar(&do.returnURL, "return-url", "", "where Leave demo goes")

@@ -5,7 +5,20 @@ import { useAction, useAgent, useAgents, useToolkits } from "../lib/hooks";
 import { navigate } from "../lib/router";
 import type { ConnectResponse, Plan } from "../lib/types";
 import { ClientIcon } from "./ClientIcon";
-import { Button, Chip, CopyButton, CopyField, Dialog, EmptyState, ErrorBox, Field, Seg, Toggle, useToast } from "./ui";
+import {
+  Button,
+  Chip,
+  CopyButton,
+  CopyField,
+  Dialog,
+  EmptyState,
+  ErrorBox,
+  Field,
+  Seg,
+  Select,
+  Toggle,
+  useToast,
+} from "./ui";
 
 const clients = [
   { id: "claude-code", label: "Claude Code", sub: "claude mcp add + builder subagent" },
@@ -150,13 +163,13 @@ export function ConnectDialog({
           )}
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Toolkit">
-              <select className="select" value={tk} onChange={(e) => setTk(e.target.value)}>
-                {(tks.data ?? []).map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
+              <Select
+                label="Toolkit"
+                className="w-full"
+                value={tk}
+                onChange={setTk}
+                options={(tks.data ?? []).map((t) => ({ value: t.id, label: <span className="mono">{t.name}</span> }))}
+              />
             </Field>
             {!existing && (
               <Field label="Name" hint="Reuses this client's agent if you have one">

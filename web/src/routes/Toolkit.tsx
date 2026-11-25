@@ -1,9 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
-import { Bot, ChevronDown, Code2, Library, Plus, ScanEye, Settings2, Trash2, Wrench } from "lucide-react";
+import {
+  Bot,
+  ChevronDown,
+  Code2,
+  Library,
+  MoreHorizontal,
+  Plus,
+  ScanEye,
+  Settings2,
+  ShieldCheck,
+  Trash2,
+  Wrench,
+} from "lucide-react";
 import { useState } from "react";
 import { useConnect } from "../App";
 import { AskAgentButton, toolRequestPrompt } from "../components/AskAgent";
 import { ClientIcon, clientLabels } from "../components/ClientIcon";
+import { counts, FindingList, ScoreRing } from "../components/Findings";
 import {
   AccessChip,
   Avatar,
@@ -15,13 +28,14 @@ import {
   Empty,
   EmptyState,
   ErrorBox,
-  Field,
   Loading,
   Menu,
   PageHead,
   Panel,
   SaveBar,
   Seg,
+  Select,
+  StatCard,
   StatusChip,
   Tabs,
   Toggle,
@@ -32,9 +46,10 @@ import { del, get, patch, post } from "../lib/api";
 import { ago, num } from "../lib/format";
 import { useAction, useAPIs, useLibrary, useToolkit } from "../lib/hooks";
 import { Link, navigate, useLocation } from "../lib/router";
-import type { AgentView, Rules, ToolkitDetail } from "../lib/types";
+import type { AgentView, LintReport, Rules, ToolkitDetail } from "../lib/types";
+import { GuidelinesBody } from "./Guidelines";
 
-type Tab = "tools" | "agents" | "requests" | "settings";
+type Tab = "tools" | "agents" | "requests" | "guidelines" | "settings";
 
 export function ToolkitPage({ name }: { name: string }) {
   const q = useToolkit(name);
@@ -42,11 +57,10 @@ export function ToolkitPage({ name }: { name: string }) {
   const [tab, setTab] = useState<Tab>((search.get("tab") as Tab) || "tools");
   const [adding, setAdding] = useState(false);
   const [preview, setPreview] = useState(false);
-  const [details, setDetails] = useState(false);
   const connect = useConnect();
   const toast = useToast();
   const confirm = useConfirm();
-  const remove = useAction(() => del(`/api/toolkits/${name}`), {
+  const remove = useAction(() => del(`/api/toolkits/${name}?force=1`), {
     onSuccess: () => {
       toast(`Toolkit ${name} deleted; its tools stay in the library`);
       navigate("/toolkits");
@@ -111,9 +125,22 @@ export function ToolkitPage({ name }: { name: string }) {
                   onClick: async () =>
                     (await confirm({
                       title: `Delete toolkit ${t.name}?`,
-                      body: `Agents connected to it lose access at once. Its ${t.toolRows.length} tools stay in the library.`,
+                      body: (
+                        <>
+                          {t.grants.length > 0 ? (
+                            <div className="banner warn mb-3">
+                              {t.grants.length} {t.grants.length === 1 ? "agent uses" : "agents use"} it:{" "}
+                              {t.grants.map((g) => g.agent.name).join(", ")}. Their access to this toolkit is removed at
+                              once; their other toolkits keep working.
+                            </div>
+                          ) : null}
+                          Its endpoint stops working. Its {t.toolRows.length} tools stay in the library. This can't be
+                          undone.
+                        </>
+                      ),
                       action: "Delete toolkit",
                       danger: true,
+                      typeToConfirm: t.name,
                     })) && remove.mutate(undefined),
                 },
               ]}
@@ -121,39 +148,7 @@ export function ToolkitPage({ name }: { name: string }) {
           </>
         }
       />
-      <div className="panel mb-5">
-        <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-          <span className="text-[12.5px] font-medium">MCP server</span>
-          <div className="min-w-[260px] flex-1">
-            <CopyField value={t.endpoint} label="Endpoint" />
-          </div>
-          <Button size="sm" icon={<ScanEye size={13} />} onClick={() => setPreview(true)} data-tour="preview">
-            Preview as agent
-          </Button>
-          <Button
-            size="sm"
-            kind="ghost"
-            aria-expanded={details}
-            onClick={() => setDetails((d) => !d)}
-            icon={<ChevronDown size={13} style={{ transform: details ? "rotate(180deg)" : undefined }} />}
-          >
-            {details ? "Less" : "More ways to connect"}
-          </Button>
-        </div>
-        {details && (
-          <div
-            className="grid gap-4 px-4 pb-4 md:grid-cols-2"
-            style={{ borderTop: "1px solid var(--line)", paddingTop: 14 }}
-          >
-            <Field label="Builder endpoint" hint="Used by the builder subagent of agents that may build tools.">
-              <CopyField value={t.buildEndpoint} label="Builder endpoint" />
-            </Field>
-            <Field label="For clients that only run commands (stdio)" hint="Reads the agent token from MCPDECK_TOKEN.">
-              <CopyField value={`mcpdeck stdio --toolkit ${t.name}`} label="Command" />
-            </Field>
-          </div>
-        )}
-      </div>
+      <ConnectCard t={t} onPreview={() => setPreview(true)} onConnect={() => connect(t.id)} />
       <Tabs<Tab>
         value={tab}
         onChange={setTab}
@@ -161,6 +156,7 @@ export function ToolkitPage({ name }: { name: string }) {
           { id: "tools", label: "Tools", n: t.toolRows.length },
           { id: "agents", label: "Agents", n: t.grants.length },
           { id: "requests", label: "Reviews and requests", n: reviews },
+          { id: "guidelines", label: "Guidelines" },
           { id: "settings", label: "Settings" },
         ]}
       />
@@ -196,6 +192,7 @@ export function ToolkitPage({ name }: { name: string }) {
                   <th className="num">p50</th>
                   <th className="num">Avg output</th>
                   <th>Made by</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -232,6 +229,9 @@ export function ToolkitPage({ name }: { name: string }) {
                     <td className="text-[12.5px]">
                       {r.latest.createdByKind === "you" ? "You" : r.latest.createdByName}
                     </td>
+                    <td onClick={(e) => e.stopPropagation()} style={{ width: 44 }}>
+                      <ToolMenu t={t} tool={r.name} toolkits={r.toolkits} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -258,6 +258,7 @@ export function ToolkitPage({ name }: { name: string }) {
       )}
       {tab === "agents" && <AgentsTab t={t} />}
       {tab === "requests" && <RequestsTab t={t} />}
+      {tab === "guidelines" && <GuidelinesTab t={t} />}
       {tab === "settings" && <SettingsTab key={t.id} t={t} />}
       {adding && <AddFromLibrary t={t} onClose={() => setAdding(false)} />}
       {preview && <AgentPreview name={t.name} onClose={() => setPreview(false)} />}
@@ -325,16 +326,16 @@ function AgentsTab({ t }: { t: ToolkitDetail }) {
                   {g.agent.revokedAt && <Chip tone="bad">revoked</Chip>}
                 </td>
                 <td>
-                  <select
-                    className="select"
-                    style={{ width: 150 }}
-                    aria-label="Access"
+                  <Select
+                    label="Access"
+                    size="sm"
                     value={g.access}
-                    onChange={(e) => upd.mutate({ id: g.id, body: { access: e.target.value } })}
-                  >
-                    <option value="read">Read</option>
-                    <option value="read_write">Read and write</option>
-                  </select>
+                    onChange={(v) => upd.mutate({ id: g.id, body: { access: v } })}
+                    options={[
+                      { value: "read", label: "Read" },
+                      { value: "read_write", label: "Read and write" },
+                    ]}
+                  />
                 </td>
                 <td>
                   <Toggle
@@ -600,19 +601,16 @@ function AgentPreview({ name, onClose }: { name: string; onClose: () => void }) 
         </label>
         <label className="ml-auto flex items-center gap-2 text-[13px]">
           <ClientIcon client={client} size={16} />
-          <select
-            className="select"
-            style={{ width: 160 }}
-            aria-label="Client"
+          <Select
+            label="Client"
+            size="sm"
             value={client}
-            onChange={(e) => setClient(e.target.value)}
-          >
-            {["claude-code", "vscode", "cursor", "claude-desktop", "other"].map((c) => (
-              <option key={c} value={c}>
-                {clientLabels[c]}
-              </option>
-            ))}
-          </select>
+            onChange={setClient}
+            options={["claude-code", "vscode", "cursor", "claude-desktop", "other"].map((c) => ({
+              value: c,
+              label: clientLabels[c],
+            }))}
+          />
         </label>
       </div>
       <ErrorBox error={q.error} />
@@ -661,5 +659,190 @@ function AgentPreview({ name, onClose }: { name: string; onClose: () => void }) 
         </div>
       )}
     </Dialog>
+  );
+}
+
+/** ConnectCard: the toolkit's MCP endpoint, how to add it, and other transports (AGT-3). */
+function ConnectCard({ t, onPreview, onConnect }: { t: ToolkitDetail; onPreview: () => void; onConnect: () => void }) {
+  const [how, setHow] = useState<"http" | "builder" | "stdio">("http");
+  const value = how === "http" ? t.endpoint : how === "builder" ? t.buildEndpoint : `mcpdeck stdio --toolkit ${t.name}`;
+  const note = {
+    http: "Streamable HTTP. Agents send their own token, so access and calls are tracked per agent.",
+    builder: "For the builder subagent of agents that may build tools. Same token, separate tool list.",
+    stdio: "For clients that only run commands. Reads the agent token from MCPDECK_TOKEN.",
+  }[how];
+  return (
+    <section className="panel connect-card mb-5">
+      <div className="connect-main">
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex flex-wrap items-center gap-3">
+            <span className="flex items-center gap-2 font-semibold">
+              <span className="dot on" /> MCP endpoint
+            </span>
+            <Tabs
+              variant="pill"
+              value={how}
+              onChange={setHow}
+              tabs={[
+                { id: "http", label: "HTTP" },
+                { id: "builder", label: "Builder" },
+                { id: "stdio", label: "Command (stdio)" },
+              ]}
+            />
+          </div>
+          <CopyField
+            value={value}
+            label={how === "stdio" ? "Command" : "Endpoint"}
+            prefix={how === "stdio" ? "$" : how === "builder" ? "BUILD" : "POST"}
+          />
+          <div className="muted mt-2 text-[12.5px]">{note}</div>
+        </div>
+        <div className="connect-side">
+          <div className="muted mb-2 text-[12px] font-medium">Add to a client</div>
+          <div className="flex flex-wrap gap-2">
+            {(["claude-code", "vscode", "cursor"] as const).map((c) => (
+              <Button key={c} onClick={onConnect} icon={<ClientIcon client={c} size={15} />}>
+                {clientLabels[c]}
+              </Button>
+            ))}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <Button size="sm" kind="ghost" icon={<ScanEye size={13} />} onClick={onPreview} data-tour="preview">
+              Preview as agent
+            </Button>
+            <span className="muted self-center text-[12px]">tools/list: {num(t.listTokens)} tokens</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** ToolMenu: open, remove from this toolkit, or delete everywhere (type to confirm). */
+function ToolMenu({ t, tool, toolkits }: { t: ToolkitDetail; tool: string; toolkits: string[] }) {
+  const confirm = useConfirm();
+  const toast = useToast();
+  const removeHere = useAction(() => del(`/api/toolkits/${t.name}/tools/${tool}`), {
+    onSuccess: () => toast(`${tool} removed from ${t.name}; it stays in the library`),
+    onError: (e) => toast((e as Error).message, true),
+  });
+  const destroy = useAction(() => del(`/api/tools/${tool}`), {
+    onSuccess: () => toast(`${tool} deleted`),
+    onError: (e) => toast((e as Error).message, true),
+  });
+  const agents = t.grants.map((g) => g.agent.name);
+  return (
+    <Menu
+      label={`Actions for ${tool}`}
+      trigger={
+        <button type="button" className="icon-btn" aria-label={`Actions for ${tool}`}>
+          <MoreHorizontal size={16} />
+        </button>
+      }
+      items={[
+        { label: "Open", icon: <Code2 size={14} />, onClick: () => navigate(`/toolkits/${t.name}/tools/${tool}`) },
+        {
+          label: `Remove from ${t.name}`,
+          icon: <Library size={14} />,
+          onClick: async () =>
+            (await confirm({
+              title: `Remove ${tool} from ${t.name}?`,
+              body: `Agents of ${t.name} stop seeing it on their next tools/list. It stays in the library${toolkits.length > 1 ? ` and in ${toolkits.filter((x) => x !== t.name).join(", ")}` : ""}.`,
+              action: "Remove",
+            })) && removeHere.mutate(undefined),
+        },
+        "sep",
+        {
+          label: "Delete tool",
+          icon: <Trash2 size={14} />,
+          danger: true,
+          onClick: async () =>
+            (await confirm({
+              title: `Delete ${tool}?`,
+              body: (
+                <>
+                  {agents.length > 0 && (
+                    <div className="banner warn mb-3">
+                      {agents.length} {agents.length === 1 ? "agent can" : "agents can"} call it now:{" "}
+                      {agents.join(", ")}. Calls fail once it's deleted.
+                    </div>
+                  )}
+                  It's removed from{" "}
+                  {toolkits.length === 1 ? "this toolkit" : `${toolkits.length} toolkits (${toolkits.join(", ")})`} and
+                  its versions are retired. Past calls stay in Activity.
+                </>
+              ),
+              action: "Delete tool",
+              danger: true,
+              typeToConfirm: tool,
+            })) && destroy.mutate(undefined),
+        },
+      ]}
+    />
+  );
+}
+
+/** GuidelinesTab: the toolkit's score, findings and the rules behind them (GUIDE-1, GUIDE-2, GUIDE-4). */
+function GuidelinesTab({ t }: { t: ToolkitDetail }) {
+  const q = useQuery({
+    queryKey: ["lint", t.name, ""],
+    queryFn: () => post<LintReport>(`/api/toolkits/${t.name}/lint`, {}),
+  });
+  const [rules, setRules] = useState(false);
+  if (q.isLoading) return <Loading />;
+  if (q.error) return <ErrorBox error={q.error} />;
+  const r = q.data!;
+  const c = counts(r.findings);
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="panel flex items-center gap-4 p-4">
+          <ScoreRing score={r.score} />
+          <div>
+            <div className="font-semibold">Guideline score</div>
+            <div className="muted text-[12.5px]">100 less 15 per must-fix, 5 per avoid</div>
+          </div>
+        </div>
+        <StatCard
+          icon={<Wrench size={14} />}
+          label="Tools"
+          value={r.tools}
+          foot={r.tools > 15 ? "Over 15: consider splitting" : "Up to 15 keeps choices clear"}
+        />
+        <StatCard
+          icon={<ScanEye size={14} />}
+          label="tools/list"
+          value={`${num(r.listTokens)} tok`}
+          foot="Paid by every agent, every conversation"
+        />
+        <StatCard
+          icon={<ShieldCheck size={14} />}
+          label="Findings"
+          value={c.must + c.avoid}
+          foot={
+            <span>
+              <span style={{ color: "var(--bad)" }}>{c.must} must fix</span> · {c.avoid} avoid · {c.tip} tips
+            </span>
+          }
+        />
+      </div>
+      <Panel title="What to fix" right={<span className="muted text-[12px]">Worst first. Open a tool to fix it.</span>}>
+        <FindingList findings={r.findings} showTool empty="This toolkit follows the guidelines." />
+      </Panel>
+      <div>
+        <Button
+          kind="ghost"
+          icon={<ChevronDown size={14} style={{ transform: rules ? "rotate(180deg)" : undefined }} />}
+          onClick={() => setRules(!rules)}
+        >
+          {rules ? "Hide the rules" : "Show the rules and their sources"}
+        </Button>
+        {rules && (
+          <div className="mt-3">
+            <GuidelinesBody />
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

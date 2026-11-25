@@ -3,7 +3,7 @@ import { createContext, lazy, type ReactNode, Suspense, useContext, useEffect, u
 import { ConnectDialog } from "./components/ConnectDialog";
 import { leaveDemo, startTour, Tour } from "./components/Guide";
 import { Palette } from "./components/Palette";
-import { Logo, Sidebar } from "./components/Sidebar";
+import { Logo, Sidebar, TopBar } from "./components/Sidebar";
 import { Button, EmptyState, Loading } from "./components/ui";
 import { useHome, useInfo } from "./lib/hooks";
 import { match, navigate, useLocation } from "./lib/router";
@@ -13,6 +13,7 @@ import { AddAPI } from "./routes/AddAPI";
 import { AgentPage, Agents } from "./routes/Agents";
 import { APIs } from "./routes/APIs";
 import { APIWorkspace } from "./routes/APIWorkspace";
+import { Guidelines } from "./routes/Guidelines";
 import { Home } from "./routes/Home";
 import { Review } from "./routes/Review";
 import { Settings } from "./routes/Settings";
@@ -52,6 +53,8 @@ const table: [string, (p: Record<string, string>) => ReactNode][] = [
   ["/agents/:id", (m) => <AgentPage key={m.id} id={m.id} />],
   ["/activity", () => <Activity />],
   ["/settings", () => <Settings />],
+  ["/settings/:section", (m) => <Settings section={m.section} />],
+  ["/guidelines", () => <Guidelines />],
   ["/about", () => <About />],
 ];
 
@@ -150,10 +153,13 @@ export function App() {
       <div className="flex h-full flex-col">
         {info.data?.demo && <DemoBar returnUrl={info.data.returnUrl} />}
         <div className="app min-h-0 flex-1">
-          <Sidebar onSearch={() => setPalette(true)} />
-          <main className="main">
-            <Routes />
-          </main>
+          <Sidebar />
+          <div className="workarea">
+            <TopBar onSearch={() => setPalette(true)} onTour={info.data?.demo ? startTour : undefined} />
+            <main className="content" id="content">
+              <Routes />
+            </main>
+          </div>
         </div>
       </div>
       <Tour />

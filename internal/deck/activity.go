@@ -213,6 +213,28 @@ type Home struct {
 	WelcomeSeen    bool         `json:"welcomeSeen"`
 	Demo           bool         `json:"demo"`
 	Daily          []DayPoint   `json:"daily"`
+	// Health is each toolkit against the MCP guidelines (GUIDE-4).
+	Health []ToolkitHealth `json:"health"`
+	// Heaviest are the tools with the largest outputs this week.
+	Heaviest []UsageRow `json:"heaviest"`
+	// Fetched and Returned are tokens of upstream responses and of tool
+	// outputs over 7 days: what tools saved agents from reading.
+	Fetched  int `json:"fetched"`
+	Returned int `json:"returned"`
+	Calls7d  int `json:"calls7d"`
+	Errors7d int `json:"errors7d"`
+}
+
+// ToolkitHealth is one toolkit's guideline score on Home.
+type ToolkitHealth struct {
+	Name       string `json:"name"`
+	Tools      int    `json:"tools"`
+	ListTokens int    `json:"listTokens"`
+	Score      int    `json:"score"`
+	Must       int    `json:"must"`
+	Avoid      int    `json:"avoid"`
+	Top        string `json:"top,omitempty"` // the worst finding's title
+	Agents     int    `json:"agents"`
 }
 
 func (d *Deck) Home(ctx context.Context) (*Home, error) {
@@ -283,8 +305,61 @@ func (d *Deck) Home(ctx context.Context) (*Home, error) {
 		}
 	}
 	h.Recent = filtered
+	h.Health, h.Heaviest = []ToolkitHealth{}, []UsageRow{}
 	if u, err := d.Usage(ctx, "7d"); err == nil {
 		h.Daily = u.Daily
+		for _, dp := range u.Daily {
+			h.Calls7d += dp.Calls
+			h.Errors7d += dp.Errors
+		}
+		rows := append([]UsageRow{}, u.Tools...)
+		sort.Slice(rows, func(i, j int) bool { return rows[i].AvgTokens > rows[j].AvgTokens })
+		for _, r := range rows {
+			if r.Calls > 0 && len(h.Heaviest) < 5 {
+				h.Heaviest = append(h.Heaviest, r)
+			}
+		}
+	}
+	week, _ := d.Store.Calls(ctx, store.CallFilter{Since: d.Clock.Now().Add(-7 * 24 * time.Hour), Limit: 100000})
+	tool := map[string]bool{}
+	for _, c := range week {
+		if c.Kind == "tool" && c.ParentID == "" && c.ActorKind == "agent" {
+			tool[c.ID] = true
+			h.Returned += c.Tokens
+		}
+	}
+	for _, c := range week {
+		if c.Kind == "upstream" && tool[c.ParentID] {
+			h.Fetched += c.Tokens
+		}
+	}
+	for _, tk := range tks {
+		r, err := d.LintToolkit(ctx, tk.ID, LintInput{})
+		if err != nil {
+			continue
+		}
+		th := ToolkitHealth{Name: tk.Name, Tools: r.Tools, ListTokens: r.ListTokens, Score: r.Score}
+		var firstAvoid string
+		for _, f := range r.Findings {
+			switch f.Level {
+			case "must":
+				th.Must++
+				if th.Top == "" {
+					th.Top = f.Title
+				}
+			case "avoid":
+				th.Avoid++
+				if firstAvoid == "" {
+					firstAvoid = f.Title
+				}
+			}
+		}
+		if th.Top == "" {
+			th.Top = firstAvoid
+		}
+		gs, _ := d.Store.Grants(ctx, "", tk.ID)
+		th.Agents = len(gs)
+		h.Health = append(h.Health, th)
 	}
 	hasLive := false
 	for _, t := range tools {

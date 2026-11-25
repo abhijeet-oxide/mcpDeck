@@ -22,7 +22,7 @@ type Auth struct {
 	Username       string `json:"username,omitempty"`
 	Password       string `json:"password,omitempty"`
 	LoginRequestID string `json:"loginRequestId,omitempty"`
-	Capture        string `json:"capture,omitempty"` // cookie (default) or a response header name
+	Capture        string `json:"capture,omitempty"` // cookie (default), a response header name, or json:<field> sent as a bearer token
 }
 
 // API is one system you call (APP-1). Name is the client name in tool code.
@@ -36,7 +36,28 @@ type API struct {
 	Auth           Auth      `json:"auth"`
 	ActiveEnvID    string    `json:"activeEnvId"`
 	ScriptsTrusted bool      `json:"scriptsTrusted"`
+	TLS            TLS       `json:"tls"`
 	CreatedAt      time.Time `json:"createdAt"`
+}
+
+// TLS is how the proxy checks an API's certificates (API-9).
+type TLS struct {
+	// Insecure skips certificate verification, for dev servers with
+	// self-signed certificates.
+	Insecure bool `json:"insecure"`
+	// CACerts are extra PEM certificates trusted for this API, on top of
+	// the system roots (a company CA, a self-signed server).
+	CACerts string `json:"caCerts,omitempty"`
+}
+
+// SavedResponse is a response kept on a request, one per outcome you care
+// about (200 ok, 404 not found…). Bodies are masked (EX-1, EX-3).
+type SavedResponse struct {
+	ID      string          `json:"id"`
+	Name    string          `json:"name"`
+	Status  int             `json:"status"`
+	Body    json.RawMessage `json:"body"`
+	SavedAt time.Time       `json:"savedAt"`
 }
 
 // Request is one saved request in an API (HTTP-1).
@@ -59,6 +80,7 @@ type Request struct {
 	AccessFlag     bool            `json:"accessFlag"` // "check access" until confirmed (API-1)
 	ResponseSchema json.RawMessage `json:"responseSchema,omitempty"`
 	Example        json.RawMessage `json:"example,omitempty"` // masked response body (EX-1)
+	Responses      []SavedResponse `json:"responses,omitempty"`
 	CreatedAt      time.Time       `json:"createdAt"`
 	UpdatedAt      time.Time       `json:"updatedAt"`
 }

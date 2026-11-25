@@ -193,6 +193,7 @@ internal/
   session/         sessions, call recording, token counting
   usage/           aggregates for usage views
   insight/         suggestion rules over recorded calls
+  lint/            MCP guideline rules over toolkits, tools and outputs (GUIDE-1…4)
   connect/         client config writers (Claude Code, VS Code, Cursor, Claude Desktop)
   audit/           append-only hash-chained log
   mock/            mock servers from specs + examples; demo
@@ -201,6 +202,17 @@ internal/
 web/               React app; embed.go exposes dist/
 skills/            optional files `mcpdeck connect` can install for each client
 ```
+
+Web pieces worth knowing:
+
+- `web/src/lib/flow.ts` is the flow engine (FLOW-1…3): it parses a tool's
+  TypeScript into steps and generates it back, without evaluating it.
+  Code is the source of truth; the canvas (`components/FlowBuilder.tsx`,
+  React Flow) only edits code in the canonical shape and explains the line
+  that stops it otherwise.
+- Dropdowns, menus, tabs and tooltips are Radix primitives wrapped in
+  `components/ui.tsx` (`Select`, `Menu`, `Tabs`, `Tip`); styles in
+  `styles/shell.css`.
 
 Rules:
 
