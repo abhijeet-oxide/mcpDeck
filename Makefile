@@ -3,7 +3,7 @@ BIN      := bin/mcpdeck
 GOFLAGS  := -trimpath
 LDFLAGS  := -s -w
 
-.PHONY: help dev dev-up dev-down build test test-go test-web e2e lint cover req-check sqlc clean
+.PHONY: help dev dev-up dev-down build test test-go test-web test-skills e2e lint cover req-check sqlc clean
 
 help: ## list targets
 	@grep -E '^[a-z0-9-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*## "}{printf "  %-10s %s\n",$$1,$$2}'
@@ -15,10 +15,13 @@ build: ## single binary with embedded UI
 	pnpm -C web install --frozen-lockfile && pnpm -C web build
 	CGO_ENABLED=0 go build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/mcpdeck
 
-test: test-go test-web ## all unit + integration tests
+test: test-go test-web test-skills ## all unit + integration tests
 
 test-go: ## Go tests with race detector
 	go test -race -shuffle=on ./...
+
+test-skills: ## agent skill scripts (Node 18+)
+	node --test skills/scripts.test.mjs
 
 test-web: ## Vitest
 	pnpm -C web test --run

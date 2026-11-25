@@ -37,6 +37,18 @@ jobs:
       - run: pnpm -C web test --run
       - run: pnpm -C web build
 
+  skills:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - run: node --test skills/scripts.test.mjs
+
   docs:
     runs-on: ubuntu-latest
     steps:

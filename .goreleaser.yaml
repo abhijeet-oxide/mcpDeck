@@ -1,0 +1,80 @@
+# Release configuration (NFR-5, NFR-7). See docs/releasing.md.
+# Validate locally with: goreleaser check
+version: 2
+project_name: mcpdeck
+
+before:
+  hooks:
+    - pnpm -C web install --frozen-lockfile
+    - pnpm -C web build
+
+builds:
+  - id: mcpdeck
+    main: ./cmd/mcpdeck
+    binary: mcpdeck
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }} -X main.commit={{ .Commit }} -X main.date={{ .Date }}
+    goos: [windows, darwin, linux]
+    goarch: [amd64, arm64]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+sboms:
+  - artifacts: archive
+
+changelog:
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  draft: false
+  prerelease: auto
+
+homebrew_casks:
+  - name: mcpdeck
+    repository:
+      owner: abhijeet-oxide
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: https://github.com/abhijeet-oxide/mcpDeck
+    description: Build MCP tools from the APIs you already have, and control what every agent can do.
+    skip_upload: auto
+    hooks:
+      post:
+        # Unsigned builds are quarantined by macOS. Remove once releases are notarised (NFR-5).
+        install_steps: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/mcpdeck"]
+          end
+
+scoops:
+  - name: mcpdeck
+    repository:
+      owner: abhijeet-oxide
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+    homepage: https://github.com/abhijeet-oxide/mcpDeck
+    description: Build MCP tools from the APIs you already have, and control what every agent can do.
+    license: Apache-2.0
+    skip_upload: auto

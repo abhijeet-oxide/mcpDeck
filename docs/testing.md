@@ -33,6 +33,7 @@ get green. If a test is wrong, fix it in its own commit and say why.
 | UI unit | Vitest + Testing Library + MSW | `web/src/**/*.test.tsx` | Components and routes against mocked API |
 | End to end | Playwright + real binary + mock apps | `e2e/` | Real flows through UI and MCP |
 | MCP client | Go MCP client from the SDK | `e2e/mcp_test.go` | An agent's view: list tools, call, errors, build a tool with only `instructions` (TK-3) |
+| Skill scripts | `node --test` | `skills/scripts.test.mjs` | `field-sizes.mjs` and `check-tool.mjs` on Linux and Windows, Node 18 (SKL-1) |
 | Windows | Same suites on `windows-latest` | CI | Paths, keychain, client config locations, browser open (NFR-4) |
 
 Rules:
@@ -142,6 +143,7 @@ exported (`.mcpdeck` with that session) and reproduced offline.
 make test          # go test -race -shuffle=on ./... && pnpm -C web test
 make test-go       # Go only
 make test-web      # Vitest only
+make test-skills   # agent skill scripts
 make e2e           # Playwright + MCP client suite (starts mcpdeck dev)
 make cover         # coverage report, fails under the gate
 make req-check     # MUST requirements without a REQ-tagged test

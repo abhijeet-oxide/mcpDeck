@@ -80,20 +80,24 @@ a page on another origin can't read or change anything.
 in the server's OpenAPI document. The CLI uses the same API. Agents can do
 anything a person can, except what ACC-6 forbids.
 
-**CLI-1 Commands.** The CLI covers the everyday flows, each a thin client of
-the HTTP API (RUN-6):
+**UI-0 The UI comes first.** mcpDeck is used mainly through its UI. Every
+flow MUST be possible in the UI without the CLI or a text editor. The CLI and
+MCP exist for automation and agents, and never offer a flow the UI lacks.
+
+**CLI-1 Commands.** The CLI covers the everyday flows for scripts and agents,
+each a thin client of the HTTP API (RUN-6):
 
 | Command | Does |
 |---|---|
 | `mcpdeck` | Start and open the UI (RUN-2) |
 | `mcpdeck stop` | Stop the running instance |
-| `mcpdeck import <url-or-file> [--api <name>]` | Import a Swagger page, OpenAPI, Postman collection or curl file (IMP-1…4) |
+| `mcpdeck import <url-or-file> --api <name> [--env <name>]` | Import a Swagger page, OpenAPI file, Postman collection or curl file into the API `<name>`, creating it if it doesn't exist. Requests are added or updated; nothing is deleted. Prints what changed (IMP-1…4) |
 | `mcpdeck connect <client> --toolkit <name>` | Add a toolkit to a client: `claude`, `vscode`, `cursor` or `claude-desktop` (AGT-3) |
 | `mcpdeck agents [revoke <name>]` | List or revoke agents (AGT-4) |
 | `mcpdeck pull` / `push` | Tools as files (FILE-1) |
 | `mcpdeck stdio --toolkit <name>` | stdio bridge (TK-2) |
 | `mcpdeck dev` | Dev mode with the demo world (MOCK-4) |
-| `mcpdeck version` | Version and build info |
+| `mcpdeck version [--check]` | Version and build info; `--check` asks GitHub whether a newer release exists |
 
 Every command has `--help` with an example, and `--json` output where it
 lists things.
@@ -465,7 +469,8 @@ and `destructiveHint` annotations follow the tool's access.
 | `request_tool` | Ask for a tool the agent can't build (missing API, write access, out of scope) |
 | `list_tool_requests` | Open requests in this toolkit, so a building agent can fulfil one |
 
-Agents without build access get `request_tool` only, so they can still ask.
+Every agent, building or not, also gets `request_tool` and
+`report_field_usage` (FB-1), so it can ask for tools and say what it used.
 Responses are short by default; an agent asks for more with `detail: true`.
 
 **MCP-4 Actionable errors.** Every error says what went wrong and what to do
@@ -510,6 +515,28 @@ uses the same requests as an existing one in the library, naming it.
 **AB-6 Description check.** Agent-written descriptions are checked for length
 and for text that addresses other agents ("ignore", "always call", "you
 must", URLs). Matches keep the version pending for review.
+
+**FB-1 Field usage reports.** `report_field_usage` takes a tool, its
+version, the output fields the agent `used`, the fields it found `unused`,
+and a note. Paths use `.` for fields and `[]` for list items
+(`issues[].fields.summary`). A report is stored against the agent and the
+session. It never changes a tool, a grant or an output by itself.
+
+**FB-2 Combining reports.** For each tool version and output field mcpDeck
+keeps, over the last 30 days: the agents that reported it used, the agents
+that reported it unused, and agents seen using it (a value from the field
+appeared in that agent's next call input in the same session). The tool page
+shows this per field.
+
+**OUT-1 Per-agent output.** A person MAY drop fields from a tool's output
+for one agent's grant only. mcpDeck removes them after the tool runs and
+before the response is counted and sent. Other agents get the full output.
+Tests and versions are unchanged.
+
+**AB-8 Feedback changes need a person.** Changes that come from agent
+feedback (trimming a tool's output, a per-agent output, a new description)
+are always suggestions. A person approves each one. Approval rules (AB-2)
+never apply them automatically, even for read-only tools.
 
 **AB-7 Publish to every agent.** When a version goes live, mcpDeck sends
 `notifications/tools/list_changed` to every connected agent granted a
@@ -594,6 +621,42 @@ session → flag it, so the description or output can be fixed.
 **INS-11 Blocked writes.** Write attempts blocked by ACC-2 → list them, so a
 person can decide on access or a read tool.
 
+**INS-12 Fields from reports.** From FB-2:
+- a field that at least one agent reported unused and no agent reported or
+  was seen using → suggest removing it from the tool (a new version);
+- a field some agents use and others don't → suggest a per-agent output
+  (OUT-1) for the agents that don't, and leave the tool unchanged.
+Each suggestion shows the reports, the agents on each side and the bytes
+saved per call. Nothing changes until a person approves (AB-8).
+
+**MCP-6 Hints.** When a tool's response is over the toolkit's size limit
+(default 2,000 tokens), mcpDeck adds one short line to it, under 30 tokens:
+"Large response (3,400 tokens). If you used only some fields, call
+report_field_usage." At most one hint per response; hints can be turned off
+per toolkit. Hints are how the bundled skills (SKL-1) get triggered without
+the agent having to remember them.
+
+**SKL-1 Bundled skills.** mcpDeck ships these agent skills, each a
+`SKILL.md` with scripts where a script does the job better than prose:
+
+| Skill | Used when | Scripts |
+|---|---|---|
+| `mcpdeck-tools` | Any task that needs a company system through mcpDeck | — |
+| `mcpdeck-request-tool` | No tool fits, 3+ calls for one answer, or write access is missing | — |
+| `mcpdeck-trim-output` | A response is large or a hint (MCP-6) says so | `field-sizes.mjs`: bytes per field, flags, and the `return` for a smaller output |
+| `mcpdeck-build-tool` | The agent can build and a tool is missing or requested | `check-tool.mjs`: static checks matching `save_tool` and the approval rules |
+
+Scripts need only Node 18+, have no dependencies, and have tests in CI.
+*Accept:* `node --test skills/scripts.test.mjs` passes.
+
+**SKL-2 Installing skills.** "Add to…" (AGT-3) and `mcpdeck connect` offer
+to install the skills. Claude Code gets them as skills in
+`.claude/skills/<name>/` (project) or `~/.claude/skills/<name>/` (user).
+VS Code (Copilot) and Cursor get each `SKILL.md` as an instructions file
+(`.github/instructions/<name>.instructions.md`, `.cursor/rules/<name>.mdc`)
+whose script paths point at the copies mcpDeck keeps in its data folder.
+Installing again updates them; nothing else in those folders is touched.
+
 ## Mock servers and dev mode (M1, grows each milestone)
 
 Designed in [testing.md](testing.md#mock-servers).
@@ -617,6 +680,11 @@ token, so a coding agent working on this repo can test end to end.
 responses, so a bug seen against a real system can be reproduced offline.
 
 ## UI
+
+**DOC-1 Real screenshots.** Once a screen exists, the README and docs show
+it with a real screenshot of the running app on the demo world, captured
+by a script (`make screenshots`) at a fixed size, light and dark. Mockups
+are never shown as the product.
 
 **UI-1 Five places.** Navigation is Home, APIs, Toolkits, Agents,
 Settings. No onboarding wizard. Home shows: suggestions, tool requests,
@@ -669,15 +737,20 @@ request.
 **NFR-4 Windows first-class.** Tests run on Windows in CI. Paths, line
 endings, file locking and the keychain are handled per OS.
 
-**NFR-5 Trustworthy release.** Release binaries are signed (Authenticode on
-Windows, notarised on macOS), with checksums and an SBOM.
+**NFR-5 Trustworthy release.** Every release has checksums and an SBOM.
+Binaries SHOULD be signed once certificates are in place: Authenticode on
+Windows (a code-signing certificate or Azure Trusted Signing) and a
+Developer ID with notarisation on macOS. See
+[releasing.md](releasing.md).
 
-**NFR-7 Install channels.** Each release is published by GoReleaser to:
-GitHub Releases (zip / tar.gz per platform), the Homebrew tap
-`abhijeet-oxide/homebrew-tap` (`brew install abhijeet-oxide/tap/mcpdeck`),
-the Scoop bucket `abhijeet-oxide/scoop-bucket`, and winget. An install script for macOS and Linux downloads the
-release for the platform and checks its checksum. `mcpdeck version` says
-when a newer release exists, and never updates itself.
+**NFR-7 Install channels.** Each release is published by GoReleaser
+(`.goreleaser.yaml`) to:
+- GitHub Releases: `.zip` for Windows, `.tar.gz` for macOS and Linux;
+- the Homebrew tap `abhijeet-oxide/homebrew-tap` as a cask (macOS):
+  `brew install --cask abhijeet-oxide/tap/mcpdeck`;
+- the Scoop bucket `abhijeet-oxide/scoop-bucket` (Windows).
+winget follows once a release is accepted into `microsoft/winget-pkgs`,
+which Microsoft reviews. mcpDeck never updates itself.
 
 **NFR-6 Test-first.** See [testing.md](testing.md). Coverage of `internal/`
 ≥ 80%, and every MUST requirement has at least one test referencing its ID.
