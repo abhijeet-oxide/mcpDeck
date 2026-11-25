@@ -25,10 +25,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: actionlint
-        run: |
-          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.9/scripts/download-actionlint.bash) 1.7.9
-          ./actionlint -color
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+      # A pinned module version, checked against the Go checksum database.
+      - run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.9 -color
 
   # NFR-4: the same Go suite on every OS we ship. It includes the installer
   # tests (scripts/), which run install.sh / install.ps1 against a local fake
