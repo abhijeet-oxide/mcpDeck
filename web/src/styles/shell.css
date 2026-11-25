@@ -721,3 +721,281 @@
 .env-select {
   min-width: 170px;
 }
+
+/* ───────── Flow builder (FLOW-2) ───────── */
+.flow-shell {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr) 320px;
+  height: max(620px, calc(100vh - 260px));
+  border-radius: 0 0 var(--r-panel) var(--r-panel);
+  overflow: hidden;
+}
+.flow-palette,
+.flow-inspector {
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--surface);
+}
+.flow-palette {
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+}
+.flow-palette-head {
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.flow-palette-list {
+  padding: 8px 6px;
+  overflow-y: auto;
+  flex: 1;
+}
+.flow-req {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 4px 4px 6px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  cursor: grab;
+}
+.flow-req:hover {
+  background: var(--neutral-bg);
+}
+.flow-inspector {
+  border-left: 1px solid var(--line);
+}
+.insp-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.insp-card {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 10px;
+  margin-bottom: 8px;
+  background: var(--surface-2);
+}
+.flow-canvas {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--bg-sunk);
+}
+.flow-canvas .react-flow__background {
+  color: var(--line-strong);
+}
+.flow-canvas .react-flow__controls {
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.flow-canvas .react-flow__controls-button {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  color: var(--text-2);
+  fill: var(--text-2);
+}
+.flow-hint {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 420px;
+  display: flex;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 13px;
+  pointer-events: none;
+}
+.fnode {
+  width: 270px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  font-size: 12px;
+  color: var(--text);
+  padding-bottom: 6px;
+}
+.fnode.sel {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 3px var(--accent-ring),
+    var(--shadow-md);
+}
+.fnode.bad {
+  border-color: var(--bad-dot);
+}
+.fnode-input,
+.fnode-output {
+  width: 230px;
+}
+.fnode-input .fnode-head {
+  background: var(--accent-soft);
+}
+.fnode-output .fnode-head {
+  background: var(--ok-bg);
+}
+.fnode-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  border-radius: 12px 12px 0 0;
+  background: var(--surface-2);
+}
+.fnode-n {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+  color: var(--on-ink);
+  font-size: 11px;
+  font-weight: 700;
+  flex: none;
+}
+.fnode-sub {
+  padding: 4px 10px 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.fnode-sec {
+  display: flex;
+  padding: 8px 10px 3px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.fport {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  min-height: 22px;
+}
+.fport .faint {
+  margin-left: auto;
+  font-size: 10.5px;
+  flex: none;
+}
+.fport.in .faint {
+  margin-left: 0;
+  flex: 1;
+}
+.fport.miss {
+  color: var(--bad);
+}
+.fport:hover {
+  background: var(--row-hover);
+}
+.fnode .react-flow__handle {
+  width: 9px;
+  height: 9px;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+}
+.fnode .fport.in .react-flow__handle {
+  left: -5px;
+}
+.fnode .fport.out .react-flow__handle {
+  right: -5px;
+}
+.fnode .fport.miss .react-flow__handle {
+  border-color: var(--bad-dot);
+}
+.fnode .react-flow__handle.seq {
+  width: 12px;
+  height: 12px;
+  background: var(--line-strong);
+  border: 2px solid var(--surface);
+  top: 18px;
+}
+.fnode-empty {
+  padding: 4px 12px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.fnode-warn {
+  margin: 6px 10px 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--bad-bg);
+  color: var(--bad);
+  font-size: 11.5px;
+}
+.fnode-more {
+  margin: 2px 10px 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  padding: 2px 2px;
+}
+.fnode-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 10px 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: 11.5px;
+}
+.react-flow__edge.wire-edge .react-flow__edge-path {
+  stroke: var(--accent);
+  stroke-width: 1.8;
+}
+.react-flow__edge.wire-edge.tmpl .react-flow__edge-path {
+  stroke-dasharray: 5 4;
+}
+.react-flow__edge.seq-edge .react-flow__edge-path {
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 4;
+}
+.react-flow__edge.ret-edge .react-flow__edge-path {
+  stroke: var(--ok-dot);
+  stroke-width: 2;
+}
+.field-tree {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  max-height: 340px;
+  overflow: auto;
+  padding: 4px 0;
+}
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.field-row:hover {
+  background: var(--row-hover);
+}
+.list-row[aria-pressed="true"] .step-dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+@media (max-width: 1200px) {
+  .flow-shell {
+    grid-template-columns: 200px minmax(0, 1fr) 300px;
+  }
+}

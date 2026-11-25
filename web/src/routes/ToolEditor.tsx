@@ -13,12 +13,16 @@ import {
   Save,
   Search,
   Send,
+  ShieldCheck,
   Trash2,
+  Workflow,
 } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useConnect } from "../App";
 import { useRunner } from "../components/AskAgent";
 import { Diff } from "../components/Diff";
+import { counts, FindingList } from "../components/Findings";
+import { exampleOf, FlowBuilder, requestInfo } from "../components/FlowBuilder";
 import {
   AccessChip,
   Button,
@@ -35,18 +39,19 @@ import {
   StatusChip,
   Tabs,
   Toggle,
+  useConfirm,
   useToast,
 } from "../components/ui";
 import { get, post } from "../lib/api";
+import { autoWire, type Flow, fieldsOf, generateFlow, matchBrace, parseFlow, type Step, stepId } from "../lib/flow";
 import { bytes, dateTime, mod, num } from "../lib/format";
 import { useAction, useAPIs, useTool } from "../lib/hooks";
 import { applyTheme, monaco, setTypes } from "../lib/monaco";
 import { Link, navigate, useLocation } from "../lib/router";
-import type { APIDetail, RunResult, SaveResult, ToolTest, Version } from "../lib/types";
+import type { APIDetail, LintReport, OutputReport, RunResult, SaveResult, ToolTest, Version } from "../lib/types";
 
-function template(from?: { api: string; req: string; params: string[] }) {
-  if (!from) {
-    return `// A tool has two parts.
+function template() {
+  return `// A tool has two parts.
 // 1. \`tool\` is what agents see. Rename it
 //    (lowercase_with_underscores) and say when to use it.
 export const tool = {
@@ -68,25 +73,46 @@ export default async function (input: Input) {
   return { id: input.id };
 }
 `;
-  }
-  const props = from.params.map((p) => `${p}: { type: "string" }`).join(", ");
-  const args = from.params.map((p) => `${p}: input.${p}`).join(", ");
-  return `export const tool = {
-  name: "${from.req.replace(/([A-Z])/g, "_$1").toLowerCase()}",
-  description: "Returns the fields of ${from.api}.${from.req} that the task needs.",
-  inputSchema: {
-    type: "object",
-    properties: { ${props} },
-    required: [${from.params.map((p) => `"${p}"`).join(", ")}],
-  },
-};
-
-export default async function (input: Input) {
-  const res = await ${from.api}.${from.req}(${args ? `{ ${args} }` : ""});
-  // Return only what an agent needs; every field costs tokens on every call.
-  return res;
 }
-`;
+
+/** flowFrom builds a starting flow from requests picked in order (TOOL-10, FLOW-1). */
+export function flowFrom(refs: string[], apis: APIDetail[]): Flow {
+  const flow: Flow = {
+    meta: { name: "", description: "", useWhen: "", dontUseWhen: "" },
+    inputs: [],
+    steps: [],
+    output: null,
+  };
+  for (const ref of refs) {
+    const [apiName, reqName] = ref.split(".");
+    const api = apis.find((a) => a.name === apiName);
+    const r = api?.requests.find((x) => x.name === reqName);
+    if (!api || !r) continue;
+    const step: Step = {
+      id: stepId(
+        reqName,
+        flow.steps.map((s) => s.id),
+      ),
+      api: apiName,
+      req: reqName,
+      args: [],
+    };
+    const before = flow.steps.map((s) => {
+      const sa = apis.find((a) => a.name === s.api);
+      const sr = sa?.requests.find((x) => x.name === s.req);
+      return { step: s, fields: sr ? fieldsOf(exampleOf(sr), "wire", 200) : [] };
+    });
+    const w = autoWire(step, requestInfo(api, r), before, flow.inputs, api.auth?.type ?? "none");
+    step.args = w.args;
+    flow.inputs.push(...w.newInputs);
+    flow.steps.push(step);
+  }
+  const last = flow.steps[flow.steps.length - 1];
+  if (last) {
+    flow.output = { step: last.id, fields: [] };
+    flow.meta.name = last.req.replace(/([A-Z])/g, "_$1").toLowerCase();
+  }
+  return flow;
 }
 
 function sampleInput(schema: any): string {
@@ -123,7 +149,8 @@ export default function ToolEditor({ toolkit, tool }: { toolkit: string; tool: s
     queryFn: () => get<string>(`/api/toolkits/${toolkit}/types.d.ts`),
   });
   const [tab, setTab] = useState<"code" | "versions" | "fields">("code");
-  const mode = search.get("mode") ?? (search.get("from") ? "code" : "");
+  const stepsParam = search.get("steps") ?? search.get("from") ?? "";
+  const mode = search.get("mode") ?? (stepsParam ? "visual" : "");
   if (!isNew && detail.isLoading) return <Loading />;
   if (detail.error)
     return (
@@ -135,15 +162,11 @@ export default function ToolEditor({ toolkit, tool }: { toolkit: string; tool: s
   const latest = versions[0];
   let initial = latest?.source;
   if (!initial) {
-    const from = search.get("from");
-    if (from) {
-      const [api, req] = from.split(".");
-      const r = details.flatMap((d) => d.data?.requests ?? []).find((x) => x.name === req);
-      const params = r
-        ? [...r.url.matchAll(/\{([A-Za-z0-9_]+)\}/g)].map((m) => m[1]).filter((p) => p !== "baseUrl")
-        : [];
-      if (!r && details.some((d) => d.isLoading)) return <Loading />;
-      initial = template({ api, req, params });
+    if (stepsParam) {
+      if (apis.isLoading || details.some((d) => d.isLoading)) return <Loading />;
+      initial = generateFlow(
+        flowFrom(stepsParam.split(",").filter(Boolean), details.map((d) => d.data).filter(Boolean) as APIDetail[]),
+      );
     } else initial = template();
   }
   if (isNew && !mode) {
@@ -194,7 +217,7 @@ export default function ToolEditor({ toolkit, tool }: { toolkit: string; tool: s
           value={tab}
           onChange={setTab}
           tabs={[
-            { id: "code", label: "Code" },
+            { id: "code", label: "Build" },
             { id: "versions", label: "Versions", n: versions.length },
             { id: "fields", label: "Output fields" },
           ]}
@@ -209,6 +232,7 @@ export default function ToolEditor({ toolkit, tool }: { toolkit: string; tool: s
           apis={details.map((d) => d.data).filter(Boolean) as APIDetail[]}
           types={types.data ?? ""}
           isNew={isNew}
+          initialMode={mode === "code" ? "code" : "visual"}
         />
       )}
       {tab === "versions" && <Versions versions={versions} />}
@@ -222,8 +246,11 @@ type Start = "request" | "agent" | "code";
 /** NewTool asks how to start, so the editor never opens on code nobody asked for. */
 function NewTool({ toolkit, apis }: { toolkit: string; apis: APIDetail[] }) {
   const reqs = apis.flatMap((a) => a.requests.map((r) => ({ a, r })));
-  const [start, setStart] = useState<Start>(reqs.length ? "request" : "code");
+  const [chosen, setStart] = useState<Start | null>(null);
+  // Chaining requests is the default; with no requests at all, its panel says to add an application.
+  const start: Start = chosen ?? "request";
   const [filter, setFilter] = useState("");
+  const [picked, setPicked] = useState<string[]>([]);
   const [what, setWhat] = useState("");
   const { builder } = useRunner(toolkit);
   const connect = useConnect();
@@ -237,8 +264,8 @@ Check: the reply says the tool is live, or which approval rule held it.`;
     {
       id: "request",
       icon: <Send size={17} />,
-      title: "Start from a request",
-      sub: "Pick one; the code that calls it is written for you.",
+      title: "Chain requests",
+      sub: "Pick one or more in the order they run; connect them on a canvas.",
     },
     {
       id: "agent",
@@ -288,7 +315,43 @@ Check: the reply says the tool is live, or which approval rule held it.`;
       </div>
       {start === "request" && (
         <Panel
-          title="Pick a request"
+          title={
+            <span className="flex items-center gap-2">
+              Pick requests in order
+              <span className="muted text-[12px] font-normal">
+                login → list → details: each one can use the last one's output
+              </span>
+            </span>
+          }
+          footer={
+            reqs.length > 0 && (
+              <>
+                <span className="muted mr-auto text-[12.5px]">
+                  {picked.length === 0
+                    ? "Nothing picked yet. You can also add steps on the canvas."
+                    : picked.map((p, i) => `${i + 1}. ${p}`).join("  →  ")}
+                </span>
+                {picked.length > 0 && (
+                  <Button kind="ghost" onClick={() => setPicked([])}>
+                    Clear
+                  </Button>
+                )}
+                <Button
+                  kind="ink"
+                  icon={<Workflow size={14} />}
+                  onClick={() =>
+                    navigate(
+                      `/toolkits/${toolkit}/tools/new?mode=visual${picked.length ? `&steps=${encodeURIComponent(picked.join(","))}` : ""}`,
+                    )
+                  }
+                >
+                  {picked.length
+                    ? `Build a flow with ${picked.length} ${picked.length === 1 ? "step" : "steps"}`
+                    : "Open an empty canvas"}
+                </Button>
+              </>
+            )
+          }
           right={
             <div className="relative">
               <Search size={13} className="muted absolute top-1/2 left-2.5 -translate-y-1/2" />
@@ -317,29 +380,50 @@ Check: the reply says the tool is live, or which approval rule held it.`;
             </EmptyState>
           ) : (
             <div style={{ maxHeight: 460, overflow: "auto" }}>
-              {shown.map(({ a, r }) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  className="list-row w-full text-left"
-                  style={{ background: "none", border: 0, borderBottom: "1px solid var(--line)", cursor: "pointer" }}
-                  onClick={() =>
-                    navigate(`/toolkits/${toolkit}/tools/new?from=${encodeURIComponent(`${a.name}.${r.name}`)}`)
-                  }
-                >
-                  <MethodChip method={r.method} />
-                  <span className="min-w-0 flex-1">
-                    <code className="font-semibold">
-                      {a.name}.{r.name}
-                    </code>
-                    <span className="muted block truncate text-[12.5px]">
-                      {r.title || r.url.replace("{{baseUrl}}", "")}
+              {shown.map(({ a, r }) => {
+                const ref = `${a.name}.${r.name}`;
+                const n = picked.indexOf(ref);
+                const saved = (r.responses?.length ?? 0) > 0 || !!r.example;
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    className="list-row w-full text-left"
+                    aria-pressed={n >= 0}
+                    style={{
+                      background: n >= 0 ? "var(--accent-soft)" : "none",
+                      border: 0,
+                      borderBottom: "1px solid var(--line)",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => setPicked(n >= 0 ? picked.filter((x) => x !== ref) : [...picked, ref])}
+                  >
+                    <span className={`step-dot ${n >= 0 ? "next" : ""}`} aria-hidden>
+                      {n >= 0 ? n + 1 : ""}
                     </span>
-                  </span>
-                  <AccessChip access={r.access} flag={r.accessFlag} />
-                  <span className="btn btn-sm">Use</span>
-                </button>
-              ))}
+                    <MethodChip method={r.method} />
+                    <span className="min-w-0 flex-1">
+                      <code className="font-semibold">
+                        {a.name}.{r.name}
+                      </code>
+                      <span className="muted block truncate text-[12.5px]">
+                        {r.title || r.url.replace("{{baseUrl}}", "")}
+                      </span>
+                    </span>
+                    {saved ? (
+                      <Chip tone="ok">response saved</Chip>
+                    ) : (
+                      <span
+                        className="muted text-[12px]"
+                        title="Send it once and save the response so its fields are known"
+                      >
+                        no saved response
+                      </span>
+                    )}
+                    <AccessChip access={r.access} flag={r.accessFlag} />
+                  </button>
+                );
+              })}
               {shown.length === 0 && <Empty title="No request matches" />}
             </div>
           )}
@@ -403,6 +487,8 @@ Check: the reply says the tool is live, or which approval rule held it.`;
   );
 }
 
+type Mode = "visual" | "code";
+
 function Workbench({
   toolkit,
   initial,
@@ -410,6 +496,7 @@ function Workbench({
   apis,
   types,
   isNew,
+  initialMode,
 }: {
   toolkit: string;
   initial: string;
@@ -417,10 +504,12 @@ function Workbench({
   apis: APIDetail[];
   types: string;
   isNew: boolean;
+  initialMode: Mode;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const ed = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const [src, setSrc] = useState(initial);
+  const [mode, setMode] = useState<Mode>(() => (initialMode === "visual" && parseFlow(initial).ok ? "visual" : "code"));
   const [input, setInput] = useState(() => sampleInput(inputSchemaFrom(initial)));
   const [examples, setExamples] = useState(false);
   const [run, setRun] = useState<RunResult | null>(null);
@@ -429,6 +518,8 @@ function Workbench({
   const [saved, setSaved] = useState<SaveResult | null>(null);
   const [problems, setProblems] = useState<monaco.editor.IMarker[]>([]);
   const toast = useToast();
+  const confirm = useConfirm();
+  const parsed = useMemo(() => parseFlow(src), [src]);
   useEffect(() => setTypes(types), [types]);
   useEffect(() => {
     if (!host.current) return;
@@ -460,6 +551,33 @@ function Workbench({
       model.dispose();
     };
   }, []);
+  /** setCode replaces the source, keeping Monaco's undo history. */
+  const setCode = (code: string) => {
+    const m = ed.current?.getModel();
+    if (m && m.getValue() !== code) {
+      m.pushEditOperations([], [{ range: m.getFullModelRange(), text: code }], () => null);
+    }
+    setSrc(code);
+  };
+  const onFlow = (f: Flow) => setCode(generateFlow(f));
+  const switchTo = async (m: Mode) => {
+    if (m === "visual" && !parsed.ok) {
+      const ok = await confirm({
+        title: "Rebuild this tool as a flow?",
+        body: (
+          <>
+            The visual builder can't show this code: {parsed.reason} Keep it in Code, or rebuild it as steps. Rebuilding
+            keeps the tool definition and the calls it can read, and drops the custom logic.
+          </>
+        ),
+        action: "Rebuild as a flow",
+        danger: true,
+      });
+      if (!ok) return;
+      setCode(generateFlow(salvage(src)));
+    }
+    setMode(m);
+  };
   const parsedInput = () => {
     try {
       return JSON.parse(input || "{}");
@@ -472,7 +590,7 @@ function Workbench({
     try {
       setRun(
         await post<RunResult>(`/api/toolkits/${toolkit}/test`, {
-          source: ed.current?.getValue() ?? src,
+          source: src,
           input: parsedInput(),
           examples,
         }),
@@ -483,16 +601,13 @@ function Workbench({
       setRunning(false);
     }
   };
-  const save = useAction(
-    () => post<SaveResult>(`/api/toolkits/${toolkit}/save`, { source: ed.current?.getValue() ?? src, tests }),
-    {
-      onSuccess: (r) => {
-        setSaved(r);
-        toast(r.message);
-        if (isNew) navigate(`/toolkits/${toolkit}/tools/${r.version.name}`, true);
-      },
+  const save = useAction(() => post<SaveResult>(`/api/toolkits/${toolkit}/save`, { source: src, tests }), {
+    onSuccess: (r) => {
+      setSaved(r);
+      toast(r.message);
+      if (isNew) navigate(`/toolkits/${toolkit}/tools/${r.version.name}`, true);
     },
-  );
+  });
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
@@ -508,211 +623,360 @@ function Workbench({
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   });
+  // Keep the test input's keys in step with the tool's inputs.
+  useEffect(() => {
+    if (!parsed.ok) return;
+    try {
+      const cur = JSON.parse(input || "{}");
+      const want = parsed.flow.inputs.map((i) => i.name);
+      if (want.length && want.every((k) => k in cur) && Object.keys(cur).every((k) => want.includes(k))) return;
+      const next: Record<string, unknown> = {};
+      for (const k of want) next[k] = cur[k] ?? "";
+      setInput(JSON.stringify(next, null, 2));
+    } catch {
+      /* the person is editing the JSON */
+    }
+  }, [parsed.ok && parsed.flow.inputs.map((i) => i.name).join(",")]);
+  /** insert adds a call inside the function body, before its return. */
   const insert = (api: string, name: string, url: string) => {
-    const params = [...url.matchAll(/\{([A-Za-z0-9_]+)\}/g)].map((m) => m[1]).filter((p) => p !== "baseUrl");
-    const text = `const ${name.replace(/^(get|list|search)/, "").replace(/^./, (c) => c.toLowerCase()) || "res"} = await ${api}.${name}(${params.length ? `{ ${params.map((p) => `${p}: input.${p}`).join(", ")} }` : ""});\n`;
     const e = ed.current;
-    if (!e) return;
-    const pos = e.getPosition();
-    e.executeEdits("insert", [{ range: new monaco.Range(pos!.lineNumber, 1, pos!.lineNumber, 1), text: `  ${text}` }]);
+    const m = e?.getModel();
+    if (!e || !m) return;
+    const params = [...url.replace(/\{\{[^}]*\}\}/g, "").matchAll(/\{([A-Za-z0-9_]+)\}/g)].map((x) => x[1]);
+    const taken = [...m.getValue().matchAll(/const\s+([\w$]+)/g)].map((x) => x[1]);
+    const id = stepId(name, taken);
+    const text = `  const ${id} = await ${api}.${name}(${params.length ? `{ ${params.map((p) => `${p}: input.${p}`).join(", ")} }` : ""});\n`;
+    const code = m.getValue();
+    const fn = /export\s+default\s+async\s+function[^{]*\{/.exec(code);
+    let line = e.getPosition()?.lineNumber ?? 1;
+    if (fn) {
+      const open = fn.index + fn[0].length - 1;
+      const close = matchBrace(code, open);
+      const startLine = code.slice(0, open).split("\n").length + 1;
+      const endLine = close > 0 ? code.slice(0, close).split("\n").length : startLine;
+      if (line < startLine || line > endLine) {
+        const ret = code.slice(open, close).search(/\n\s*return\b/);
+        line = ret >= 0 ? code.slice(0, open + ret + 1).split("\n").length + 1 : endLine;
+      }
+    }
+    e.executeEdits("insert", [{ range: new monaco.Range(line, 1, line, 1), text }]);
     e.focus();
   };
   const errors = problems.filter((p) => p.severity === monaco.MarkerSeverity.Error);
   const saving =
     run && !run.error && run.upstreamBytes > 0 ? Math.round((1 - run.outputBytes / run.upstreamBytes) * 100) : null;
   const total = Math.max(1, ...(run?.calls ?? []).map((c) => c.startMs + c.durationMs), run?.durationMs ?? 1);
+  const name = (src.match(/name:\s*["'`]([a-z0-9_]+)/) ?? [])[1] ?? "unnamed";
   return (
-    <div className="grid items-start gap-3" style={{ gridTemplateColumns: "210px minmax(0, 1fr) 380px" }}>
-      <Panel title="Insert a call" bodyClass="p-1.5" className="self-stretch">
-        <div className="muted flex items-start gap-1.5 px-2 pt-1 pb-2 text-[12px]">
-          <MousePointerClick size={13} className="mt-0.5 flex-none" /> Click a request to add a call at the cursor.
-        </div>
-        {apis.length === 0 && (
-          <div className="muted px-2 pb-2 text-[12.5px]">
-            No applications yet. <Link to="/apps/new">Create one</Link> to call it from tools.
-          </div>
-        )}
-        <div style={{ maxHeight: 600, overflow: "auto" }}>
-          {apis.map((a) => (
-            <div key={a.id} className="mb-1">
-              <div className="px-2 py-1 text-[12px] font-semibold">
-                {a.title || a.name} <span className="mono muted font-normal">{a.name}</span>
-              </div>
-              {a.requests.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  className="nav-item"
-                  style={{ padding: "3px 6px", fontSize: 12.5 }}
-                  title={`Insert ${a.name}.${r.name}()`}
-                  onClick={() => insert(a.name, r.name, r.url)}
-                >
-                  <MethodChip method={r.method} />
-                  <span className="truncate">{r.name}</span>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      </Panel>
-      <div className="flex min-w-0 flex-col gap-3">
-        <Panel
-          title={
-            <span className="flex items-center gap-2">
-              Tool code <span className="tag">{(src.match(/name:\s*["'`]([a-z0-9_]+)/) ?? [])[1] ?? "unnamed"}</span>
-            </span>
-          }
-          right={
-            <>
-              <span className="muted text-[12px]">
-                {mod()}+S save · {mod()}+Enter test
+    <div className="flex min-w-0 flex-col gap-3">
+      <Panel
+        title={
+          <span className="flex items-center gap-2">
+            Tool <span className="tag mono">{name}</span>
+            {mode === "code" && !parsed.ok && (
+              <span className="muted text-[12px] font-normal" title={parsed.reason}>
+                custom code
               </span>
-              <Button
-                kind="ink"
-                size="sm"
-                icon={<Save size={13} />}
-                disabled={save.isPending}
-                onClick={() => save.mutate(undefined)}
-              >
-                Save
-              </Button>
-            </>
-          }
-        >
-          <div ref={host} style={{ height: 470 }} />
-          <div className="px-3 py-2 text-[12px]" style={{ borderTop: "1px solid var(--line)" }}>
-            {!types ? (
-              <span className="muted flex items-center gap-1.5">
-                <Loader2 size={12} className="animate-spin" /> Loading types for this toolkit's applications…
-              </span>
-            ) : errors.length === 0 ? (
-              <span className="flex items-center gap-1.5" style={{ color: "var(--ok)" }}>
-                <CheckCircle2 size={13} /> No problems
-              </span>
-            ) : (
-              errors.slice(0, 4).map((p, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  className="block text-left"
-                  style={{ color: "var(--bad)", background: "none", border: 0, padding: 0, cursor: "pointer" }}
-                  onClick={() => {
-                    ed.current?.setPosition({ lineNumber: p.startLineNumber, column: p.startColumn });
-                    ed.current?.focus();
-                  }}
-                >
-                  Line {p.startLineNumber}: {p.message}
-                </button>
-              ))
             )}
-          </div>
-        </Panel>
-        {(saved || save.error) && (
-          <Panel title={saved ? saved.message : "Not saved"}>
-            <ErrorBox error={save.error} />
-            {saved?.checks.map((c) => (
-              <div key={c.rule} className="list-row text-[13px]">
-                <Chip tone={c.passed ? "ok" : "bad"}>{c.passed ? "pass" : "fail"}</Chip>
-                {c.label}
-                {c.detail && <span className="muted">· {c.detail}</span>}
-              </div>
-            ))}
-          </Panel>
-        )}
-        <TestsPanel tests={tests} setTests={setTests} input={input} />
-      </div>
-      <div className="flex min-w-0 flex-col gap-3">
-        <Panel
-          title="Test"
-          right={
+          </span>
+        }
+        right={
+          <>
+            <span className="muted hidden text-[12px] xl:inline">
+              {mod()}+S save · {mod()}+Enter run
+            </span>
+            <div className="seg" role="group" aria-label="Editor mode">
+              <button type="button" aria-pressed={mode === "visual"} onClick={() => switchTo("visual")}>
+                <Workflow size={13} className="mr-1 inline" /> Visual
+              </button>
+              <button type="button" aria-pressed={mode === "code"} onClick={() => switchTo("code")}>
+                <Code2 size={13} className="mr-1 inline" /> Code
+              </button>
+            </div>
             <Button kind="blue" size="sm" icon={<Play size={13} />} disabled={running} onClick={doRun}>
               {running ? "Running…" : "Run"}
             </Button>
-          }
-          bodyClass="p-3 flex flex-col gap-2"
+            <Button
+              kind="ink"
+              size="sm"
+              icon={<Save size={13} />}
+              disabled={save.isPending}
+              onClick={() => save.mutate(undefined)}
+            >
+              Save
+            </Button>
+          </>
+        }
+      >
+        {mode === "visual" && parsed.ok && <FlowBuilder flow={parsed.flow} onChange={onFlow} apis={apis} run={run} />}
+        <div
+          className="grid"
+          style={{ gridTemplateColumns: "220px minmax(0, 1fr)", display: mode === "code" ? "grid" : "none" }}
         >
-          <textarea
-            className="textarea"
-            rows={5}
-            aria-label="Input"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-          />
-          <label className="flex items-center gap-2 text-[12.5px]">
-            <Toggle label="Use saved examples" checked={examples} onChange={setExamples} />
-            Answer from saved examples (no network)
-          </label>
-        </Panel>
-        {run && (
-          <Panel
-            title={run.error ? <span style={{ color: "var(--bad)" }}>Failed</span> : `Output · ${run.durationMs} ms`}
-          >
-            {run.error && <div className="banner bad m-3">{run.error}</div>}
-            {!run.error && (
-              <div
-                className="grid grid-cols-2 gap-px"
-                style={{ background: "var(--line)", borderBottom: "1px solid var(--line)" }}
-              >
-                <div className="p-2.5" style={{ background: "var(--surface)" }}>
-                  <div className="muted text-[11.5px]">API responses</div>
-                  <div className="font-semibold">
-                    {bytes(run.upstreamBytes)} · {num(run.upstreamTokens)} tok
-                  </div>
-                </div>
-                <div className="p-2.5" style={{ background: "var(--surface)" }}>
-                  <div className="muted text-[11.5px]">
-                    Tool output{saving !== null && saving > 0 ? ` · ${saving}% smaller` : ""}
-                  </div>
-                  <div className="font-semibold">
-                    {bytes(run.outputBytes)} · {num(run.outputTokens)} tok
-                  </div>
-                </div>
+          <div className="p-1.5" style={{ borderRight: "1px solid var(--line)", maxHeight: 520, overflow: "auto" }}>
+            <div className="muted flex items-start gap-1.5 px-2 pt-1 pb-2 text-[12px]">
+              <MousePointerClick size={13} className="mt-0.5 flex-none" /> Click a request to add a call to the
+              function.
+            </div>
+            {apis.length === 0 && (
+              <div className="muted px-2 pb-2 text-[12.5px]">
+                No applications yet. <Link to="/apps/new">Create one</Link> to call it from tools.
               </div>
             )}
-            {(run.calls ?? []).length > 0 && (
-              <div className="flex flex-col gap-1.5 p-3" style={{ borderBottom: "1px solid var(--line)" }}>
-                {run.calls.map((c, i) => (
-                  <div key={i} className="text-[12px]">
-                    <div className="flex justify-between gap-2">
-                      <span className="mono truncate">{c.name}</span>
-                      <span className="muted flex-none">
-                        {c.error ? "error" : c.status} · {c.durationMs} ms · {bytes(c.bytes)}
-                      </span>
-                    </div>
-                    <div className="tl" title={c.error || c.url}>
-                      <span
-                        className={c.error || c.status >= 400 ? "err" : ""}
-                        style={{ left: `${(c.startMs / total) * 100}%`, width: `${(c.durationMs / total) * 100}%` }}
-                      />
-                    </div>
-                  </div>
+            {apis.map((a) => (
+              <div key={a.id} className="mb-1">
+                <div className="px-2 py-1 text-[12px] font-semibold">
+                  {a.title || a.name} <span className="mono muted font-normal">{a.name}</span>
+                </div>
+                {a.requests.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    className="tree-row"
+                    style={{ fontSize: 12.5 }}
+                    title={`Insert ${a.name}.${r.name}()`}
+                    onClick={() => insert(a.name, r.name, r.url)}
+                  >
+                    <MethodChip method={r.method} />
+                    <span className="truncate">{r.name}</span>
+                  </button>
                 ))}
               </div>
-            )}
-            {!run.error && (
-              <pre className="code" style={{ border: 0, borderRadius: 0, maxHeight: 300 }}>
-                {JSON.stringify(run.output, null, 2)}
-              </pre>
-            )}
-            {(run.console ?? []).length > 0 && (
-              <pre
-                className="code"
-                style={{ border: 0, borderTop: "1px solid var(--line)", borderRadius: 0, maxHeight: 120 }}
-              >
-                {run.console.join("\n")}
-              </pre>
-            )}
+            ))}
+          </div>
+          <div className="min-w-0">
+            <div ref={host} style={{ height: 520 }} />
+            <div className="px-3 py-2 text-[12px]" style={{ borderTop: "1px solid var(--line)" }}>
+              {!types ? (
+                <span className="muted flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin" /> Loading types for this toolkit's applications…
+                </span>
+              ) : errors.length === 0 ? (
+                <span className="flex items-center gap-1.5" style={{ color: "var(--ok)" }}>
+                  <CheckCircle2 size={13} /> No problems
+                  {parsed.ok && <span className="muted">· the visual builder can show this code</span>}
+                </span>
+              ) : (
+                errors.slice(0, 4).map((p, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    className="block text-left"
+                    style={{ color: "var(--bad)", background: "none", border: 0, padding: 0, cursor: "pointer" }}
+                    onClick={() => {
+                      ed.current?.setPosition({ lineNumber: p.startLineNumber, column: p.startColumn });
+                      ed.current?.focus();
+                    }}
+                  >
+                    Line {p.startLineNumber}: {p.message}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </Panel>
+      {(saved || save.error) && (
+        <Panel title={saved ? saved.message : "Not saved"}>
+          <ErrorBox error={save.error} />
+          {saved?.checks.map((c) => (
+            <div key={c.rule} className="list-row text-[13px]">
+              <Chip tone={c.passed ? "ok" : "bad"}>{c.passed ? "pass" : "fail"}</Chip>
+              {c.label}
+              {c.detail && <span className="muted">· {c.detail}</span>}
+            </div>
+          ))}
+        </Panel>
+      )}
+      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-3">
+          <Panel
+            title="Test input"
+            right={
+              <label className="flex items-center gap-2 text-[12px]">
+                <Toggle label="Use saved responses" checked={examples} onChange={setExamples} />
+                Saved responses only
+              </label>
+            }
+            bodyClass="p-3"
+          >
+            <textarea
+              className="textarea"
+              rows={6}
+              aria-label="Input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+            />
+            <div className="muted mt-2 text-[12px]">
+              Run sends every step through mcpDeck, like an agent's call. With saved responses only, nothing reaches the
+              network.
+            </div>
           </Panel>
-        )}
-        {!run && (
-          <Panel>
-            <Empty title="Run it">
-              See the output, its size against the API responses, and each call on a timeline.
-            </Empty>
-          </Panel>
-        )}
+          <TestsPanel tests={tests} setTests={setTests} input={input} />
+        </div>
+        <div className="flex min-w-0 flex-col gap-3">
+          {run ? (
+            <Panel
+              title={run.error ? <span style={{ color: "var(--bad)" }}>Failed</span> : `Output · ${run.durationMs} ms`}
+            >
+              {run.error && <div className="banner bad m-3">{run.error}</div>}
+              {!run.error && (
+                <div
+                  className="grid grid-cols-2 gap-px"
+                  style={{ background: "var(--line)", borderBottom: "1px solid var(--line)" }}
+                >
+                  <div className="p-2.5" style={{ background: "var(--surface)" }}>
+                    <div className="muted text-[11.5px]">Fetched from APIs</div>
+                    <div className="font-semibold">
+                      {bytes(run.upstreamBytes)} · {num(run.upstreamTokens)} tok
+                    </div>
+                  </div>
+                  <div className="p-2.5" style={{ background: "var(--surface)" }}>
+                    <div className="muted text-[11.5px]">
+                      Returned to the agent{saving !== null && saving > 0 ? ` · ${saving}% smaller` : ""}
+                    </div>
+                    <div className="font-semibold">
+                      {bytes(run.outputBytes)} · {num(run.outputTokens)} tok
+                    </div>
+                  </div>
+                </div>
+              )}
+              {(run.calls ?? []).length > 0 && (
+                <div className="flex flex-col gap-1.5 p-3" style={{ borderBottom: "1px solid var(--line)" }}>
+                  {run.calls.map((c, i) => (
+                    <div key={i} className="text-[12px]">
+                      <div className="flex justify-between gap-2">
+                        <span className="mono truncate">
+                          {i + 1}. {c.name}
+                        </span>
+                        <span className="muted flex-none">
+                          {c.error ? "error" : c.status} · {c.durationMs} ms · {num(c.tokens)} tok
+                        </span>
+                      </div>
+                      <div className="tl" title={c.error || c.url}>
+                        <span
+                          className={c.error || c.status >= 400 ? "err" : ""}
+                          style={{ left: `${(c.startMs / total) * 100}%`, width: `${(c.durationMs / total) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!run.error && (
+                <pre className="code" style={{ border: 0, borderRadius: 0, maxHeight: 320 }}>
+                  {JSON.stringify(run.output, null, 2)}
+                </pre>
+              )}
+              {(run.console ?? []).length > 0 && (
+                <pre
+                  className="code"
+                  style={{ border: 0, borderTop: "1px solid var(--line)", borderRadius: 0, maxHeight: 120 }}
+                >
+                  {run.console.join("\n")}
+                </pre>
+              )}
+            </Panel>
+          ) : (
+            <Panel title="Output">
+              <Empty title="Run it">
+                Every step runs in order. You'll see each call on a timeline, and tokens fetched against tokens
+                returned.
+              </Empty>
+            </Panel>
+          )}
+        </div>
+        <GuidePanel toolkit={toolkit} src={src} run={run} />
       </div>
     </div>
+  );
+}
+
+/** salvage keeps what a flow can use from code the builder can't show. */
+function salvage(src: string): Flow {
+  const meta = {
+    name: (src.match(/name:\s*["'`]([\w]+)/) ?? [])[1] ?? "",
+    description: (src.match(/description:\s*["'`]([^"'`]*)/) ?? [])[1] ?? "",
+    useWhen: (src.match(/useWhen:\s*["'`]([^"'`]*)/) ?? [])[1] ?? "",
+    dontUseWhen: (src.match(/dontUseWhen:\s*["'`]([^"'`]*)/) ?? [])[1] ?? "",
+  };
+  const steps: Step[] = [];
+  for (const m of src.matchAll(/(?:const\s+([\w$]+)\s*=\s*)?await\s+([\w$]+)\.([\w$]+)\(/g)) {
+    const id = stepId(
+      m[1] || m[3],
+      steps.map((s) => s.id),
+    );
+    steps.push({ id, api: m[2], req: m[3], args: [] });
+  }
+  return { meta, inputs: [], steps, output: steps.length ? { step: steps[steps.length - 1].id, fields: [] } : null };
+}
+
+/** GuidePanel checks the draft against the MCP guidelines as you build (GUIDE-2, GUIDE-3). */
+function GuidePanel({ toolkit, src, run }: { toolkit: string; src: string; run: RunResult | null }) {
+  const [draft, setDraft] = useState(src);
+  useEffect(() => {
+    const t = setTimeout(() => setDraft(src), 600);
+    return () => clearTimeout(t);
+  }, [src]);
+  const lint = useQuery({
+    queryKey: ["lint", toolkit, draft],
+    queryFn: () => post<LintReport>(`/api/toolkits/${toolkit}/lint`, { draft }),
+    placeholderData: (p) => p,
+  });
+  const out = useQuery({
+    queryKey: ["lint-out", run?.outputJson?.length, run?.outputJson?.slice(0, 100)],
+    queryFn: () => post<OutputReport>("/api/lint/output", { value: run!.output }),
+    enabled: !!run && !run.error && run.output !== undefined,
+  });
+  const l = lint.data;
+  const findings = [...(l?.draft ?? []), ...(out.data?.findings ?? [])];
+  const c = counts(findings);
+  return (
+    <Panel
+      title={
+        <span className="flex items-center gap-2">
+          <ShieldCheck size={14} className="muted" /> Guidelines
+        </span>
+      }
+      right={
+        <Link to={`/toolkits/${toolkit}?tab=guidelines`} className="text-[12.5px]">
+          All rules
+        </Link>
+      }
+    >
+      {l && (
+        <div
+          className="grid grid-cols-3 gap-px text-[12px]"
+          style={{ background: "var(--line)", borderBottom: "1px solid var(--line)" }}
+        >
+          <div className="p-2.5" style={{ background: "var(--surface)" }}>
+            <div className="muted">Tools after saving</div>
+            <div className="font-semibold">{l.tools}</div>
+          </div>
+          <div className="p-2.5" style={{ background: "var(--surface)" }}>
+            <div className="muted">tools/list</div>
+            <div className="font-semibold">{num(l.listTokens)} tok</div>
+          </div>
+          <div className="p-2.5" style={{ background: "var(--surface)" }}>
+            <div className="muted">Toolkit score</div>
+            <div className="font-semibold">{l.score}</div>
+          </div>
+        </div>
+      )}
+      {l?.draftError && <div className="banner warn m-3 text-[12.5px]">{l.draftError}</div>}
+      <div className="flex gap-1.5 px-3 pt-3">
+        {c.must > 0 && <Chip tone="bad">{c.must} must fix</Chip>}
+        {c.avoid > 0 && <Chip tone="warn">{c.avoid} to avoid</Chip>}
+        {c.tip > 0 && <Chip tone="info">{c.tip} tips</Chip>}
+        {findings.length === 0 && l && <Chip tone="ok">Nothing to fix</Chip>}
+      </div>
+      <div style={{ maxHeight: 420, overflow: "auto" }}>
+        <FindingList
+          findings={findings}
+          empty={run ? "The draft and its output follow the guidelines." : "Run the tool to check its output too."}
+        />
+      </div>
+    </Panel>
   );
 }
 

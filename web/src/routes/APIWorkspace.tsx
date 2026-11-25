@@ -1114,7 +1114,6 @@ function Environments({ a }: { a: APIDetail }) {
               }}
             >
               <input
-                // biome-ignore lint/a11y/noAutofocus: the field appears because the person asked to rename
                 autoFocus
                 name="name"
                 className="input"
