@@ -128,7 +128,7 @@ func (m *Manager) entry(ctx context.Context, a store.Agent, g store.Grant, tk st
 	}
 	s := sdk.NewServer(&sdk.Implementation{Name: "mcpdeck-" + tk.Name, Title: "mcpDeck " + tk.Name, Version: version.Version}, &sdk.ServerOptions{
 		Instructions: instr,
-		HasTools:     true,
+		Capabilities: &sdk.ServerCapabilities{Tools: &sdk.ToolCapabilities{ListChanged: true}},
 		InitializedHandler: func(ctx context.Context, req *sdk.InitializedRequest) {
 			name, ver := "", ""
 			if p := req.Session.InitializeParams(); p != nil && p.ClientInfo != nil {
@@ -176,7 +176,7 @@ func (m *Manager) refresh(ctx context.Context, e *entry) {
 	if e.sess.Mode == "build" {
 		defs = deck.BuildToolDefs()
 	} else {
-		defs = append(m.deck.MCPToolDefs(ctx, e.sess.Toolkit, e.sess.Grant.Access), m.deck.UseExtrasFor(e.sess.Grant.CanBuild)...)
+		defs = append(m.deck.MCPToolDefs(ctx, e.sess.Toolkit, e.sess.Grant.Access), m.deck.UseExtrasFor(m.deck.Truncated(ctx, e.sess.Toolkit, e.sess.Grant.Access))...)
 	}
 	want := map[string]bool{}
 	for _, d := range defs {

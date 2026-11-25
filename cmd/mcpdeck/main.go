@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"text/tabwriter"
 
@@ -337,13 +336,4 @@ func importCmd(data *string) *cobra.Command {
 	c.Flags().StringVar(&envFile, "env", "", "Postman environment file")
 	c.Flags().BoolVar(&asJSON, "json", false, "print JSON")
 	return c
-}
-
-func sortedKeys[V any](m map[string]V) []string {
-	k := make([]string, 0, len(m))
-	for x := range m {
-		k = append(k, x)
-	}
-	sort.Strings(k)
-	return k
 }

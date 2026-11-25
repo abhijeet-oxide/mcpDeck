@@ -150,7 +150,6 @@ func NameFromPath(method, path string) string {
 			continue
 		}
 		if strings.HasPrefix(seg, "{") || strings.HasPrefix(seg, ":") {
-			words = append(words, "by", strings.Trim(seg, "{}:"))
 			continue
 		}
 		words = append(words, seg)

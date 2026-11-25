@@ -228,12 +228,12 @@ func Signature(api store.API, r store.Request) string {
 // Describe returns the TypeScript declaration of one request (describe_api).
 func Describe(api store.API, r store.Request) string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("// %s · %s\n", routeOf(r), r.EffectiveAccess()))
+	fmt.Fprintf(&b, "// %s · %s\n", routeOf(r), r.EffectiveAccess())
 	if r.Description != "" {
 		b.WriteString("// " + strings.ReplaceAll(strings.TrimSpace(r.Description), "\n", " ") + "\n")
 	}
-	b.WriteString(fmt.Sprintf("%s.%s(args: %s): Promise<%s>\n", api.Name, r.Name, argsType(r), typeName(r)))
-	b.WriteString(fmt.Sprintf("type %s = %s\n", typeName(r), tsFromSchema(ResponseSchema(r), "", 0)))
+	fmt.Fprintf(&b, "%s.%s(args: %s): Promise<%s>\n", api.Name, r.Name, argsType(r), typeName(r))
+	fmt.Fprintf(&b, "type %s = %s\n", typeName(r), tsFromSchema(ResponseSchema(r), "", 0))
 	return b.String()
 }
 

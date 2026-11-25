@@ -166,13 +166,12 @@ func (d *Deck) CreateAPI(ctx context.Context, in CreateAPIInput) (*store.API, er
 	if in.BaseURL != "" {
 		_ = d.Store.PutVariable(ctx, store.Variable{ID: d.IDs.New(), APIID: a.ID, EnvID: env.ID, Name: "baseUrl", Source: "literal", Value: strings.TrimSuffix(in.BaseURL, "/"), UpdatedAt: now})
 	}
-	for _, name := range secretVarsOf(a.Auth) {
-		v := store.Variable{ID: d.IDs.New(), APIID: a.ID, EnvID: env.ID, Name: name, Source: "secret", UpdatedAt: now}
+	if names := secretVarsOf(a.Auth); len(names) > 0 {
+		v := store.Variable{ID: d.IDs.New(), APIID: a.ID, EnvID: env.ID, Name: names[0], Source: "secret", UpdatedAt: now}
 		if in.Secret != "" {
 			v.Ciphertext, _ = d.Vault.Seal(in.Secret)
 		}
 		_ = d.Store.PutVariable(ctx, v)
-		break
 	}
 	d.audit(ctx, audit.You, "api.create", a.Name, "")
 	return &a, nil

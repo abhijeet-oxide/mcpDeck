@@ -1,0 +1,15 @@
+version: "2"
+linters:
+  settings:
+    errcheck:
+      # Closing readers and removing temp files can't be acted on usefully.
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (*database/sql.Rows).Close
+        - (*github.com/abhijeet-oxide/mcpdeck/internal/store.Store).Close
+        - (*github.com/modelcontextprotocol/go-sdk/mcp.ClientSession).Close
+        - os.Remove
+        - os.RemoveAll
+        - fmt.Fprintln
+        - fmt.Fprintf

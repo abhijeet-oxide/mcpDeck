@@ -149,7 +149,7 @@ export default async function (input: { id: string }) {
   return { name: a.name, tier: a.tier };
 }`
 
-// REQ: TK-2, TK-3, MCP-3, AB-1, AB-7
+// REQ: TK-2, TK-3, MCP-3, MCP-7, AB-1, AB-7
 func TestBuilderSubagentBuildsToolForMainAgent(t *testing.T) {
 	w := setup(t, "read", true)
 	ctx := context.Background()
@@ -271,4 +271,30 @@ func TestRevokeRefusesTokenAtOnce(t *testing.T) {
 		t.Fatalf("revoked token: %d %s", res.StatusCode, body)
 	}
 	_ = json.Valid(body)
+}
+
+// REQ: ACC-3
+func TestLeastExposure_BigToolkitListsTopToolsAndUseTool(t *testing.T) {
+	w := setup(t, "read", false)
+	ctx := context.Background()
+	for i := 0; i < 27; i++ {
+		src := strings.ReplaceAll(accountTool, "account_tier", "tier_"+string(rune('a'+i%26))+string(rune('a'+i/26)))
+		if _, err := w.d.SaveTool(ctx, "support", deck.Caller{Actor: audit.You}, deck.SaveInput{Source: src}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	main := connect(t, w, "/mcp/support", nil)
+	names := toolNames(t, main)
+	if len(names) != 15+4 || !strings.Contains(strings.Join(names, ","), "use_tool") {
+		t.Fatalf("want the 15 most used plus 4 helpers, got %d: %v", len(names), names)
+	}
+	out, isErr := call(t, main, "use_tool", map[string]any{"name": "tier_ab", "input": map[string]any{"id": "1"}})
+	if isErr || !strings.Contains(out, "gold") {
+		t.Fatalf("use_tool: %s", out)
+	}
+	small := setup(t, "read", false)
+	names = toolNames(t, connect(t, small, "/mcp/support", nil))
+	if strings.Contains(strings.Join(names, ","), "use_tool") {
+		t.Fatalf("small toolkits don't need use_tool: %v", names)
+	}
 }

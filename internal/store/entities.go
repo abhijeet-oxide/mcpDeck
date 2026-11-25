@@ -165,19 +165,19 @@ func (s *Store) PutAgent(ctx context.Context, a Agent) error {
 }
 func (s *Store) Agent(ctx context.Context, id string) (Agent, error) {
 	d, err := Get[agentDoc](ctx, s, "agent", id)
-	d.Agent.TokenHash = d.Hash
+	d.TokenHash = d.Hash
 	return d.Agent, err
 }
 func (s *Store) AgentByTokenHash(ctx context.Context, hash string) (Agent, error) {
 	d, err := Find[agentDoc](ctx, s, "agent", "token_hash = ?", hash)
-	d.Agent.TokenHash = d.Hash
+	d.TokenHash = d.Hash
 	return d.Agent, err
 }
 func (s *Store) Agents(ctx context.Context) ([]Agent, error) {
 	docs, err := List[agentDoc](ctx, s, "agent", "ORDER BY id")
 	out := make([]Agent, 0, len(docs))
 	for _, d := range docs {
-		d.Agent.TokenHash = d.Hash
+		d.TokenHash = d.Hash
 		out = append(out, d.Agent)
 	}
 	return out, err

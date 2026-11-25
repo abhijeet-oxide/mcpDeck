@@ -116,6 +116,9 @@ curl -X POST https://api.acme.example/v1/invoices/7/remind -H "Authorization: Be
 			t.Fatalf("credential left on request: %+v", q)
 		}
 	}
+	if r.Requests[1].URL != "{{baseUrl}}/v1/invoices/{invoiceId}/remind" || r.Requests[1].Name != "postV1InvoicesRemind" {
+		t.Fatalf("ID segments should become params: %s %s", r.Requests[1].URL, r.Requests[1].Name)
+	}
 	if r.Requests[1].BodyType != "json" || r.Requests[1].Access != "write" {
 		t.Fatalf("second request: %+v", r.Requests[1])
 	}

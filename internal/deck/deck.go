@@ -69,11 +69,6 @@ type Listener interface {
 	AgentRevoked(agentID string)
 }
 
-type nopListener struct{}
-
-func (nopListener) ToolsChanged([]string) {}
-func (nopListener) AgentRevoked(string)   {}
-
 // Deck holds the dependencies.
 type Deck struct {
 	Store   *store.Store

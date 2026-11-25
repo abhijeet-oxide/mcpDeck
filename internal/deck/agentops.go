@@ -33,6 +33,17 @@ const (
 
 // MCPToolDefs are a toolkit's live tools as a grant sees them (MCP-2, ACC-2, ACC-3).
 func (d *Deck) MCPToolDefs(ctx context.Context, tk store.Toolkit, access string) []ToolDef {
+	defs, _ := d.mcpToolDefs(ctx, tk, access)
+	return defs
+}
+
+// Truncated reports whether the toolkit lists only its most used tools.
+func (d *Deck) Truncated(ctx context.Context, tk store.Toolkit, access string) bool {
+	_, t := d.mcpToolDefs(ctx, tk, access)
+	return t
+}
+
+func (d *Deck) mcpToolDefs(ctx context.Context, tk store.Toolkit, access string) ([]ToolDef, bool) {
 	tools, _ := d.Store.ToolkitTools(ctx, tk.ID)
 	type ranked struct {
 		def   ToolDef
@@ -62,7 +73,8 @@ func (d *Deck) MCPToolDefs(ctx context.Context, tk store.Toolkit, access string)
 		}
 		all = append(all, ranked{def: ToolDef{Name: v.Name, Description: desc, InputSchema: v.InputSchema, ReadOnly: v.Access == "read", Destructive: v.Access == "write"}, calls: n})
 	}
-	if len(all) > listLimit {
+	truncated := len(all) > listLimit
+	if truncated {
 		sort.SliceStable(all, func(i, j int) bool { return all[i].calls > all[j].calls })
 		all = all[:listTop]
 	}
@@ -71,14 +83,15 @@ func (d *Deck) MCPToolDefs(ctx context.Context, tk store.Toolkit, access string)
 		out = append(out, r.def)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	return out
+	return out, truncated
 }
 
 func schema(s string) json.RawMessage { return json.RawMessage(s) }
 
-// useExtras are on every endpoint (MCP-3: request_tool, report_field_usage).
-func (d *Deck) useExtras(_ bool) []ToolDef {
-	return []ToolDef{
+// useExtras are on every use endpoint (MCP-3: request_tool, report_field_usage).
+// use_tool is only there when the list is cut to the most used tools (ACC-3).
+func (d *Deck) useExtras(truncated bool) []ToolDef {
+	out := []ToolDef{
 		{Name: "search_tools", ReadOnly: true, Description: "Find tools in this toolkit by intent when none of the listed ones fits, including ones not listed. One line each.",
 			InputSchema: schema(`{"type":"object","properties":{"query":{"type":"string","description":"what you need, in plain words"}},"required":["query"]}`)},
 		{Name: "use_tool", Description: "Call a tool found with search_tools that isn't in the tool list.",
@@ -88,6 +101,16 @@ func (d *Deck) useExtras(_ bool) []ToolDef {
 		{Name: "report_field_usage", ReadOnly: true, Description: "After using a tool's output, say which fields you used and which you didn't, so the tool can be made smaller. Changes nothing by itself.",
 			InputSchema: schema(`{"type":"object","properties":{"tool":{"type":"string"},"used":{"type":"array","items":{"type":"string"},"description":"paths like issues[].key"},"unused":{"type":"array","items":{"type":"string"}},"note":{"type":"string"}},"required":["tool"]}`)},
 	}
+	if !truncated {
+		var kept []ToolDef
+		for _, t := range out {
+			if t.Name != "use_tool" {
+				kept = append(kept, t)
+			}
+		}
+		return kept
+	}
+	return out
 }
 
 // BuildToolDefs are on the builder endpoint (MCP-3).
@@ -122,7 +145,7 @@ func (d *Deck) UseInstructions(tk store.Toolkit, g store.Grant, client string) s
 		about = "tools built from the company's APIs"
 	}
 	fmt.Fprintf(&b, "mcpDeck toolkit %q: %s. Credentials are handled by mcpDeck; never ask for keys.\n", tk.Name, about)
-	b.WriteString("Pick a listed tool by its Use when / Don't use when lines. Nothing fits: search_tools, then use_tool.\n")
+	b.WriteString("Pick a listed tool by its Use when / Don't use when lines. Nothing fits: search_tools.\n")
 	if g.CanBuild {
 		agent := "mcpdeck-" + tk.Name + "-builder"
 		switch client {
@@ -193,7 +216,7 @@ func (d *Deck) AgentCall(ctx context.Context, s AgentSession, name string, raw j
 	case name == "report_field_usage":
 		kind = "build"
 		text, isErr = d.reportFields(ctx, s, args)
-	case name == "use_tool":
+	case name == "use_tool" && d.Truncated(ctx, s.Toolkit, s.Grant.Access):
 		in, _ := json.Marshal(args["input"])
 		text, isErr, versionID = d.runPublished(ctx, s, callID, str(args["name"]), in)
 	default:
@@ -623,4 +646,4 @@ func trim(v any, depth int) any {
 }
 
 // UseExtrasFor are the extra tools on the use endpoint.
-func (d *Deck) UseExtrasFor(canBuild bool) []ToolDef { return d.useExtras(canBuild) }
+func (d *Deck) UseExtrasFor(truncated bool) []ToolDef { return d.useExtras(truncated) }

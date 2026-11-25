@@ -7,9 +7,11 @@
     behaviour change.
   - `ui-screen`: building or changing a UI screen to match the mockups.
 - `.mcp.json` defines `mcpdeck-dev`, which points at a local `mcpdeck dev`
-  instance (the `dev` toolkit). After `make dev-up` you can call its tools (`search_apis`,
-  `run_api`, `run_script`, `save_tool`…) to test your own change end to end. Until the MCP
-  server exists (M5) it will show as unavailable. That's expected.
+  instance (the `dev` toolkit's use endpoint). After `make dev-up` you can call its tools
+  (`customer_360`, `search_tools`, `request_tool`…) to test a change end to end. The build
+  tools are only on the builder endpoint: delegate to the `mcpdeck-dev-builder` subagent
+  (`.claude/agents/`), the same way mcpDeck's users build tools. Without `make dev-up` both
+  show as unavailable. That's expected.
 - For broad searches across the repo, prefer a subagent so the main context
   stays focused on the change.
 - When a change touches an invariant in AGENTS.md, re-read the related test

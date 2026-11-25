@@ -6,7 +6,7 @@ alwaysApply: false
 
 Follow AGENTS.md. For the UI specifically:
 
-- Match `docs/screenshots/*.png` and the tokens in `docs/design.md#ui`: frosted glass panels on a neutral background, pill buttons (dark / blue / light / red tint), coloured mono chips for HTTP methods. No purple, no emoji, no gradients on content.
+- Match `docs/screenshots/*.png` and the tokens in `docs/design.md#ui`: solid panels with hairline borders on a neutral background (no glass or glows), compact pill buttons (dark / blue / light / red tint), coloured mono chips for HTTP methods. No purple, no emoji, no gradients on content.
 - Navigation is Home, APIs, Toolkits, Agents, Settings. Reuse the familiar patterns in `docs/design.md#familiar-patterns`. Nothing fake: every control works (UI-4).
 - TypeScript strict; TanStack Query for server state via the generated API client; Radix primitives for accessible widgets.
 - Real `<button>`/`<a>`, labelled inputs, visible focus, AA contrast.

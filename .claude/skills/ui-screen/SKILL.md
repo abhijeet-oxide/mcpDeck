@@ -16,17 +16,19 @@ description: Build or change a screen in the mcpDeck React UI so it matches the 
 ## Structure
 
 - One route file per screen in `web/src/routes/`.
-- Shared pieces in `web/src/components/`: `Glass`, `Sidebar`, `PillButton`,
-  `MethodChip`, `StatusChip`, `StatTile`, `Timeline`, `StepList`, `CodeBlock`.
-  Reuse them before making new ones.
-- Data through TanStack Query hooks in `web/src/lib/`; never fetch in components.
+- Shared pieces in `web/src/components/ui.tsx` (`Button`, `Chip`,
+  `MethodChip`, `StatusChip`, `AccessChip`, `Panel`, `PageHead`, `Tabs`, `Seg`,
+  `Dialog`, `Drawer`, `CopyField`, `Toggle`, `Empty`, toasts) plus `Sidebar`,
+  `Palette`, `ConnectDialog`, `AskAgent`, `KVEditor`, `Diff`. Reuse them
+  before making new ones.
+- Data through TanStack Query hooks in `web/src/lib/hooks.ts` and the client in `web/src/lib/api.ts`; never call `fetch` in components.
 
 ## Look
 
-- Page: `--bg` with three blurred glows; content sits in glass panels
-  (`--glass`, `--glass-blur`, `--shadow`, 24px radius).
-- Cards inside panels: white at 62%, 16px radius.
-- Buttons are pills. Dark = main page action, blue = confirm, light = secondary,
+- Page: flat `--bg`; content in white `.panel`s with a 1px `--line` border,
+  10px radius, no blur or glow. Compact: 13.5px text, 20px page titles,
+  30px controls. A page answers its question in the first screen.
+- Buttons are pills. Ink = main page action, blue = confirm, light = secondary,
   red tint = destructive (revoke, reject).
 - HTTP methods: mono chips. GET green, POST blue, PUT/PATCH orange, DELETE red.
 - Type: Inter / system UI; mono for names of tools, APIs and IDs.
@@ -34,7 +36,7 @@ description: Build or change a screen in the mcpDeck React UI so it matches the 
 
 ## Done means
 
-- Matches the screenshot at 1440px and stays usable at 1024px.
+- Matches the mockup's layout at 1440px with the tokens in `web/src/styles/tokens.css`, and stays usable at 1024px.
 - Keyboard: every action reachable, visible focus ring.
 - Contrast AA (muted text is `#6E6E73` or darker).
 - A Vitest test covers the screen's main state and one empty/error state.

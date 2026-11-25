@@ -388,9 +388,11 @@ it for clients that only speak stdio; it reads the agent token from
 or call another's tools.
 
 **TK-3 Server instructions.** Each endpoint sends MCP `instructions` on
-initialize: what the toolkit is for and, when the agent may build, the
-loop in five lines (search tools → search APIs → describe → run → save). No
-skill file is needed for an agent to use it.
+initialize: what the toolkit is for and how to pick a tool. When the agent
+may build, the use endpoint says to delegate to the builder subagent (MCP-7)
+and the build endpoint carries the loop in five lines (search tools → search
+APIs → describe → run → save). No skill file is needed for an agent to use
+it.
 
 **TK-4 Build scope.** A toolkit lists the APIs its agents may explore when
 building. Default: the APIs its tools already use. `search_apis`,
@@ -478,6 +480,23 @@ and `destructiveHint` annotations follow the tool's access.
 Every agent, building or not, also gets `request_tool` and
 `report_field_usage` (FB-1), so it can ask for tools and say what it used.
 Responses are short by default; an agent asks for more with `detail: true`.
+
+**MCP-7 Build in a subagent.** Building must not fill a working agent's
+context. The build tools (MCP-3 except `request_tool`) are served only on a
+separate endpoint, `/mcp/<toolkit>/build`, which requires a grant that may
+build. `/mcp/<toolkit>` carries the published tools, `search_tools`,
+`request_tool` and `report_field_usage`; `use_tool` only when ACC-3 cuts the
+list. Its `instructions` tell the agent to delegate a missing tool to the
+builder subagent with a one-paragraph brief and to call the tool once it's
+live. `mcpdeck connect` and the Connect dialog install that subagent:
+for Claude Code, `mcpdeck-<toolkit>-builder.md` in `.claude/agents/` with the
+build endpoint as an inline MCP server, so the main session never loads the
+build tools; for VS Code, a custom agent limited to the build server for
+`runSubagent`. Clients without subagents (Cursor, Claude Desktop) get the
+build server as a separate entry, or none.
+*Accept:* through a real MCP client, the use endpoint lists no build tool;
+the build endpoint builds and saves a tool; the use endpoint receives
+`tools/list_changed` and can call it.
 
 **MCP-4 Actionable errors.** Every error says what went wrong and what to do
 next. E.g. "write blocked: this agent has read access to the support
@@ -742,9 +761,10 @@ code (`crm.getAccount()`). curl previews update as you paste. Credentials
 found in curl or a Postman environment are listed as moving into an encrypted
 credential before anything is saved.
 
-**UI-2 Look.** Clean and calm, Apple-like: frosted panels over a soft neutral
-background, system font, black and blue actions, coloured mono chips for HTTP
-methods. No purple, no emoji, no gradients on content. See
+**UI-2 Look.** Calm, compact and professional: solid panels with hairline
+borders on a neutral background, Inter, black and blue pill actions, coloured
+mono chips for HTTP methods. Pages answer their question in the first screen.
+No glass, glows, purple, emoji or gradients on content. See
 [design.md](design.md#ui).
 
 **UI-3 Familiar patterns.** Each screen follows the pattern listed in

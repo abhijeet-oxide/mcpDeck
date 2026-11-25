@@ -112,8 +112,9 @@ func percentile(v []int64, p int) int64 {
 
 // ListTokens is the standing cost of a grant's tools/list (SES-3).
 func (d *Deck) ListTokens(ctx context.Context, tk store.Toolkit, access string, canBuild bool) int {
-	defs := d.MCPToolDefs(ctx, tk, access)
-	b, _ := json.Marshal(map[string]any{"tools": append(defs, d.useExtras(canBuild)...)})
+	defs, truncated := d.mcpToolDefs(ctx, tk, access)
+	_ = canBuild
+	b, _ := json.Marshal(map[string]any{"tools": append(defs, d.useExtras(truncated)...)})
 	return tokens.Count(string(b))
 }
 

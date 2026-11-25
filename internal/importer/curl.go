@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/abhijeet-oxide/mcpdeck/internal/store"
@@ -111,7 +112,8 @@ func Curl(text string) (*Result, error) {
 		if base != res.BaseURL {
 			prefix = base
 		}
-		r.URL = prefix + pu.EscapedPath()
+		path, params := paramPath(pu.EscapedPath())
+		r.URL = prefix + path
 		for k, vs := range q {
 			r.Query = append(r.Query, store.KV{Key: k, Value: vs[0]})
 		}
@@ -132,8 +134,11 @@ func Curl(text string) (*Result, error) {
 		if r.Method == "" {
 			r.Method = "GET"
 		}
-		r.Name = NameFromPath(r.Method, pu.Path)
-		r.Title = r.Method + " " + pu.Path
+		r.Name = NameFromPath(r.Method, path)
+		r.Title = r.Method + " " + path
+		if len(params) > 0 {
+			r.Description = "Example values: " + strings.Join(params, ", ")
+		}
 		Classify(&r)
 		res.Requests = append(res.Requests, r)
 	}
@@ -148,6 +153,31 @@ func Curl(text string) (*Result, error) {
 	}
 	uniqueNames(res.Requests)
 	return res, nil
+}
+
+var idLike = regexp.MustCompile(`[0-9]`)
+
+// paramPath turns ID-like segments into {params}: /customers/C-1001/summary
+// becomes /customers/{customerId}/summary. It returns the example values.
+func paramPath(p string) (string, []string) {
+	segs := strings.Split(p, "/")
+	var examples []string
+	for i, s := range segs {
+		if s == "" || !idLike.MatchString(s) || (len(s) < 3 && !regexp.MustCompile(`^[0-9]+$`).MatchString(s)) {
+			continue
+		}
+		if regexp.MustCompile(`^v[0-9]+$`).MatchString(s) {
+			continue // API versions like v1
+		}
+		name := "id"
+		if i > 0 && segs[i-1] != "" && !strings.HasPrefix(segs[i-1], "{") {
+			prev := strings.TrimSuffix(strings.ToLower(segs[i-1]), "s")
+			name = MethodName(prev) + "Id"
+		}
+		examples = append(examples, name+"="+s)
+		segs[i] = "{" + name + "}"
+	}
+	return strings.Join(segs, "/"), examples
 }
 
 func splitCurl(text string) []string {
