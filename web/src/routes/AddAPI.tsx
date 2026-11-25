@@ -1,4 +1,16 @@
-import { FileJson, FileUp, Globe, KeyRound, Loader2, PencilLine, Terminal, Trash2, Upload, X } from "lucide-react";
+import {
+  FileJson,
+  FileUp,
+  FlaskConical,
+  Globe,
+  KeyRound,
+  Loader2,
+  PencilLine,
+  Terminal,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   AccessChip,
@@ -13,7 +25,7 @@ import {
   useToast,
 } from "../components/ui";
 import { patch, post } from "../lib/api";
-import { useAction, useAPI, useAPIs } from "../lib/hooks";
+import { useAction, useAPI, useAPIs, useInfo } from "../lib/hooks";
 import { appName, appNameError, detectImport, type ImportKind } from "../lib/names";
 import { Link, navigate } from "../lib/router";
 import type { API, ImportPreview, ImportReport } from "../lib/types";
@@ -53,6 +65,7 @@ let seq = 0;
 
 export function AddAPI({ apiId }: { apiId?: string }) {
   const target = useAPI(apiId ?? "");
+  const info = useInfo();
   const apis = useAPIs();
   const toast = useToast();
   const [src, setSrc] = useState<Source>("files");
@@ -306,6 +319,22 @@ export function AddAPI({ apiId }: { apiId?: string }) {
                   </Button>
                 </div>
               </Field>
+              {info.data?.practice && (
+                <div className="next-card mt-4">
+                  <FlaskConical size={18} className="muted flex-none" />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium">Practise the whole flow on the demo scanner</div>
+                    <div className="muted text-[12.5px]">
+                      Self-signed HTTPS, a login that returns a token, then applications → images → vulnerabilities. Log
+                      in as <code>{info.data.practice.username}</code> / <code>{info.data.practice.password}</code> (put
+                      them in the environment as <code>{"{{username}}"}</code> and <code>{"{{password}}"}</code>).
+                    </div>
+                  </div>
+                  <Button size="sm" onClick={() => setUrl(info.data!.practice!.specUrl)}>
+                    Use its link
+                  </Button>
+                </div>
+              )}
             </Panel>
           )}
           {src === "curl" && (
