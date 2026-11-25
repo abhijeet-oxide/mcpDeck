@@ -577,6 +577,20 @@ export function autoWire(
   const args: Arg[] = [];
   for (const a of argsOf(info)) {
     let src: Source | null = null;
+    // getOwner({ id }) wants an owner's id: prefer ownerId / owner_id over another resource's id.
+    if (a.name === "id" || a.name === "Id") {
+      const noun = step.req
+        .replace(/^(get|list|search|fetch|find|update|delete)/, "")
+        .replace(/s$/, "")
+        .toLowerCase();
+      for (let i = before.length - 1; i >= 0 && !src && noun; i--) {
+        const f = before[i].fields.find((x) => {
+          const last = x.path.split(".").pop()?.toLowerCase() ?? "";
+          return last === `${noun}id` || last === `${noun}_id`;
+        });
+        if (f) src = { kind: "step", step: before[i].step.id, path: f.path };
+      }
+    }
     for (let i = before.length - 1; i >= 0 && !src; i--) {
       const b = before[i];
       const exact = b.fields.find((f) => f.path.split(".").pop()?.toLowerCase() === a.name.toLowerCase());

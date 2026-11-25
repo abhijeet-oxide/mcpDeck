@@ -604,7 +604,7 @@ function ToolInspector({ flow, onChange }: { flow: Flow; onChange: (f: Flow) => 
         <textarea
           className="textarea prose"
           rows={3}
-          placeholder="Lists the fixable vulnerabilities of one application's newest image, with CVE, severity and fixed version."
+          placeholder="What it returns, and for which input. For example: the open vulnerabilities of one application, with CVE and fixed version."
           value={m.description}
           onChange={(e) => setMeta({ description: e.target.value })}
         />
@@ -612,7 +612,7 @@ function ToolInspector({ flow, onChange }: { flow: Flow; onChange: (f: Flow) => 
       <Field label="Use when">
         <input
           className="input"
-          placeholder="A question is about security issues in one application"
+          placeholder="The question this tool answers"
           value={m.useWhen}
           onChange={(e) => setMeta({ useWhen: e.target.value })}
         />

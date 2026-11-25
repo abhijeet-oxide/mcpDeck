@@ -1028,3 +1028,28 @@
     padding-left: 0;
   }
 }
+@media (max-width: 1150px) {
+  .flow-shell {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    grid-template-rows: minmax(0, 1fr) 200px;
+  }
+  .flow-canvas {
+    grid-row: 1;
+    grid-column: 1;
+  }
+  .flow-inspector {
+    grid-row: 1;
+    grid-column: 2;
+  }
+  .flow-palette {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    border-right: 0;
+    border-top: 1px solid var(--line);
+  }
+  .flow-palette-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0 12px;
+  }
+}

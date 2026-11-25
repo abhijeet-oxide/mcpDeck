@@ -121,4 +121,25 @@ export default async function (input: Input) {
     const w = autoWire({ id: "login", api: "ncd", req: "login", args: [] }, info, [], [], "none");
     expect(w.newInputs.map((i) => i.name)).toEqual(["tenant", "remember"]);
   });
+
+  it("wires getOwner({ id }) from the account's ownerId, not its id", () => {
+    const info: ReqInfo = {
+      api: "crm",
+      name: "getOwner",
+      method: "GET",
+      url: "{{baseUrl}}/owners/{id}",
+      query: [],
+      bodyType: "none",
+      body: "",
+    };
+    const account = { id: "account", api: "crm", req: "getAccount", args: [] };
+    const w = autoWire(
+      { id: "owner", api: "crm", req: "getOwner", args: [] },
+      info,
+      [{ step: account, fields: fieldsOf({ id: "001", ownerId: "005", name: "N" }, "wire") }],
+      [],
+      "bearer",
+    );
+    expect(w.args).toEqual([{ name: "id", source: { kind: "step", step: "account", path: "ownerId" } }]);
+  });
 });
