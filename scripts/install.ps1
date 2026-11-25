@@ -51,16 +51,22 @@
       if ($parts.Count -ge 2 -and $parts[1] -eq $archive) { $want = $parts[0].ToLower() }
     }
     if (-not $want) { throw "mcpdeck install: $archive is not listed in checksums.txt" }
-    $got = (Get-FileHash -Algorithm SHA256 -Path (Join-Path $tmp $archive)).Hash.ToLower()
+    # .NET rather than Get-FileHash / Expand-Archive: those are script cmdlets that
+    # Windows PowerShell 5.1 can't load when started from PowerShell 7 (its
+    # PSModulePath is inherited), e.g. typing `powershell` in Windows Terminal.
+    $fs = [IO.File]::OpenRead((Join-Path $tmp $archive))
+    try { $got = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($fs)).Replace('-', '').ToLower() }
+    finally { $fs.Dispose() }
     if ($want -ne $got) { throw "mcpdeck install: checksum mismatch for $archive (want $want, got $got); nothing was installed" }
 
-    Expand-Archive -Path (Join-Path $tmp $archive) -DestinationPath (Join-Path $tmp 'x') -Force
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [IO.Compression.ZipFile]::ExtractToDirectory((Join-Path $tmp $archive), (Join-Path $tmp 'x'))
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
     $exe = Join-Path $dir 'mcpdeck.exe'
     $running = Get-Process -Name mcpdeck -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe }
     if ($running) { throw "mcpdeck install: mcpdeck is running from $exe. Stop it (mcpdeck stop) and run the installer again." }
     Copy-Item -Force -Path (Join-Path $tmp 'x\mcpdeck.exe') -Destination $exe
-    Unblock-File -Path $exe -ErrorAction SilentlyContinue
+    try { Unblock-File -Path $exe } catch { } # only removes the downloaded-file mark
   } finally {
     Remove-Item -Recurse -Force -Path $tmp -ErrorAction SilentlyContinue
   }
