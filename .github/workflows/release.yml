@@ -1,38 +1,154 @@
 name: release
 
-# Runs when a version tag is pushed: git tag v0.1.0 && git push origin v0.1.0
-# Needs repository secrets HOMEBREW_TAP_TOKEN and SCOOP_BUCKET_TOKEN.
-# See docs/releasing.md.
+# Continuous release (NFR-8). Every push to main runs the full CI suite; if
+# the conventional commits since the last tag change behaviour, the next
+# version is tagged and published, then installed from GitHub on each OS.
+# Nobody has to tag anything. Run it by hand to force a version
+# (e.g. v0.3.0-rc.1 for a pre-release). See docs/releasing.md.
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (vMAJOR.MINOR.PATCH[-pre]). Empty: work it out from the commits."
+        required: false
+        default: ""
 
 permissions:
-  contents: write
+  contents: read
+
+# Latest patch of the go.mod minor: patch releases carry stdlib security fixes,
+# and go.mod's `go 1.26.0` alone would build with 1.26.0 forever.
+env:
+  GO_VERSION: "1.26.x"
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  release:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  plan:
+    needs: ci
     runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.next.outputs.release }}
+      version: ${{ steps.next.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+      - id: next
+        env:
+          FORCED: ${{ inputs.version }}
+        run: |
+          if [ -n "$FORCED" ]; then
+            if ! printf '%s' "$FORCED" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+              echo "::error::version must look like v1.2.3 or v1.2.3-rc.1, got '$FORCED'"; exit 1
+            fi
+            if git rev-parse -q --verify "refs/tags/$FORCED" >/dev/null; then
+              echo "::error::tag $FORCED already exists"; exit 1
+            fi
+            printf 'release=true\nversion=%s\n' "$FORCED" >> "$GITHUB_OUTPUT"
+          else
+            go run ./tools/nextversion | tee -a "$GITHUB_OUTPUT"
+          fi
+      - name: summary
+        env:
+          RELEASE: ${{ steps.next.outputs.release }}
+          VERSION: ${{ steps.next.outputs.version }}
+        run: |
+          if [ "$RELEASE" = true ]; then
+            echo "### Releasing $VERSION" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### No release: no feat, fix, perf or breaking commits since the last tag" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  publish:
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # tag and release
+      id-token: write # provenance attestation
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - uses: anchore/sbom-action/download-syft@v0
-      - uses: goreleaser/goreleaser-action@v6
+      - name: tag
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "$VERSION"
+          git push origin "$VERSION"
+      - uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ needs.plan.outputs.version }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+      - name: provenance for every file in checksums.txt
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-checksums: dist/checksums.txt
+
+  # Install the published release the way users will, on each OS.
+  verify:
+    needs: [plan, publish]
+    name: verify (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: install.sh
+        if: runner.os != 'Windows'
+        run: |
+          curl -fsSL "https://github.com/${GITHUB_REPOSITORY}/releases/download/${VERSION}/install.sh" | MCPDECK_VERSION="$VERSION" sh
+          "$HOME/.local/bin/mcpdeck" version | tee version.txt
+          grep -F "mcpdeck ${VERSION#v} " version.txt
+      - name: install.ps1
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:MCPDECK_VERSION = $env:VERSION
+          irm "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:VERSION/install.ps1" | iex
+          $out = & "$env:LOCALAPPDATA\Programs\mcpdeck\mcpdeck.exe" version
+          Write-Host $out
+          if (-not $out.StartsWith("mcpdeck $($env:VERSION.TrimStart('v')) ")) { throw "unexpected version: $out" }
+      - name: attestation
+        if: runner.os == 'Linux'
+        run: |
+          gh release download "$VERSION" --repo "$GITHUB_REPOSITORY" --pattern 'mcpdeck_linux_amd64.tar.gz'
+          gh attestation verify mcpdeck_linux_amd64.tar.gz --repo "$GITHUB_REPOSITORY"

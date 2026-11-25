@@ -1,33 +1,88 @@
 name: ci
 
+# Pull requests run this directly; pushes to main run it as the first job of
+# release.yml, so main is checked once and released only when green.
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# Latest patch of the go.mod minor: patch releases carry stdlib security fixes,
+# and go.mod's `go 1.26.0` alone would build with 1.26.0 forever.
+env:
+  GO_VERSION: "1.26.x"
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  go:
-    if: ${{ hashFiles('go.mod') != '' }}
+  # Workflow files are code too: a broken one shows up as a red run with no jobs.
+  actionlint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - name: actionlint
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.9/scripts/download-actionlint.bash) 1.7.9
+          ./actionlint -color
+
+  # NFR-4: the same Go suite on every OS we ship. It includes the installer
+  # tests (scripts/), which run install.sh / install.ps1 against a local fake
+  # release on each OS.
+  go:
+    name: go (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
       - run: go vet ./...
-      - run: go test -race -shuffle=on -coverprofile=cover.out ./...
+      - run: go test -race -shuffle=on ./...
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+      - run: go test -coverprofile=cover.out ./internal/...
+      - name: coverage summary
+        shell: bash
+        run: |
+          total=$(go tool cover -func=cover.out | awk '/^total:/{print $3}')
+          echo "### Coverage of internal/: $total" >> "$GITHUB_STEP_SUMMARY"
+          echo "coverage $total"
+
+  golangci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
       - uses: golangci/golangci-lint-action@v9
 
   web:
-    if: ${{ hashFiles('web/package.json') != '' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -43,16 +98,65 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 18
       - run: node --test skills/scripts.test.mjs
 
+  # The release pipeline, end to end, without publishing (NFR-1, NFR-5, NFR-7).
+  release-dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - uses: anchore/sbom-action/download-syft@v0
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean --skip=publish
+      - name: check the built artifacts
+        run: go run ./tools/checkdist dist
+      - name: known vulnerabilities in the shipped binary (stdlib included)
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest -mode=binary dist/mcpdeck_linux_amd64_v1/mcpdeck
+
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/dependency-review-action@v5.0.1
+        with:
+          fail-on-severity: high
+
   docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: requirement IDs are unique
         run: |
           dups=$(grep -oE '^\*\*[A-Z]+-[0-9]+' docs/requirements.md | sort | uniq -d)
@@ -60,6 +164,6 @@ jobs:
       - name: no filler words in docs or UI text (UI-5)
         run: |
           words='seamless|effortless|powerful|unlock|supercharge|leverage|revolutioni[sz]e|AI-powered|elevate'
-          if grep -rniEw "$words" README.md AGENTS.md docs/*.md docs/mockups/*.js docs/mockups/*.html web/src 2>/dev/null | grep -v 'docs/requirements.md'; then
+          if grep -rniEw "$words" README.md AGENTS.md docs/*.md docs/mockups/*.js docs/mockups/*.html web/src site 2>/dev/null | grep -v 'docs/requirements.md'; then
             echo "remove the words above (UI-5)"; exit 1
           fi
