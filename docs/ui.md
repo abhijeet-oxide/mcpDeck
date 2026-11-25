@@ -18,12 +18,18 @@ bottom. Each item is one step of the same pipeline, in order:
 | **Toolkits** | Toolkits (one MCP server each) and, under *All tools*, the tool library | Create a toolkit, create or edit a tool, set approval rules |
 | **Agents** | One row per client (Claude Code on this laptop, Cursor...) and what each may do | Connect, change access, revoke |
 | **Activity** | Calls, usage and the audit log | See who called what, what it cost, what changed |
-| Settings | Port, theme, security, skills, data | Change how mcpDeck runs |
+| About | What mcpDeck does, and the GitHub repository: star, docs, releases, report a bug | Find the project |
+| Settings | Port, theme, security, skills, data, demo world | Change how mcpDeck runs |
+
+The sidebar runs the full height of the window, like VS Code, Linear or Vercel:
+logo and a light/dark switch at the top, then search (`Ctrl+K`), the five
+places, and at the bottom the repository card, About, Settings and the
+address mcpDeck is running on. Icons are [Lucide](https://lucide.dev).
 
 There is one place for each thing and one path to it:
 
 - **Requests are always added inside an API.** "Add API" and "Import" are the
-  same dialog; Import is opened from inside an API and is locked to it. That
+  same page; Import is opened from inside an API and is locked to it. That
   removes the ambiguity of importing a spec without saying where it goes
   (the CLI requires `--api` for the same reason).
 - **Tools are always created inside a toolkit.** The tool lands in the
@@ -42,7 +48,7 @@ change as little as possible.
 
 | mcpDeck screen | Copied from | What we keep |
 |---|---|---|
-| Add API / Import | Postman's Import dialog (file, link or raw text; curl pasted as text) and Scalar's import | One dialog, source picked first, then the input for that source |
+| Add API / Import | Postman's Import (file, link or raw text; curl pasted as text), Insomnia and Scalar import | Source picked first, then its input, then a preview of what will be imported with a checkbox per request |
 | API workspace | Postman and Bruno collections | Tree on the left with folders, open-request tabs, method + URL bar, Params / Auth / Headers / Body / Scripts, response with Pretty / Raw / Headers / Timing, environment picker top right |
 | History → Create tool | Postman History | Newest first; we add multi-select and "Create tool from selected" |
 | Script trust | Bruno safe mode | Imported scripts off until trusted |
@@ -59,6 +65,8 @@ change as little as possible.
 | Usage | Vercel / Stripe dashboards | Range switch, a chart, then a sortable table |
 | Command palette | VS Code, Linear, Raycast | `Ctrl+K` / `⌘K`, groups, actions as well as places |
 | Settings | macOS System Settings | Sections on the left, plain rows on the right |
+| Sidebar | VS Code, Linear, Vercel | Full height, icons with labels, secondary items at the bottom |
+| About | macOS "About this app", open source project pages | What it is, where it lives, how to help |
 
 Sources for the client install paths: [Claude Code MCP docs](https://code.claude.com/docs/en/mcp),
 [VS Code MCP servers](https://code.visualstudio.com/docs/copilot/customization/mcp-servers),
@@ -101,15 +109,26 @@ always end with what to check (`test_tool` before `save_tool`).
 
 Screenshots are from the mockup (`docs/mockups/screens/`).
 
-### First run
+### First run, and onboarding that goes away
 
 ![First run](mockups/screens/01-home-first-run.jpg)
 
-Four steps with their real state: Add an API → Create a toolkit → Connect an
-agent → Build the first tool. A step's button is disabled until the step
-before it is done, with the reason next to it. Step 4 offers "Copy prompt for
-your agent" first. "Load the demo" fills mcpDeck with the demo world. This is
-a checklist on Home, not a wizard: every step is the same dialog used later.
+With nothing added yet, Home says what mcpDeck does and shows four steps: Add
+an API → Create a toolkit → Connect an agent → Build the first tool. A step is
+disabled until the one before is done, with the reason next to it.
+
+Once the first API exists, Home becomes the normal Home with a small
+**Getting started · n of 4** card that shows only the next step. It disappears
+for good when all four are done, or when you hide it (UI-11):
+
+![Getting started](mockups/screens/04-home-getting-started.jpg) ![Three of four](mockups/screens/09-home-getting-started-3.jpg)
+
+**The demo world is kept apart** (UI-12). "Open the demo world" opens mock APIs,
+toolkits, agents and calls in their own throwaway data; a bar on every page
+says so, with "Leave demo". The first-run page stops offering it once you have
+an API of your own; after that it's in Settings › Data.
+
+![Demo world](mockups/screens/08-demo-world.jpg)
 
 ### Home
 
@@ -122,13 +141,38 @@ errors and blocked writes, and the latest calls.
 
 ### Add an API
 
-![Add API](mockups/screens/02-add-api.jpg) ![Import result](mockups/screens/03-add-api-result.jpg)
+A page, not a dialog (UI-14): sources on the left, the input in the middle,
+then every request found, each with a checkbox, its method, path, folder and
+whether it reads or writes. The API name is shown as code because that's how
+tools call it.
 
-Pick the source (Swagger or Redoc page, OpenAPI file or URL, Postman
-collection, curl, Start empty), give it the input, name the API. The name is
-shown as code (`erp.getInvoice()`) because that's how tools will call it.
-The result lists what was added with read/write counts and what was moved
-into a credential.
+**Swagger or Redoc page.** Paste the docs page URL; mcpDeck finds the spec the
+page loads.
+
+![Swagger page](mockups/screens/02a-import-swagger.jpg)
+
+**OpenAPI file or URL.**
+
+![OpenAPI](mockups/screens/02b-import-openapi.jpg)
+
+**Postman collection**, with its environment if you have one. Secret
+environment values become encrypted credentials; scripts come in switched off.
+
+![Postman](mockups/screens/02c-import-postman.jpg)
+
+**curl.** The list updates as you paste. Credential headers and query keys are
+moved into an encrypted credential.
+
+![curl](mockups/screens/02d-import-curl.jpg)
+
+**Start empty.** A name, a base URL and an auth type.
+
+![Start empty](mockups/screens/02e-import-blank.jpg)
+
+After importing, the API opens with a note of what was added and, if a
+credential is needed, a button to add it:
+
+![After import](mockups/screens/03-api-after-import.jpg)
 
 ### API
 
@@ -191,7 +235,7 @@ it, the requests it sends with their access, and who gets it when approved.
 
 ### Connect an agent
 
-![Pick client](mockups/screens/05-connect-pick-client.jpg) ![Connected](mockups/screens/06-connect-done.jpg)
+![Pick client](mockups/screens/06-connect-pick-client.jpg) ![Connected](mockups/screens/07-connect-done.jpg)
 
 Client, toolkit, name, access, may build, install skills. Then the token,
 shown once, inside the client's own command or link, and a live "waiting for
@@ -209,6 +253,13 @@ the client" state that turns into "Connected" and a first prompt to try.
 ### Suggestions, prompts and the palette
 
 ![Suggestion](mockups/screens/36-suggestion.jpg) ![Ask an agent](mockups/screens/35-ask-an-agent.jpg) ![Palette](mockups/screens/37-command-palette.jpg)
+
+### About
+
+![About](mockups/screens/38-about.jpg)
+
+What mcpDeck does in four lines, how keys are handled, and the repository:
+Star on GitHub, Report a bug, Docs, Releases, Contribute, License (UI-13).
 
 ### Settings, dark mode, phone width
 
@@ -232,7 +283,8 @@ The mockup has no server, so a few things are simulated. Everything else is
 real logic over the demo world.
 
 - Network: URL imports only recognise the Petstore and demo-world URLs. curl
-  parsing and JSON file imports (OpenAPI, Swagger, Postman) are real.
+  parsing and JSON file imports (OpenAPI, Swagger, Postman collections and
+  environments) are real; try the files in `docs/mockups/fixtures/`.
 - Sending a request returns the demo world's saved response.
 - "Connected" appears a few seconds after you copy the command or write the
   config; the product waits for the client's real `initialize`.

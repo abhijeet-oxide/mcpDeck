@@ -124,7 +124,9 @@ If a task seems to need breaking one of these, stop and ask.
   no emoji, no gradients on content.
 - Accessible by default: real `<button>`/`<a>`, labels on inputs, visible focus,
   AA contrast.
-- Navigation stays at Home, APIs, Toolkits, Agents, Activity and Settings. Ask
+- Icons are Lucide (`lucide-react`). Don't mix in other icon sets.
+- Navigation stays at Home, APIs, Toolkits, Agents, Activity, then About and
+  Settings at the bottom. Ask
   before adding a top-level item.
 
 ## Commits and PRs

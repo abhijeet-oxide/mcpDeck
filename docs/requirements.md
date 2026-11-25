@@ -693,7 +693,7 @@ by a script (`make screenshots`) at a fixed size, light and dark. Mockups
 are never shown as the product.
 
 **UI-1 The sidebar is the mental model.** Navigation is Home, APIs,
-Toolkits, Agents, Activity, with Settings at the bottom. Read top to bottom
+Toolkits, Agents, Activity, with About and Settings at the bottom. Read top to bottom
 it's the pipeline: systems you call → tools grouped into MCP servers →
 clients that use them → what they did. Each thing has one home: requests are
 added inside an API, tools are created inside a toolkit, agents connect to a
@@ -710,11 +710,37 @@ Tool requests, suggestions and failed calls each have a "Copy prompt".
 *Accept:* every prompt in the UI names only tools and requests that exist
 and that the named agent's grant allows.
 
-**UI-11 First run.** With no APIs, Home shows four steps with their real
-state: Add an API, Create a toolkit, Connect an agent, Build the first tool
-(copy a prompt for the connected agent, or write it). A step's action is
-disabled until the step before is done, with the reason shown. "Load the
-demo" loads the demo world.
+**UI-11 Onboarding that gets out of the way.** With no APIs, Home is a first-run
+page: what mcpDeck does and four steps (Add an API, Create a toolkit, Connect
+an agent, Build the first tool), each disabled until the one before is done,
+with the reason shown. Once the first API exists, Home is the normal Home with
+a small "Getting started · n of 4" card showing the next step. The card
+disappears for good when all four are done or the user hides it, and it never
+comes back on its own.
+*Accept:* after the four steps, or after Hide, no onboarding text appears
+anywhere.
+
+**UI-12 Demo world kept apart.** "Open the demo world" (first-run Home and
+Settings › Data) opens the demo world in its own throwaway data folder, as
+`mcpdeck dev` does, never mixed with the user's data. While it's open, every
+page shows a bar saying so with "Leave demo", which returns to the user's own
+data unchanged. The first-run Home stops offering it once the user has added
+an API.
+
+**UI-13 About and the repository.** The sidebar shows the GitHub repository
+(`abhijeet-oxide/mcpDeck`) with a Star link, and an About page says what
+mcpDeck does and links to the repository, docs, releases, how to contribute,
+the license and "Report a bug" (a new issue). Links open in the browser;
+mcpDeck itself makes no network calls for them (no star counts).
+
+**UI-14 Add an API is a page.** Adding an API, and importing into one, is a
+full page: sources on the left (Swagger or Redoc page, OpenAPI file or URL,
+Postman collection with optional environment, curl, start empty), the input
+for the chosen source, then a preview of every request found with method,
+path, folder and read/write, each with a checkbox. The API name is shown as
+code (`crm.getAccount()`). curl previews update as you paste. Credentials
+found in curl or a Postman environment are listed as moving into an encrypted
+credential before anything is saved.
 
 **UI-2 Look.** Clean and calm, Apple-like: frosted panels over a soft neutral
 background, system font, black and blue actions, coloured mono chips for HTTP

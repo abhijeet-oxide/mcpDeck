@@ -65,7 +65,7 @@ flowchart LR
 | **WP-02** | Schema | `internal/store/migrations`, `internal/store/queries`, `sqlc.yaml` | RUN-3 | Every table in [design.md](design.md#data-model) migrates up on a temp dir; sqlc generates; a store test round-trips one row per table |
 | **WP-03** | Interfaces and fakes | `internal/*/iface.go` and `fake.go` for proxy, vault, tool runtime, session recorder, keychain, client config, browser open | — | Each interface has a fake used in at least one test; `go vet` clean; packages import interfaces, not each other |
 | **WP-04** | HTTP API contract | `internal/server/openapi.yaml`, generated TS client in `web/src/lib/api` | RUN-6 | Every UI action in [ui.md](ui.md) maps to an operation; client generates; a mock server (MSW) serves the demo world from the document's examples |
-| **WP-05** | UI shell | `web/src/app`, `web/src/styles/tokens.css`, `web/src/components` | UI-2, UI-3, UI-7, UI-8, UI-9 | Sidebar, page header, tabs, chips, buttons, copy field, prompt card, modal, drawer and toast match the [mockup](mockups/index.html) in light and dark; fonts bundled; axe has no violations |
+| **WP-05** | UI shell | `web/src/app`, `web/src/styles/tokens.css`, `web/src/components` | UI-2, UI-3, UI-7, UI-8, UI-9 | Full-height sidebar with theme switch and repository link, Lucide icons, page header, tabs, chips, buttons, copy field, prompt card, modal, drawer and toast match the [mockup](mockups/index.html) in light and dark; fonts bundled; axe has no violations |
 | **WP-06** | Demo world | `internal/mock`, `examples/demo` | MOCK-1, MOCK-3 | `acme-crm`, `acme-billing`, `acme-support`, `acme-legacy` serve seeded, consistent data on :9001–:9004, including the cookie login and the bloated billing responses |
 
 ## Wave 1: lanes in parallel
@@ -167,8 +167,8 @@ All UI lanes build against the WP-04 mock server, follow [ui.md](ui.md) and the
 
 | ID | Package | Owns | Needs | Covers | Done when |
 |---|---|---|---|---|---|
-| WP-U1 | Home, first run, palette | `web/src/routes/home`, `web/src/components/palette` | 04, 05 | UI-1, UI-6, UI-10, UI-11 | First-run steps reflect real state; Needs you lists reviews, requests, suggestions; `Ctrl+K` finds and runs everything in the mockup's list |
-| WP-U2 | APIs | `web/src/routes/apis` | 04, 05 | UI screens for A1–A5, B5, C1–C2 | Add API dialog with all five sources; Postman-style workspace; environments; credentials write-only; check-access prompt |
+| WP-U1 | Home, first run, palette | `web/src/routes/home`, `web/src/components/palette` | 04, 05 | UI-1, UI-6, UI-10, UI-11, UI-12, UI-13 | First-run steps reflect real state; Needs you lists reviews, requests, suggestions; `Ctrl+K` finds and runs everything in the mockup's list |
+| WP-U2 | APIs | `web/src/routes/apis` | 04, 05 | UI-14 and UI screens for A1–A5, B5, C1–C2 | Add API page with all five sources and the request preview; Postman-style workspace; environments; credentials write-only; check-access prompt |
 | WP-U3 | Toolkits and tool editor | `web/src/routes/toolkits`, `web/src/components/editor` | 04, 05 | TOOL-3 and UI screens for E3–E5, F1, F3–F4 | Monaco with typegen IntelliSense (`crm.` lists requests); test panel with timeline and sizes; versions diff; output fields; review page |
 | WP-U4 | Agents and Connect | `web/src/routes/agents`, `web/src/components/connect` | 04, 05 | UI screens for F2, J1–J2 | Connect dialog for all five clients; token shown once; live connection state; grants editable in place; revoke and rotate |
 | WP-U5 | Activity | `web/src/routes/activity` | 04, 05 | SES-4 and UI screens for G2–G3, I2 | Calls table with filters, waterfall per session, detail pane; usage; audit with verify; suggestion drawer |
