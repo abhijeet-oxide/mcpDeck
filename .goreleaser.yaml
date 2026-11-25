@@ -1,5 +1,5 @@
-# Release configuration (NFR-5, NFR-7). See docs/releasing.md.
-# Validate locally with: goreleaser check
+# Release configuration (NFR-5, NFR-7, NFR-8). See docs/releasing.md.
+# Dry run locally: goreleaser release --snapshot --clean --skip=publish
 version: 2
 project_name: mcpdeck
 
@@ -17,64 +17,115 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w -X main.version={{ .Version }} -X main.commit={{ .Commit }} -X main.date={{ .Date }}
+      - -s -w
+      - -X github.com/abhijeet-oxide/mcpdeck/internal/version.Version={{ .Version }}
+      - -X github.com/abhijeet-oxide/mcpdeck/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/abhijeet-oxide/mcpdeck/internal/version.Date={{ .CommitDate }}
     goos: [windows, darwin, linux]
     goarch: [amd64, arm64]
     mod_timestamp: "{{ .CommitTimestamp }}"
 
+# Names carry no version so releases/latest/download/<name> is a stable URL.
 archives:
   - id: default
     formats: [tar.gz]
     format_overrides:
       - goos: windows
         formats: [zip]
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
       - README.md
+  # The bare binary: download and run, nothing to unpack.
+  - id: binary
+    formats: [binary]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
 
 checksum:
   name_template: checksums.txt
+  extra_files:
+    - glob: scripts/install.sh
+    - glob: scripts/install.ps1
 
 sboms:
   - artifacts: archive
+    ids: [default]
 
 changelog:
-  use: github
+  use: git
+  sort: asc
+  groups:
+    - title: Breaking changes
+      regexp: '^.*?\w+(\(.+\))?!:.+$'
+      order: 0
+    - title: Features
+      regexp: '^.*?feat(\(.+\))?:.+$'
+      order: 1
+    - title: Fixes
+      regexp: '^.*?(fix|perf)(\(.+\))?:.+$'
+      order: 2
   filters:
     exclude:
-      - "^docs:"
-      - "^test:"
-      - "^chore:"
+      - "^docs"
+      - "^test"
+      - "^chore"
+      - "^ci"
+      - "^build"
+      - "^style"
+      - "^refactor"
+      - "^Merge "
 
 release:
   draft: false
   prerelease: auto
+  extra_files:
+    - glob: scripts/install.sh
+    - glob: scripts/install.ps1
+  header: |
+    ## Install
 
+    **Windows** (PowerShell):
+    ```powershell
+    irm https://github.com/abhijeet-oxide/mcpDeck/releases/download/{{ .Tag }}/install.ps1 | iex
+    ```
+
+    **macOS / Linux**:
+    ```sh
+    curl -fsSL https://github.com/abhijeet-oxide/mcpDeck/releases/download/{{ .Tag }}/install.sh | sh
+    ```
+
+    Or download the binary for your platform below and run it: `mcpdeck_windows_amd64.exe`, `mcpdeck_darwin_arm64`, `mcpdeck_linux_amd64`…
+    Verify any file with `gh attestation verify <file> --repo abhijeet-oxide/mcpDeck`.
+  footer: |
+    {{ if .PreviousTag }}**Full changelog**: https://github.com/abhijeet-oxide/mcpDeck/compare/{{ .PreviousTag }}...{{ .Tag }}{{ end }}
+
+# The tap and bucket are updated only when their token is set (NFR-7).
 homebrew_casks:
   - name: mcpdeck
+    ids: [default]
     repository:
       owner: abhijeet-oxide
       name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      token: '{{ index .Env "HOMEBREW_TAP_TOKEN" }}'
     homepage: https://github.com/abhijeet-oxide/mcpDeck
     description: Build MCP tools from the APIs you already have, and control what every agent can do.
-    skip_upload: auto
+    skip_upload: '{{ if index .Env "HOMEBREW_TAP_TOKEN" }}auto{{ else }}true{{ end }}'
     hooks:
       post:
         # Unsigned builds are quarantined by macOS. Remove once releases are notarised (NFR-5).
-        install_steps: |
+        install: |
           if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/mcpdeck"]
           end
 
 scoops:
   - name: mcpdeck
+    ids: [default]
     repository:
       owner: abhijeet-oxide
       name: scoop-bucket
-      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+      token: '{{ index .Env "SCOOP_BUCKET_TOKEN" }}'
     homepage: https://github.com/abhijeet-oxide/mcpDeck
     description: Build MCP tools from the APIs you already have, and control what every agent can do.
     license: Apache-2.0
-    skip_upload: auto
+    skip_upload: '{{ if index .Env "SCOOP_BUCKET_TOKEN" }}auto{{ else }}true{{ end }}'

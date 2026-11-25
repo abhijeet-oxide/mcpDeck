@@ -18,3 +18,5 @@ first. The essentials:
 - UI must match the mockup in `docs/mockups/` (see `docs/ui.md`) and the tokens in `docs/design.md#ui`.
 - Before finishing: `make test && make lint`. For proxy/MCP/UI changes also
   `make dev-up` and exercise the `mcpdeck-dev` MCP server from `.vscode/mcp.json`.
+- Commit and PR titles are conventional commits. `feat`, `fix` and `perf`
+  release automatically on merge to main (see `docs/releasing.md`).

@@ -34,7 +34,10 @@ get green. If a test is wrong, fix it in its own commit and say why.
 | End to end | Playwright + real binary + mock apps | `e2e/` | Real flows through UI and MCP |
 | MCP client | Go MCP client from the SDK | `e2e/mcp_test.go` | An agent's view: list tools, call, errors, build a tool with only `instructions` (TK-3) |
 | Skill scripts | `node --test` | `skills/scripts.test.mjs` | `field-sizes.mjs` and `check-tool.mjs` on Linux and Windows, Node 18 (SKL-1) |
-| Windows | Same suites on `windows-latest` | CI | Paths, keychain, client config locations, browser open (NFR-4) |
+| Windows, macOS | Same Go suite on `windows-latest` and `macos-latest` | CI | Paths, keychain, client config locations, browser open (NFR-4) |
+| Installers | Go runs `install.sh` / `install.ps1` against an `httptest` fake release | `scripts/install_test.go` | Platform detection, checksum check, user install, on each OS (NFR-7) |
+| Release | GoReleaser snapshot + `tools/checkdist` + `govulncheck -mode=binary` | CI `release-dry-run` | Every artifact, checksum, size limit, version string, known CVEs in what ships (NFR-1, NFR-5) |
+| Release tooling | Table tests | `tools/*/main_test.go` | Version rules from commits (NFR-8), dist checks |
 
 Rules:
 

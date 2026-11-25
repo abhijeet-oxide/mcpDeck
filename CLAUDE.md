@@ -6,6 +6,8 @@
   - `tdd`: the red → green → refactor loop with requirement IDs. Use it for any
     behaviour change.
   - `ui-screen`: building or changing a UI screen to match the mockups.
+  - `ship`: PR → CI → release. Use when a change is ready, CI or a release
+    is red, or a Dependabot PR or security alert needs handling.
 - `.mcp.json` defines `mcpdeck-dev`, which points at a local `mcpdeck dev`
   instance (the `dev` toolkit's use endpoint). After `make dev-up` you can call its tools
   (`customer_360`, `search_tools`, `request_tool`…) to test a change end to end. The build

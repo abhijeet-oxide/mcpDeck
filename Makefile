@@ -3,7 +3,7 @@ BIN      := bin/mcpdeck
 GOFLAGS  := -trimpath
 LDFLAGS  := -s -w
 
-.PHONY: help dev dev-up dev-down build test test-go test-web test-skills e2e lint cover req-check sqlc clean
+.PHONY: help dev dev-up dev-down build test test-go test-web test-skills e2e lint lint-actions cover req-check sqlc clean next-version release-check
 
 help: ## list targets
 	@grep -E '^[a-z0-9-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*## "}{printf "  %-10s %s\n",$$1,$$2}'
@@ -50,8 +50,18 @@ req-check: ## requirements with no REQ-tagged test yet
 	@grep -oE '^\*\*[A-Z]+-[0-9]+' docs/requirements.md | tr -d '*' | sort -u | while read id; do \
 	  grep -rqs "REQ: .*\b$$id\b" --include='*_test.go' --include='*.test.ts*' . || echo "$$id"; done
 
+lint-actions: ## check workflow files (needs actionlint)
+	actionlint
+
+next-version: ## what merging to main would release (NFR-8)
+	@go run ./tools/nextversion
+
+release-check: ## build every release artifact locally and check it, like CI (needs goreleaser)
+	goreleaser release --snapshot --clean --skip=publish,sbom
+	go run ./tools/checkdist dist
+
 sqlc: ## regenerate typed queries
 	sqlc generate -f internal/store/sqlc.yaml
 
 clean: ## remove build output and local dev data
-	rm -rf bin web/dist cover.out .mcpdeck
+	rm -rf bin dist web/dist cover.out .mcpdeck

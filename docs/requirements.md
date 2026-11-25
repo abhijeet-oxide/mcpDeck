@@ -808,20 +808,46 @@ request.
 **NFR-4 Windows first-class.** Tests run on Windows in CI. Paths, line
 endings, file locking and the keychain are handled per OS.
 
-**NFR-5 Trustworthy release.** Every release has checksums and an SBOM.
-Binaries SHOULD be signed once certificates are in place: Authenticode on
-Windows (a code-signing certificate or Azure Trusted Signing) and a
-Developer ID with notarisation on macOS. See
-[releasing.md](releasing.md).
+**NFR-5 Trustworthy release.** Every release has `checksums.txt`, an SBOM
+per archive and a signed build-provenance attestation per artifact
+(`gh attestation verify <file> --repo abhijeet-oxide/mcpDeck`). `mcpdeck
+version` prints the release's version and commit, never `dev`. Binaries
+SHOULD be signed once certificates are in place: Authenticode on Windows (a
+code-signing certificate or Azure Trusted Signing) and a Developer ID with
+notarisation on macOS. See [releasing.md](releasing.md).
+*Accept:* the CI release dry run checks every artifact, the checksums and the
+version string before anything is published.
 
 **NFR-7 Install channels.** Each release is published by GoReleaser
-(`.goreleaser.yaml`) to:
-- GitHub Releases: `.zip` for Windows, `.tar.gz` for macOS and Linux;
-- the Homebrew tap `abhijeet-oxide/homebrew-tap` as a cask (macOS):
-  `brew install --cask abhijeet-oxide/tap/mcpdeck`;
-- the Scoop bucket `abhijeet-oxide/scoop-bucket` (Windows).
-winget follows once a release is accepted into `microsoft/winget-pkgs`,
-which Microsoft reviews. mcpDeck never updates itself.
+(`.goreleaser.yaml`) to GitHub Releases with names that don't change between
+versions, so `releases/latest/download/<name>` always points at the newest:
+- `mcpdeck_<os>_<arch>.zip` (Windows) or `.tar.gz` (macOS, Linux);
+- the bare binary, `mcpdeck_<os>_<arch>` (`.exe` on Windows), to download and
+  run with no unpacking;
+- `install.sh` (macOS, Linux) and `install.ps1` (Windows): one-line installs
+  that pick the platform, verify the checksum, install for the current user
+  without admin rights and put `mcpdeck` on the `PATH`. `MCPDECK_VERSION` pins
+  a version and `MCPDECK_INSTALL_DIR` changes the folder.
+
+When their repositories and tokens exist, the same release also updates the
+Homebrew tap `abhijeet-oxide/homebrew-tap` (a cask, macOS) and the Scoop
+bucket `abhijeet-oxide/scoop-bucket` (Windows); without them those steps are
+skipped and the release still succeeds. winget follows once a release is
+accepted into `microsoft/winget-pkgs`, which Microsoft reviews. mcpDeck never
+updates itself.
+*Accept:* the installer tests run both scripts on Linux, macOS and Windows
+in CI against a local release, including a checksum mismatch that must abort.
+
+**NFR-8 Continuous release.** Merging to `main` releases without a person
+doing anything else. The next version comes from the conventional commits
+since the last tag: `fix:`/`perf:` bump the patch, `feat:` the minor, a
+breaking change (`!` or `BREAKING CHANGE:`) the major (the minor while the
+version is `0.x`). Commits that change no behaviour (`docs:`, `ci:`, `test:`,
+`chore:`, `build:`, `refactor:`, `style:`) don't release. A release runs only
+after the full CI suite passes on that commit. A person can also run the
+release workflow by hand, with an optional explicit version.
+*Accept:* table tests for the version rules; the release workflow reuses
+the CI workflow as its first job.
 
 **NFR-6 Test-first.** See [testing.md](testing.md). Coverage of `internal/`
 ≥ 80%, and every MUST requirement has at least one test referencing its ID.

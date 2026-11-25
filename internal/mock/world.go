@@ -115,7 +115,10 @@ func Start(basePort int) (*World, error) {
 		h    http.Handler
 	}{{"crm", w.crm()}, {"billing", w.billing()}, {"support", w.support()}, {"legacy", w.legacy()}}
 	for i, x := range handlers {
-		port := basePort + i
+		port := 0 // 0: any free port, for each API
+		if basePort != 0 {
+			port = basePort + i
+		}
 		ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 		if err != nil {
 			w.Close()
