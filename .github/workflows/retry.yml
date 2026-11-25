@@ -1,0 +1,48 @@
+name: retry
+
+# GitHub sometimes never assigns a runner to a job (seen on macOS): the job
+# is cancelled with no step run, the run goes red and the release is
+# skipped although nothing failed. This re-runs those jobs, at most twice
+# per run. A job that ran and failed is never retried: that's a real
+# failure for a person or an agent to fix (docs/releasing.md).
+on:
+  workflow_run:
+    workflows: [release, ci]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  rerun-stuck:
+    if: >-
+      github.event.workflow_run.run_attempt < 3 &&
+      (github.event.workflow_run.conclusion == 'failure' || github.event.workflow_run.conclusion == 'cancelled')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: re-run jobs that never got a runner
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          jobs=$(gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/jobs?filter=latest" --jq '.jobs[]')
+          # Stuck: cancelled with no steps and no runner.
+          stuck=$(jq -r 'select(.conclusion == "cancelled" and (.steps | length) == 0 and (.runner_id // 0) == 0) | .name' <<<"$jobs")
+          # Real failures: a job that ran a step and failed.
+          failed=$(jq -r 'select(.conclusion == "failure") | .name' <<<"$jobs")
+          if [ -z "$stuck" ]; then
+            echo "No job was left without a runner; nothing to retry."
+            exit 0
+          fi
+          if [ -n "$failed" ]; then
+            echo "Some jobs failed for real, so not retrying:"
+            echo "$failed"
+            exit 0
+          fi
+          echo "Jobs that never got a runner:"
+          echo "$stuck"
+          gh run rerun "$RUN_ID" --failed --repo "$REPO"
