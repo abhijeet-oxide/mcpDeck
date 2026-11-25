@@ -235,6 +235,7 @@ agent(id, name, client, token_hash, revoked_at, created_at)
 grant(id, agent_id, toolkit_id, access: read|read_write, can_build, env_by_api,
       created_at)
 pin(grant_id, tool_id, version: latest|n)
+output_drop(grant_id, tool_id, paths[], approved_by, created_at)   -- OUT-1
 
 session(id, agent_id, toolkit_id, mcp_session_id, client_name, client_version,
         started_at, last_seen_at, ended_at, end_reason)
@@ -243,6 +244,8 @@ call(id, session_id, parent_call_id, actor: you|agent, kind: tool|build|list|ups
      input_masked, output_masked, output_bytes, tokens, token_encoder)
 
 suggestion(id, rule, target, evidence_json, saving_json, state, created_at)
+field_report(id, agent_id, session_id, tool_version_id, used[], unused[], note,
+             created_at)                                         -- FB-1
 tool_request(id, agent_id, toolkit_id, session_id, description, tried_calls,
              state, fulfilled_by_version_id)
 audit_event(id, prev_hash, hash, actor_kind, actor_id, action, target, at, detail)
@@ -282,6 +285,11 @@ generated file in the editor (TOOL-10) → Test → Save.
 **Add to Claude Code**: toolkit page → "Add to…" → Claude Code → mcpDeck
 reuses or creates the agent, adds a `read` grant → shows `claude mcp add …` and offers to write
 the config after showing the change (AGT-3) → audit event.
+
+**Field feedback**: an agent calls `report_field_usage` (often after an MCP-6
+hint) → `field_report` row → `insight` combines reports and observed use per
+field (FB-2) → a suggestion: remove the field (new version) if no agent uses
+it, or a per-agent output (OUT-1) if only some do → a person approves (AB-8).
 
 **Suggestion**: after each session ends, and hourly, `insight` runs its rules
 over new calls → new `suggestion` rows → Home. Acting on one opens the editor
