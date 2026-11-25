@@ -320,17 +320,10 @@ with the change prefilled; the next week's numbers show before and after.
 
 ## UI
 
-Reference screens: [mockups](mockups/) · [screenshots](screenshots/). The
-screenshots predate the move from Projects to Toolkits and from the step list
-to the code editor; the look and tokens still apply.
-
-| Screen | File |
-|---|---|
-| Home | [home.png](screenshots/home.png) |
-| API: requests, run, examples | [application.png](screenshots/application.png) |
-| Toolkit: tool editor | [tool-builder.png](screenshots/tool-builder.png) (to be redrawn with the code editor) |
-| Agents: sessions and calls | [agent-sessions.png](screenshots/agent-sessions.png) |
-| Settings | [export.png](screenshots/export.png) (Export is Phase 2) |
+Every screen is specified in [ui.md](ui.md) and built as a clickable mockup in
+[mockups/index.html](mockups/index.html), with screenshots in
+[mockups/screens/](mockups/screens/) (`node docs/mockups/shoot.mjs`). The
+mockup's `mockup.css` holds the tokens below with their dark values.
 
 ### Icon
 

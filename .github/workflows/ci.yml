@@ -60,6 +60,6 @@ jobs:
       - name: no filler words in docs or UI text (UI-5)
         run: |
           words='seamless|effortless|powerful|unlock|supercharge|leverage|revolutioni[sz]e|AI-powered|elevate'
-          if grep -rniEw "$words" README.md AGENTS.md docs/*.md web/src 2>/dev/null | grep -v 'docs/requirements.md'; then
+          if grep -rniEw "$words" README.md AGENTS.md docs/*.md docs/mockups/*.js docs/mockups/*.html web/src 2>/dev/null | grep -v 'docs/requirements.md'; then
             echo "remove the words above (UI-5)"; exit 1
           fi

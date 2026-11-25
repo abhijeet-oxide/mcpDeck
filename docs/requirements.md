@@ -383,7 +383,8 @@ also has: variables (TOOL-9), a default environment per API, a build scope
 
 **TK-2 One endpoint per toolkit.** Each toolkit is its own MCP server at
 `/mcp/<toolkit>`, Streamable HTTP. `mcpdeck stdio --toolkit <name>` bridges
-it for clients that only speak stdio. An agent granted one toolkit can't see
+it for clients that only speak stdio; it reads the agent token from
+`MCPDECK_TOKEN`. An agent granted one toolkit can't see
 or call another's tools.
 
 **TK-3 Server instructions.** Each endpoint sends MCP `instructions` on
@@ -417,6 +418,11 @@ this order:
 2. "Write config for me": updates the client's config file (user or project
    scope, chosen), after showing the exact change, keeping a backup;
 3. the JSON snippet to paste.
+VS Code and Cursor also get a one-click install link (`vscode:mcp/install?…`,
+`cursor://anysphere.cursor-deeplink/mcp/install?…`), shown next to the
+config snippet because links can fail. Claude Desktop uses the stdio bridge
+with the token in `MCPDECK_TOKEN`. After the token is shown, the dialog waits
+for the client's first `initialize` and then offers a first prompt to try.
 The CLI does the same: `mcpdeck connect <client> --toolkit <name>
 [--access read|read_write] [--build]`. Paths are correct for Windows, macOS
 and Linux. The token is stored in the client's config file in plain text,
@@ -686,10 +692,29 @@ it with a real screenshot of the running app on the demo world, captured
 by a script (`make screenshots`) at a fixed size, light and dark. Mockups
 are never shown as the product.
 
-**UI-1 Five places.** Navigation is Home, APIs, Toolkits, Agents,
-Settings. No onboarding wizard. Home shows: suggestions, tool requests,
-pending versions, and recent activity; when empty, it shows three real
-actions (Import an API, Create a toolkit, Try the demo).
+**UI-1 The sidebar is the mental model.** Navigation is Home, APIs,
+Toolkits, Agents, Activity, with Settings at the bottom. Read top to bottom
+it's the pipeline: systems you call → tools grouped into MCP servers →
+clients that use them → what they did. Each thing has one home: requests are
+added inside an API, tools are created inside a toolkit, agents connect to a
+toolkit, and every recorded call is in Activity. No onboarding wizard. Home
+shows what needs a person (pending versions, tool requests, suggestions) and
+today's numbers. Screens follow [ui.md](ui.md) and the
+[mockup](mockups/index.html).
+
+**UI-10 Ask an agent.** Home, an API, a toolkit and a tool have an "Ask an
+agent" button with two or three prompts for that page. Prompts use real
+names (toolkit, tools, requests, build tools), contain no secrets, end with
+what to check, and say which connected agent can run them or what's missing.
+Tool requests, suggestions and failed calls each have a "Copy prompt".
+*Accept:* every prompt in the UI names only tools and requests that exist
+and that the named agent's grant allows.
+
+**UI-11 First run.** With no APIs, Home shows four steps with their real
+state: Add an API, Create a toolkit, Connect an agent, Build the first tool
+(copy a prompt for the connected agent, or write it). A step's action is
+disabled until the step before is done, with the reason shown. "Load the
+demo" loads the demo world.
 
 **UI-2 Look.** Clean and calm, Apple-like: frosted panels over a soft neutral
 background, system font, black and blue actions, coloured mono chips for HTTP

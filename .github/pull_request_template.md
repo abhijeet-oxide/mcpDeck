@@ -17,4 +17,4 @@ Requirements: <!-- e.g. ACC-2, SES-3 -->
 
 - [ ] No invariant in AGENTS.md is weakened
 - [ ] No secrets, `.mcpdeck/` data or real API responses committed
-- [ ] UI changes match `docs/screenshots/` (add a screenshot)
+- [ ] UI changes match `docs/mockups/` and `docs/ui.md` (add a screenshot)

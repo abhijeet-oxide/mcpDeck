@@ -269,7 +269,8 @@ keychain or call an API directly.
 ## Docs
 
 [Vision](docs/vision.md) · [Requirements](docs/requirements.md) · [Design](docs/design.md) ·
-[Testing](docs/testing.md) · [Comparison](docs/comparison.md) · [Releasing](docs/releasing.md)
+[UI](docs/ui.md) · [Build plan](docs/build-plan.md) · [Testing](docs/testing.md) ·
+[Comparison](docs/comparison.md) · [Releasing](docs/releasing.md)
 
 ## Contributing
 
