@@ -61,7 +61,10 @@ export const useSettings = () =>
   useQuery({ queryKey: ["settings"], queryFn: () => get<SettingsView>("/api/settings") });
 
 /** useAction wraps a mutation that refreshes everything on success. */
-export function useAction<A, R>(fn: (a: A) => Promise<R>, opts?: { onSuccess?: (r: R, a: A) => void }) {
+export function useAction<A, R>(
+  fn: (a: A) => Promise<R>,
+  opts?: { onSuccess?: (r: R, a: A) => void; onError?: (e: unknown) => void },
+) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
@@ -69,5 +72,6 @@ export function useAction<A, R>(fn: (a: A) => Promise<R>, opts?: { onSuccess?: (
       qc.invalidateQueries();
       opts?.onSuccess?.(r, a);
     },
+    onError: (e) => opts?.onError?.(e),
   });
 }
