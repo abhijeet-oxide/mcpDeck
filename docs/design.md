@@ -25,7 +25,7 @@ between instances.
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ server   local guard (Host, Origin, cookie, token) · OpenAPI · embedded UI   │
 ├──────────────┬──────────────────┬──────────────────┬─────────────────────────┤
-│ app          │ tool             │ mcp              │ proxy                   │
+│ api          │ tool             │ mcp              │ proxy                   │
 │ importer     │ runtime (JS)     │ toolkit endpoints│ allow-list · access ·   │
 │ variables    │ typegen (.d.ts)  │ build tools      │ auth + secrets ·        │
 │ examples     │ versions · tests │ instructions     │ cookies · recording ·   │
@@ -51,7 +51,7 @@ row below and change as little as possible.
 
 | mcpDeck | Copies | What we keep |
 |---|---|---|
-| Applications, folders, requests | Postman / Bruno collections | Tree on the left, tabs on top, request editor with Params / Auth / Headers / Body / Scripts, response pane with Pretty / Raw / Headers / Cookies / Timing |
+| APIs, folders, requests | Postman / Bruno collections | Tree on the left, tabs on top, request editor with Params / Auth / Headers / Body / Scripts, response pane with Pretty / Raw / Headers / Cookies / Timing |
 | Environments and variables | Postman environments | `{{var}}` syntax, scope order, environment picker top right, unresolved vars in red |
 | Auth | Postman auth tab | Type dropdown, "Inherit auth from parent" default |
 | Scripts and tests | Postman scripts | `pm.*` subset, Chai `pm.expect`, Test Results tab |
@@ -79,9 +79,9 @@ tool.ts ──esbuild (strip types)──▶ JS ──▶ engine (sandbox) ─�
                        runtime: clients, call, vars, console, pm (tests)
 ```
 
-- **Types.** `internal/tool/typegen` turns each application's requests and
+- **Types.** `internal/tool/typegen` turns each API's requests and
   schemas (imported or captured, EX-2) into a `.d.ts`: one namespace per
-  application, one method per request, typed args and response. Served at
+  API, one method per request, typed args and response. Served at
   `/api/toolkits/{id}/types.d.ts` for Monaco, written by `mcpdeck pull`
   (FILE-1), and returned piecewise by `describe_api`.
 - **Type checking** happens where TypeScript already runs: Monaco in the
@@ -175,8 +175,8 @@ such (SES-3).
 cmd/mcpdeck/        main: wires dependencies, cobra commands
 internal/
   server/          HTTP API, local guard, launch cookie, embedded UI
-  app/             applications, folders, requests, environments, variables, examples, schema capture
-  importer/        openapi, swagger page, postman, curl → app types (pure functions)
+  api/             APIs, folders, requests, environments, variables, examples, schema capture
+  importer/        openapi, swagger page, postman, curl → api types (pure functions)
   vault/           Backend interface; local AES-GCM + keychain
   toolkit/         toolkits, connections, pins, bound variables
   tool/            tool files, runtime, sandbox, typegen, versions, tests
@@ -209,16 +209,16 @@ Rules:
 
 ```
 setting(key, value)
-application(id, name, icon, allowed_hosts[], auth, scripts_trusted)
-folder(id, application_id, parent_id, name, auth, scripts)
-request(id, application_id, folder_id, name, method, url, params, headers, body,
+api(id, name, icon, allowed_hosts[], auth, scripts_trusted)
+folder(id, api_id, parent_id, name, auth, scripts)
+request(id, api_id, folder_id, name, method, url, params, headers, body,
         auth, scripts, request_schema, response_schema, captured_schema,
         access: read|write, access_override, access_flag)
-environment(id, application_id, name)
-variable(id, scope: global|application|environment|toolkit|connection, scope_id,
+environment(id, api_id, name)
+variable(id, scope: global|api|environment|toolkit|connection, scope_id,
          name, source: literal|os_env|dotenv|secret, value, secret_id)
-secret(id, application_id, environment_id, kind, ciphertext, nonce, rotated_at)
-login(id, application_id, request_id, capture, ttl)
+secret(id, api_id, environment_id, kind, ciphertext, nonce, rotated_at)
+login(id, api_id, request_id, capture, ttl)
 example(id, request_id, request, response_masked, created_at)
 history(id, request_snapshot, call_id, created_at)
 
@@ -287,7 +287,7 @@ with the change prefilled; the next week's numbers show before and after.
    flagged "check access" count as write until confirmed.
 4. The sandbox has no filesystem, network, env, `require` or string `eval`;
    the clients and `call()` are the only exit and go through `proxy`.
-5. Outbound hosts are allow-listed per application (SSRF). Private and
+5. Outbound hosts are allow-listed per API (SSRF). Private and
    link-local ranges are blocked unless an environment's base URL is in them.
 6. Local server: `127.0.0.1` only, `Host` and `Origin` checked, UI cookie from a
    one-time launch URL, no CORS (RUN-5).
@@ -309,10 +309,24 @@ to the code editor; the look and tokens still apply.
 | Screen | File |
 |---|---|
 | Home | [home.png](screenshots/home.png) |
-| Application: requests, run, examples | [application.png](screenshots/application.png) |
+| API: requests, run, examples | [application.png](screenshots/application.png) |
 | Toolkit: tool editor | [tool-builder.png](screenshots/tool-builder.png) (to be redrawn with the code editor) |
 | Agents: sessions and calls | [agent-sessions.png](screenshots/agent-sessions.png) |
 | Settings | [export.png](screenshots/export.png) (Export is Phase 2) |
+
+### Icon
+
+[`docs/assets/logo.svg`](assets/logo.svg): two cards from a deck, the front one
+showing `< >` because tools are code. Ink tile, blue back card, white front
+card. Favicons are in `web/public/` (`favicon.svg`, 32 px and 180 px PNGs,
+512 px for app icons); regenerate them from the SVG if it changes.
+
+### Diagrams
+
+Diagrams are hand-made SVG, generated in light and dark versions by
+[`docs/assets/how-it-works.mjs`](assets/how-it-works.mjs) (`node
+docs/assets/how-it-works.mjs`). Edit the script, not the SVGs. README uses
+`<picture>` so GitHub shows the right one for the reader's theme.
 
 ### Look
 

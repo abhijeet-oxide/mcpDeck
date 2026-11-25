@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-label="How mcpDeck works: import your systems as APIs, write tools in TypeScript, group them into toolkits that agents add as MCP servers. Every call goes through one proxy and is recorded.">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9" fill="none" stroke="#9AA0AA" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect width="1200" height="560" rx="24" fill="#F2F4F8"/>
+<rect x="316" y="40" width="560" height="480" rx="24" fill="#FFFFFF" stroke="#E2E5EB"/>
+<text x="32" y="70" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="600" fill="#6E6E73" text-anchor="start">YOUR SYSTEMS</text>
+<rect x="32" y="96" width="232" height="64" rx="14" fill="#F6F7F9" stroke="#E4E7EC"/>
+<text x="50" y="124" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="600" fill="#1D1D1F" text-anchor="start">Swagger page</text>
+<text x="50" y="143" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="12" font-weight="400" fill="#6E6E73" text-anchor="start">or an OpenAPI file</text>
+<path d="M264 128H290" fill="none" stroke="#9AA0AA" stroke-width="1.5"/>
+<rect x="32" y="176" width="232" height="64" rx="14" fill="#F6F7F9" stroke="#E4E7EC"/>
+<text x="50" y="204" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="600" fill="#1D1D1F" text-anchor="start">Postman collection</text>
+<text x="50" y="223" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="12" font-weight="400" fill="#6E6E73" text-anchor="start">folders, auth, examples</text>
+<path d="M264 208H290" fill="none" stroke="#9AA0AA" stroke-width="1.5"/>
+<rect x="32" y="256" width="232" height="64" rx="14" fill="#F6F7F9" stroke="#E4E7EC"/>
+<text x="50" y="284" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="600" fill="#1D1D1F" text-anchor="start">curl</text>
+<text x="50" y="303" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="12" font-weight="400" fill="#6E6E73" text-anchor="start">paste one or many</text>
+<path d="M264 288H290" fill="none" stroke="#9AA0AA" stroke-width="1.5"/>
+<rect x="32" y="336" width="232" height="64" rx="14" fill="#F6F7F9" stroke="#E4E7EC"/>
+<text x="50" y="364" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="600" fill="#1D1D1F" text-anchor="start">Legacy service</text>
+<text x="50" y="383" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="12" font-weight="400" fill="#6E6E73" text-anchor="start">SOAP, XML, cookie login</text>
+<path d="M264 368H290" fill="none" stroke="#9AA0AA" stroke-width="1.5"/>
+<path d="M290 128V368" fill="none" stroke="#9AA0AA" stroke-width="1.5"/>
+<path d="M290 180H336" fill="none" stroke="#9AA0AA" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="297" y="172" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#6E6E73" text-anchor="start">import</text>
+<text x="338" y="72" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="15" font-weight="700" fill="#1D1D1F" text-anchor="start">mcpDeck</text>
+<text x="414" y="72" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="12" font-weight="400" fill="#6E6E73" text-anchor="start">one binary · runs on your laptop · SQLite</text>
+<rect x="338" y="96" width="160" height="166" rx="14" fill="#F6F7F9" stroke="#E4E7EC"/>
+<text x="354" y="122" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="700" fill="#1D1D1F" text-anchor="start">APIs</text>
+<text x="354" y="140" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#6E6E73" text-anchor="start">like Postman collections</text>
+<rect x="354" y="156" width="33" height="17" rx="5" fill="rgba(52,199,89,.16)"/><text x="370.5" y="168" font-family="'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace" font-size="10.5" font-weight="600" fill="#1F7A35" text-anchor="middle">GET</text>
+<text x="392" y="168" font-family="'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace" font-size="10.5" font-weight="400" fill="#1D1D1F" text-anchor="start">/accounts/{id}</text>
+<rect x="354" y="180" width="40" height="17" rx="5" fill="rgba(0,113,227,.12)"/><text x="374" y="192" font-family="'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace" font-size="10.5" font-weight="600" fill="#0058B0" text-anchor="middle">POST</text>
+<text x="399" y="192" font-family="'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace" font-size="10.5" font-weight="400" fill="#1D1D1F" text-anchor="start">/search</text>
+<text x="354" y="220" font-family="'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace" font-size="10.5" font-weight="400" fill="#0071E3" text-anchor="start">{{tenantId}}</text>
+<text x="354" y="244" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#6E6E73" text-anchor="start">keys encrypted</text>
+<path d="M498 180H508" fill="none" stroke="#9AA0AA" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="512" y="96" width="160" height="166" rx="14" fill="#F6F7F9" stroke="#E4E7EC"/>
+<text x="528" y="122" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="700" fill="#1D1D1F" text-anchor="start">Tools</text>
+<text x="528" y="140" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#6E6E73" text-anchor="start">TypeScript, versioned</text>
+<text x="528" y="168" font-family="'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace" font-size="10.5" fill="#6E6E73">await<tspan fill="#0071E3"> crm.getAccount()</tspan></text>
+<text x="528" y="190" font-family="'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace" font-size="10.5" fill="#6E6E73">await<tspan fill="#0071E3"> jira.search()</tspan></text>
+<text x="528" y="212" font-family="'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace" font-size="10.5" fill="#6E6E73">return<tspan fill="#1D1D1F"> { name, … }</tspan></text>
+<text x="528" y="244" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#6E6E73" text-anchor="start">v3 · live</text>
+<path d="M672 180H682" fill="none" stroke="#9AA0AA" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="686" y="96" width="160" height="166" rx="14" fill="#F6F7F9" stroke="#E4E7EC"/>
+<text x="702" y="122" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="700" fill="#1D1D1F" text-anchor="start">Toolkits</text>
+<text x="702" y="140" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#6E6E73" text-anchor="start">each is an MCP server</text>
+<rect x="702" y="156" width="128" height="32" rx="9" fill="#FFFFFF" stroke="#E4E7EC"/>
+<text x="712" y="170" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11.5" font-weight="600" fill="#1D1D1F" text-anchor="start">support</text>
+<text x="712" y="183" font-family="'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace" font-size="10" font-weight="400" fill="#6E6E73" text-anchor="start">/mcp/support</text>
+<rect x="702" y="196" width="128" height="32" rx="9" fill="#FFFFFF" stroke="#E4E7EC"/>
+<text x="712" y="210" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11.5" font-weight="600" fill="#1D1D1F" text-anchor="start">finance</text>
+<text x="712" y="223" font-family="'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace" font-size="10" font-weight="400" fill="#6E6E73" text-anchor="start">/mcp/finance</text>
+<text x="702" y="244" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#6E6E73" text-anchor="start">only the tools you pick</text>
+<rect x="338" y="290" width="508" height="98" rx="16" fill="#F6F7F9" stroke="#E4E7EC"/>
+<text x="354" y="316" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="700" fill="#1D1D1F" text-anchor="start">Calls and suggestions</text>
+<text x="510" y="316" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11.5" font-weight="400" fill="#6E6E73" text-anchor="start">who called what, when, how long, how many tokens</text>
+<rect x="354" y="338" width="154" height="28" rx="14" fill="#FFFFFF" stroke="#E4E7EC"/>
+<text x="431" y="356" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#1D1D1F" text-anchor="middle">merge repeated calls</text>
+<rect x="516" y="338" width="140.8" height="28" rx="14" fill="#FFFFFF" stroke="#E4E7EC"/>
+<text x="586.4" y="356" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#1D1D1F" text-anchor="middle">drop unused fields</text>
+<rect x="664.8" y="338" width="160.6" height="28" rx="14" fill="#FFFFFF" stroke="#E4E7EC"/>
+<text x="745.0999999999999" y="356" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#1D1D1F" text-anchor="middle">run calls in parallel</text>
+<text x="830" y="380" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="10.5" font-weight="400" fill="#6E6E73" text-anchor="end">rules, no LLM</text>
+<path d="M592 290V266" fill="none" stroke="#9AA0AA" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="600" y="281" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#6E6E73" text-anchor="start">improve</text>
+<rect x="338" y="408" width="508" height="90" rx="16" fill="#1D1D1F"/>
+<text x="354" y="434" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="start">Proxy</text>
+<text x="402" y="434" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11.5" font-weight="400" fill="#B8B8BE" text-anchor="start">the only way out · allow-listed hosts only</text>
+<rect x="354" y="452" width="162.6" height="28" rx="14" fill="rgba(255,255,255,.13)"/>
+<text x="435.3" y="470" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#FFFFFF" text-anchor="middle">read-only can't write</text>
+<rect x="524.6" y="452" width="123" height="28" rx="14" fill="rgba(255,255,255,.13)"/>
+<text x="586.1" y="470" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#FFFFFF" text-anchor="middle">keys added here</text>
+<rect x="655.6" y="452" width="136.2" height="28" rx="14" fill="rgba(255,255,255,.13)"/>
+<text x="723.7" y="470" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#FFFFFF" text-anchor="middle">every call logged</text>
+<path d="M338 470H148V406" fill="none" stroke="#9AA0AA" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="156" y="492" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="400" fill="#6E6E73" text-anchor="start">real calls to your systems</text>
+<text x="928" y="70" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="600" fill="#6E6E73" text-anchor="start">YOUR AGENTS</text>
+<rect x="928" y="96" width="240" height="64" rx="14" fill="#F6F7F9" stroke="#E4E7EC"/>
+<text x="946" y="124" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="600" fill="#1D1D1F" text-anchor="start">Claude Code</text>
+<text x="946" y="143" font-family="'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace" font-size="11" font-weight="400" fill="#6E6E73" text-anchor="start">claude mcp add …</text>
+<path d="M887 128H928" fill="none" stroke="#9AA0AA" stroke-width="1.5"/>
+<rect x="928" y="176" width="240" height="64" rx="14" fill="#F6F7F9" stroke="#E4E7EC"/>
+<text x="946" y="204" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="600" fill="#1D1D1F" text-anchor="start">VS Code + Copilot</text>
+<text x="946" y="223" font-family="'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace" font-size="11" font-weight="400" fill="#6E6E73" text-anchor="start">.vscode/mcp.json</text>
+<path d="M887 208H928" fill="none" stroke="#9AA0AA" stroke-width="1.5"/>
+<rect x="928" y="256" width="240" height="64" rx="14" fill="#F6F7F9" stroke="#E4E7EC"/>
+<text x="946" y="284" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="600" fill="#1D1D1F" text-anchor="start">Cursor</text>
+<text x="946" y="303" font-family="'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace" font-size="11" font-weight="400" fill="#6E6E73" text-anchor="start">~/.cursor/mcp.json</text>
+<path d="M887 288H928" fill="none" stroke="#9AA0AA" stroke-width="1.5"/>
+<rect x="928" y="336" width="240" height="64" rx="14" fill="#F6F7F9" stroke="#E4E7EC"/>
+<text x="946" y="364" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="13" font-weight="600" fill="#1D1D1F" text-anchor="start">Claude Desktop</text>
+<text x="946" y="383" font-family="'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace" font-size="11" font-weight="400" fill="#6E6E73" text-anchor="start">through the stdio bridge</text>
+<path d="M887 368H928" fill="none" stroke="#9AA0AA" stroke-width="1.5"/>
+<path d="M887 128V368" fill="none" stroke="#9AA0AA" stroke-width="1.5"/>
+<path d="M887 180H850" fill="none" stroke="#9AA0AA" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="893" y="172" font-family="Inter, -apple-system, 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="600" fill="#6E6E73" text-anchor="start">MCP</text>
+</svg>

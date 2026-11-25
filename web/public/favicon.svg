@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="mcpDeck">
+  <rect width="64" height="64" rx="15" fill="#1D1D1F"/>
+  <rect x="13" y="17" width="22" height="30" rx="4.5" fill="#0071E3" transform="rotate(-12 24 32)"/>
+  <rect x="27" y="15" width="22" height="30" rx="4.5" fill="#1D1D1F" transform="rotate(9 38 30)"/>
+  <rect x="28.5" y="16.5" width="19" height="27" rx="3.5" fill="#FFFFFF" transform="rotate(9 38 30)"/>
+  <g transform="rotate(9 38 30)" fill="none" stroke="#1D1D1F" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M34 25.5l-3.2 4.5 3.2 4.5"/>
+    <path d="M42 25.5l3.2 4.5-3.2 4.5"/>
+  </g>
+</svg>

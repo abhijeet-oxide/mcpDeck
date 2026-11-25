@@ -87,7 +87,7 @@ These protect users' systems. Each has a test; don't weaken it.
 - **The local server is local.** `127.0.0.1` only; `Host` and `Origin` are
   checked; the UI needs its launch cookie. (RUN-5)
 - **Tool versions are immutable.** Saving creates a new version. (VER-1)
-- **The JS sandbox has no I/O.** The application clients and `call()` are
+- **The JS sandbox has no I/O.** The API clients and `call()` are
   the only way out. (TOOL-4)
 - **The audit log is append-only.** (AUD-1)
 
@@ -124,7 +124,7 @@ If a task seems to need breaking one of these, stop and ask.
   no emoji, no gradients on content.
 - Accessible by default: real `<button>`/`<a>`, labels on inputs, visible focus,
   AA contrast.
-- Navigation stays at Home, Applications, Toolkits, Agents and Settings. Ask
+- Navigation stays at Home, APIs, Toolkits, Agents and Settings. Ask
   before adding a top-level item.
 
 ## Commits and PRs

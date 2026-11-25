@@ -26,7 +26,7 @@ early. Later milestones make each part complete.
 | | Milestone | Outcome |
 |---|---|---|
 | **M1** | Walking skeleton | `mcpdeck.exe` starts, opens the UI, stores in SQLite; add one request by hand, send it through the proxy, write a one-step tool, put it in a toolkit, add it to Claude Code, call it, see the call |
-| **M2** | Applications | Postman-style collections: imports, environments, variables, auth, runner, history, examples, scripts |
+| **M2** | APIs | Postman-style collections: imports, environments, variables, auth, runner, history, examples, scripts |
 | **M3** | Credentials | Local encrypted store with the key in the OS keychain |
 | **M4** | Code tools | TypeScript editor with autocomplete, sandbox, tests, versions, tools as files |
 | **M5** | Toolkits and MCP | One endpoint per toolkit, connections, one-click add to clients, access rules, agent-built tools |
@@ -49,7 +49,7 @@ browser. A second launch opens the browser on the running instance instead of
 starting another. `mcpdeck serve --no-open` starts without a browser.
 *Accept:* second launch exits 0 within 1 s and the first instance keeps running.
 
-**RUN-3 Local data.** All settings, applications, tools, connections and calls
+**RUN-3 Local data.** All settings, APIs, tools, connections and calls
 live in one SQLite database in the user data folder: `%LOCALAPPDATA%\mcpDeck`
 on Windows, `~/Library/Application Support/mcpDeck` on macOS,
 `$XDG_DATA_HOME/mcpdeck` on Linux. `--data <dir>` overrides it. No other state
@@ -83,25 +83,25 @@ default timeouts, retention, keychain status, and a "Reveal data folder"
 button. Every setting is stored in SQLite and takes effect without a restart,
 except the port.
 
-## Applications (M2)
+## APIs (M2)
 
-Applications behave like Postman or Bruno collections. Someone who has used
+APIs behave like Postman or Bruno collections. Someone who has used
 either should not need to read anything.
 
-**APP-1 Application.** Create, rename, duplicate and delete an application,
+**APP-1 API.** Create, rename, duplicate and delete an API,
 with folders inside it. Deleting one that tools use is refused with a list of
 those tools.
 
-**APP-2 Allowed hosts.** Each application has an allow-list of outbound hosts,
+**APP-2 Allowed hosts.** Each API has an allow-list of outbound hosts,
 defaulting to the hosts of its environments' base URLs. Calls to any other host
 are refused with `host_not_allowed` and recorded.
 
-**ENV-1 Environments.** An application has environments (e.g. Local, Dev,
+**ENV-1 Environments.** An API has environments (e.g. Local, Dev,
 Staging), each a set of variables. One is active in the UI; each toolkit
 connection picks one (CON-1).
 
 **VAR-1 Variables.** `{{name}}` works in URL, params, headers, body and auth,
-with Postman's scopes and order: request-local → environment → application →
+with Postman's scopes and order: request-local → environment → API →
 global. Unresolved variables are highlighted in red in the editor and listed
 before sending.
 
@@ -111,7 +111,7 @@ the user picks; or a secret (stored per CRED-2). Secret variables resolve only
 inside the proxy (CRED-7).
 *Accept:* changing the `.env` file is picked up on the next call.
 
-**AUTH-1 Auth inheritance.** Auth is set on the application, a folder or a
+**AUTH-1 Auth inheritance.** Auth is set on the API, a folder or a
 request, with "Inherit from parent" as the default, like Postman. Types:
 none, API key (header or query), bearer, basic, OAuth 2.0 client credentials,
 digest, and **login request** (CRED-1).
@@ -119,7 +119,7 @@ digest, and **login request** (CRED-1).
 **HTTP-1 Requests.** A request has method (any verb, including custom),
 URL, params, headers, body and auth. Bodies: none, JSON, XML, text,
 `x-www-form-urlencoded`, multipart, GraphQL, binary file. Cookies are kept in
-a per-application cookie jar that can be viewed and cleared.
+a per-API cookie jar that can be viewed and cleared.
 
 **IMP-1 OpenAPI / Swagger.** Import OpenAPI 3.x and Swagger 2.0 from a file or
 URL. Each operation becomes a request named from its `operationId` (or method
@@ -152,7 +152,7 @@ be reopened as a request.
 **RNR-3 Copy as code.** Copy any request as curl, `fetch`, and as a tool call
 (`crm.getAccount({ id })`) for the code editor.
 
-**RNR-4 Scripts.** Requests, folders and applications MAY have pre-request and
+**RNR-4 Scripts.** Requests, folders and APIs MAY have pre-request and
 post-response scripts in JavaScript with a Postman-compatible subset of `pm`:
 `pm.environment`, `pm.variables`, `pm.collectionVariables`, `pm.request`,
 `pm.response` (`json()`, `text()`, `code`, `headers`), `pm.test`, `pm.expect`
@@ -164,7 +164,7 @@ results as in Postman.
 per test.
 
 **RNR-6 Script trust.** Imported scripts don't run until the user trusts that
-application ("Run scripts in this collection"), like Bruno's safe mode.
+API ("Run scripts in this collection"), like Bruno's safe mode.
 
 **API-1 Read / write.** Each request is `read` (GET, HEAD, OPTIONS) or `write`
 (everything else) by default. The user can override (a POST search is `read`).
@@ -189,7 +189,7 @@ code editor's types come from this (TOOL-3).
 pick a request (e.g. `POST /login` with form fields), say what to capture
 (cookie, header or a JSON path) and how long it lasts; mcpDeck runs it when
 needed and adds the captured value to later calls.
-*Accept:* a mock app with cookie login works through a tool without the tool
+*Accept:* a mock API with cookie login works through a tool without the tool
 code handling the login.
 
 **CRED-2 Local store.** Secrets are encrypted at rest with AES-256-GCM, one
@@ -211,7 +211,7 @@ row.
 Delete. There's no Reveal. Replacing takes effect on the next call without
 changing any tool.
 
-**CRED-6 Per environment.** A credential belongs to an application and an
+**CRED-6 Per environment.** A credential belongs to an API and an
 environment.
 
 **CRED-7 Not readable by code.** Scripts and tools can't read secret values.
@@ -266,7 +266,7 @@ exactly what the agent gets.
 *Accept:* the example above runs against the demo world (MOCK-3).
 
 **TOOL-2 Runtime.** Globals available to tool code, and nothing else:
-- one client per application, named after it (`crm`, `billing`), with one
+- one client per API, named after it (`crm`, `billing`), with one
   method per request, named after the request (`getAccount`). Arguments:
   `{ path, query, headers, body }` or flat params when unambiguous. Returns
   the parsed body; non-2xx throws an `ApiError` with status and body.
@@ -279,13 +279,13 @@ All network goes through the proxy with the connection's grants.
 
 **TOOL-3 Code editor.** The editor is Monaco (the VS Code editor) with the
 TypeScript language service:
-- autocomplete for application clients, request methods, their params and
+- autocomplete for API clients, request methods, their params and
   response fields, with types from the spec or captured schema (EX-2);
 - inline errors, hover docs, go-to-definition into the generated types,
   format on save, `Ctrl+S` to save, `Ctrl+Enter` to test;
 - snippets for common shapes (one call, chained calls, parallel calls,
   paginate) that insert real code;
-- a side panel listing applications and requests; clicking one inserts the
+- a side panel listing APIs and requests; clicking one inserts the
   call.
 *Accept:* typing `crm.` lists every request in `crm`; typing `.` on a response
 lists its fields from a saved example.
@@ -350,8 +350,8 @@ and prints a diff summary. Same file format as TOOL-1.
 ## Toolkits and MCP (M5)
 
 **TK-1 Toolkits.** A toolkit is a named set of tools. Its tools can use
-requests from any application. A toolkit has variables (TOOL-9), a default
-environment per application, and a "can build tools" switch for its
+requests from any API. A toolkit has variables (TOOL-9), a default
+environment per API, and a "can build tools" switch for its
 connections (MCP-3).
 
 **TK-2 One endpoint per toolkit.** Each toolkit is its own MCP server at
@@ -366,7 +366,7 @@ skill file is needed for an agent to use it.
 
 **CON-1 Connections.** Adding a toolkit to a client creates a connection: a
 name ("Claude Code on this laptop"), a token (stored hashed), an access level
-(`read` or `read_write`), an environment per application, variables, and
+(`read` or `read_write`), an environment per API, variables, and
 version pins. Shown on the Agents page.
 
 **CON-2 Add to client.** The toolkit page has "Add to…" for Claude Code,
@@ -408,7 +408,7 @@ and `destructiveHint` annotations follow the tool's access.
 
 | Tool | Purpose |
 |---|---|
-| `search_apis` | Find requests by intent across the toolkit's applications. Returns one line each: `crm.getAccount({ id }) → Account · GET /accounts/{id} · read` |
+| `search_apis` | Find requests by intent across the toolkit's APIs. Returns one line each: `crm.getAccount({ id }) → Account · GET /accounts/{id} · read` |
 | `describe_api` | The TypeScript signature and response type, and one masked example |
 | `run_api` | Send one request through the proxy, with a compact response (large arrays trimmed, with a count) |
 | `run_script` | Run TypeScript in the tool sandbox with the same runtime as TOOL-2, for exploring |
@@ -472,7 +472,7 @@ upstream calls per call, and `tools/list` cost.
 **SES-5 Retention.** Default 30 days for call bodies and 1 year for call
 metadata, set in Settings.
 
-**AUD-1 Audit log.** Append-only record of changes to applications, requests,
+**AUD-1 Audit log.** Append-only record of changes to APIs, requests,
 credentials (that they changed, never values), tools, versions, toolkits,
 connections and access; approvals; revocations. Each entry: actor (you or a
 connection), action, target, time, detail.
@@ -524,14 +524,14 @@ person can decide on access or a read tool.
 
 Designed in [testing.md](testing.md#mock-servers).
 
-**MOCK-1 Mock from an application.** `mcpdeck mock <app>` serves a fake version
-of an application from its spec and saved examples on a local port:
+**MOCK-1 Mock from an API.** `mcpdeck mock <api>` serves a fake version
+of an API from its spec and saved examples on a local port:
 deterministic, seeded, schema-valid responses.
 
 **MOCK-2 Fault injection.** Mocks MAY add latency, error rates, rate limiting
 and malformed responses per request, from flags or config.
 
-**MOCK-3 Demo world.** A built-in set of related mock applications (CRM,
+**MOCK-3 Demo world.** A built-in set of related mock APIs (CRM,
 billing, ticketing, and a legacy SOAP-style service with cookie login) with
 consistent seeded data, used by `mcpdeck dev`, e2e tests and demos.
 
@@ -544,7 +544,7 @@ responses, so a bug seen against a real system can be reproduced offline.
 
 ## UI
 
-**UI-1 Five places.** Navigation is Home, Applications, Toolkits, Agents,
+**UI-1 Five places.** Navigation is Home, APIs, Toolkits, Agents,
 Settings. No onboarding wizard. Home shows: suggestions, tool requests,
 pending versions, and recent activity; when empty, it shows three real
 actions (Import an API, Create a toolkit, Try the demo).
@@ -569,7 +569,7 @@ console error and no unhandled request.
 "seamless", "effortless", "powerful", "unlock", "supercharge", "leverage",
 "revolutionize", "AI-powered", "elevate". Checked in CI.
 
-**UI-6 Command palette.** `Ctrl+K` / `⌘K` finds any application, request,
+**UI-6 Command palette.** `Ctrl+K` / `⌘K` finds any API, request,
 toolkit, tool, connection or setting, and runs actions ("New request",
 "Add toolkit to Claude Code").
 
@@ -625,7 +625,7 @@ binary; listens beyond localhost only with auth configured.
 **TEAM-2 People.** OIDC sign-in, roles (admin, author, viewer), approvals by
 another person.
 
-**TEAM-3 Promote from git.** `mcpdeck apply <dir>` applies applications,
+**TEAM-3 Promote from git.** `mcpdeck apply <dir>` applies APIs,
 toolkits and tools from files (FILE-1) and shows a plan first, like
 `terraform plan`.
 
