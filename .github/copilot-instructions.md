@@ -4,7 +4,7 @@ The full instructions for this repo are in [AGENTS.md](../AGENTS.md). Read it
 first. The essentials:
 
 - mcpDeck is a single Go binary with an embedded React UI. It sits between AI
-  agents and APIs, including legacy ones: Postman-style applications,
+  agents and APIs, including legacy ones: Postman-style APIs,
   TypeScript tools, one MCP endpoint per toolkit, a local credential store,
   per-connection access, calls with time and tokens, and rule-based
   suggestions. Phase 1 is dev mode on a laptop, Windows first-class.

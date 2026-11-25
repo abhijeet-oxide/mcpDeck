@@ -63,9 +63,9 @@ builds a feature and then checks it end to end itself.
 
 ### What we'll build
 
-**`internal/mock`**: a Go package that serves an application as a fake API.
+**`internal/mock`**: a Go package that serves an API as a fake server.
 
-- Input: an application's APIs (from any importer) plus its saved examples.
+- Input: an API's requests (from any importer) plus its saved examples.
 - Response choice: exact example match → closest example → generated from the
   response schema with a seeded faker. Same seed, same responses.
 - Stateful mode (optional): `POST` / `PUT` / `DELETE` change an in-memory store
@@ -75,11 +75,11 @@ builds a feature and then checks it end to end itself.
 - Usable in Go tests as `mock.Start(t, app, opts...)` returning an
   `httptest.Server`.
 
-**Demo world** (`examples/demo/`): four related mock applications with
+**Demo world** (`examples/demo/`): four related mock APIs with
 consistent seeded data. The same customer IDs appear across all three, so
-cross-application tools make sense.
+cross-API tools make sense.
 
-| App | Style | Shape |
+| API | Style | Shape |
 |---|---|---|
 | `acme-crm` | REST, OpenAPI 3 | accounts, contacts, owners |
 | `acme-billing` | REST, Swagger 2, API-key auth | customers, invoices (large responses on purpose) |
@@ -108,7 +108,7 @@ toolkit dev   http://127.0.0.1:47800/mcp/dev   token: mcpdeck-dev
 
 Dev mode uses a fixed token, `mcpdeck-dev`, so the editor configs in this repo can
 hard-code it. It's only accepted when mcpDeck runs with `dev` on `127.0.0.1` with
-a throwaway data directory and mock applications. Normal `serve` refuses it.
+a throwaway data directory and mock APIs. Normal `serve` refuses it.
 
 ### Testing inside a coding-agent session
 

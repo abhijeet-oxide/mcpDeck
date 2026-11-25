@@ -46,7 +46,7 @@ smaller and faster, with plain rules and no LLM.
 2. **Change in seconds.** Edit, test against a real or saved response, save.
    The new version is live immediately. Nothing to build or redeploy, and
    agents pinned to an older version keep working.
-3. **Nothing new to learn, for people or agents.** Applications work like
+3. **Nothing new to learn, for people or agents.** APIs work like
    Postman collections. Tools are TypeScript with autocomplete, like Postman
    scripts. Inputs are JSON Schema, tools are MCP tools, config is the JSON
    your editor already reads. An agent can build a tool with no extra
@@ -79,16 +79,33 @@ smaller and faster, with plain rules and no LLM.
 Dev mode has to work completely on its own. Nothing in Phase 1 depends on a
 server, an account or the network beyond the APIs you call.
 
+## Words we use
+
+Each word is the one people already use for that thing elsewhere. Use these
+words in the UI, docs, CLI, errors and code.
+
+| Word | Means | Why this word |
+|---|---|---|
+| **API** | One system you call, like "the Jira API": base URLs per environment, auth, credentials, and its requests. | It's what people call it. Postman says "collection" and Zapier says "app", but "Application" clashes with OAuth apps in Okta and Azure and with the user's own app. |
+| **Request** | One saved call inside an API: method, URL, params, body. | Postman, Bruno and Insomnia all say request. |
+| **Environment**, **variable** | Named sets of `{{values}}` (Local, Staging) and the values themselves. | Same as Postman. |
+| **Credential** | A secret mcpDeck adds to requests. Never shown to agents. | Plain word; "secret" is also fine in the UI. |
+| **Tool** | One thing an agent can call: a TypeScript function over one or more requests, with a name, description and input schema. | It's an MCP tool, exactly. |
+| **Toolkit** | A named set of tools that an agent adds as one MCP server. | LangChain, the Stripe agent toolkit, Composio and Arcade all use "toolkit" for a set of tools given to an agent. "Project" says nothing about what it does. "Server" would clash with the mcpDeck server itself. |
+| **Agent** | A client you added a toolkit to, like "Claude Code on this laptop", with its own token and access. Called a *connection* in the data model. | It's what people see and say. |
+| **Call** | One recorded use of a tool or request: who, when, how long, tokens. | Plain word, matches "API call". |
+| **Suggestion** | A rule-based change mcpDeck proposes from recorded calls. | Says what it is; "insight" sounds like a dashboard. |
+
 ## Mental model
 
 ```
-Application → Requests → Environments + Variables → Credentials → Examples
-Toolkit → Tools (TypeScript, one or more APIs, from any application)
+API → Requests → Environments + Variables → Credentials → Examples
+Toolkit → Tools (TypeScript, calling one or more APIs)
 Toolkit → MCP endpoint → Connections (Claude Code, VS Code, Cursor…; read or read+write)
 Connection → every call, with time, bytes and tokens → suggestions
 ```
 
-1. Create an **application**, like a Postman collection: one per system.
+1. Create an **API**, like a Postman collection: one per system.
 2. Add **requests**: import a Swagger page, OpenAPI, Postman or curl, or add one
    by hand.
 3. Set **environments** and **variables** (`{{baseUrl}}`, `{{tenantId}}`) and
