@@ -58,6 +58,11 @@ version with `releases/download/v0.2.0/<name>` or `MCPDECK_VERSION=v0.2.0`.
 ## If a release fails
 
 - `ci` red: nothing was tagged. Fix on a branch, merge, it runs again.
+- A job cancelled with no steps (GitHub never gave it a runner, seen on
+  macOS): `retry.yml` re-runs it automatically, up to twice per run, and the
+  release carries on. It never retries a job that ran and failed. If it's
+  still stuck after that, re-run the failed jobs by hand once Actions is
+  healthy.
 - `publish` red after the tag was pushed: delete the tag and the draft or
   partial release (`git push --delete origin vX.Y.Z`), fix, and either merge
   the fix (the next version is recomputed) or run the workflow by hand with

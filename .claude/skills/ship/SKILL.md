@@ -44,6 +44,7 @@ Read the failing job's log before changing anything. Common causes:
 | scorecard: "workflow contains global env vars" | Scorecard won't publish from a workflow with top-level `env:`/`defaults:` | Keep `security.yml` free of them |
 | `release-dry-run` / checkdist | An artifact name, size or the version string changed | Fix `.goreleaser.yaml`; ldflags must target `internal/version` |
 | govulncheck on the binary | A Go stdlib advisory | CI already uses the latest 1.26 patch; if the fix is in a newer minor, bump go.mod and `GO_VERSION` together |
+| A job **cancelled with no steps** and no runner, release skipped | GitHub never assigned a runner (macOS queue) | `retry.yml` re-runs it automatically; don't change code. If it stays stuck, re-run failed jobs once Actions is healthy |
 | dependency-review | A new dependency with a high-severity advisory | Pick another version or package |
 
 This container has no PowerShell and runs as root, so Windows and
