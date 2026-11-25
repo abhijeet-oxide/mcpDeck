@@ -4,22 +4,23 @@
 
 # mcpDeck
 
-**A repeatable, controlled layer between AI agents and your APIs.**
+**Turn any API, including the legacy ones, into fast, controlled tools for AI agents.**
 
-Turn any API into versioned agent tools. No MCP server to write, no redeploys,<br>
-and agents never see a real credential.
+One binary. Import what you already have, write a tool in a few lines of
+TypeScript, and add it to Claude Code, VS Code or Cursor in one click.<br>
+Change it in seconds. Agents get only what they need and never see a key.
 
 [![License](https://img.shields.io/badge/license-Apache_2.0-1d1d1f?style=flat-square)](LICENSE)
 ![Status](https://img.shields.io/badge/status-design_phase-0071e3?style=flat-square)
 ![Go](https://img.shields.io/badge/Go-single_binary-1d1d1f?style=flat-square&logo=go&logoColor=white)
-![React](https://img.shields.io/badge/UI-React-1d1d1f?style=flat-square&logo=react&logoColor=white)
+![Windows](https://img.shields.io/badge/Windows_·_macOS_·_Linux-1d1d1f?style=flat-square)
 ![MCP](https://img.shields.io/badge/MCP-Streamable_HTTP-1d1d1f?style=flat-square)
 
-[Why](#why-this-exists) · [What it does](#what-mcpdeck-does) · [Quickstart](#quickstart) · [Docs](docs/) · [Status](#status)
+[Why](#why-this-exists) · [Why mcpDeck](#why-mcpdeck) · [How it works](#how-it-works) · [Quickstart](#quickstart) · [Docs](docs/) · [Status](#status)
 
 <br>
 
-<img src="docs/screenshots/tool-builder.png" width="920" alt="Building a tool in mcpDeck: three API steps across Salesforce, Billing and Jira, with versions and an agent building the same tool from a prompt">
+<img src="docs/screenshots/tool-builder.png" width="920" alt="A customer_360 tool in mcpDeck that reads Salesforce, Billing and Jira, with its versions">
 
 </div>
 
@@ -27,155 +28,186 @@ and agents never see a real credential.
 
 ## Why this exists
 
-**MCP servers are slow to build and slower to maintain.** Every tool is code you
-write, build and deploy. When the API changes or a description needs a tweak,
-you redeploy again. Most teams end up with a few hand-built servers that fall
-behind the APIs they wrap.
+**Most systems will never get an MCP server.** The internal services, vendor
+APIs and SOAP endpoints where real work happens have a Swagger page, a Postman
+collection or a curl command at best. Nobody will write and maintain a server
+for each.
 
-**Legacy systems don't speak MCP.** The internal services, vendor APIs and SOAP
-endpoints where the real work happens have a spec at best. Nobody is going to
-write and maintain an MCP server for each one.
+**MCP servers are slow to change.** Every tweak is code, a build and a
+redeploy, so tools fall behind the APIs they wrap.
 
-**Code execution works, but it's ambiguous and hard to audit.** Letting an agent
-write code against your APIs gets things done. But the code is different every
-run, nobody reviews it, it's gone when the session ends, and afterwards it's hard
-to say what actually ran or why.
+**Agents see too much and waste too much.** One server exposes every endpoint
+to every agent. Responses are huge, one job takes five calls, and the model is
+asked for values that are already known.
 
-## What mcpDeck does
+**Code execution works, then disappears.** The glue an agent writes is gone
+when the session ends, different next time, and nobody reviewed it.
 
-mcpDeck sits between your agents and your APIs and makes their work repeatable.
+## Why mcpDeck
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
-**Build capabilities from APIs you already have**<br>
-Import OpenAPI, Postman or curl. Chain calls into one tool, even across
-products: one `customer_360` tool can read Salesforce, Billing and Jira.
+**1. Any system, including legacy**<br>
+If you can call it from Postman, Bruno or curl, agents can use it. Point at a
+Swagger page, import OpenAPI or Postman, or paste curl. XML, form posts,
+cookies and login-request auth work.
 
 </td>
 <td width="50%" valign="top">
 
-**Change tools without redeploying**<br>
-Every save is a new version and goes live straight away. Agents pinned to an
-older version keep working.
+**2. Change in seconds**<br>
+Edit, test against a real or saved response, save. It's live straight away as
+a new version, and agents pinned to an older one keep working.
 
 </td>
 </tr>
 <tr>
 <td valign="top">
 
-**Agents never see real credentials**<br>
-Keys stay in the vault (local, HashiCorp Vault, AWS, Azure, 1Password) and are
-added to the request on the way out.
+**3. Nothing new to learn**<br>
+Applications work like Postman collections. Tools are TypeScript with
+autocomplete, like Postman scripts. Inputs are JSON Schema; tools are MCP
+tools. Agents already know all of it.
 
 </td>
 <td valign="top">
 
-**Decide what each agent can do**<br>
-Read-only, read and write, or "this action needs a person to approve".
-Revoke access in one click.
-
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-**Let agents build tools safely**<br>
-Inside those limits an agent can find APIs, try them and save what works.
-Read-only tools can be approved automatically. Tools that write wait for you.
-
-</td>
-<td valign="top">
-
-**Trace every call**<br>
-Each agent sign-in is a session. See every tool call with its time and tokens,
-and spot the calls that should become one tool.
+**4. Small tools, fewer tokens**<br>
+Chain calls into one tool, run them in parallel, return only what matters, and
+fill known values (tenant, region, user) from variables instead of asking the
+model.
 
 </td>
 </tr>
 <tr>
 <td valign="top">
 
-**Audit everything**<br>
-An append-only log records which agent used which tool, when, with what
-result, and who approved it.
+**5. Each agent sees only what it needs**<br>
+Every toolkit is its own MCP endpoint. Read-only connections can't send POST or
+DELETE: the proxy blocks it. Keys stay encrypted in mcpDeck. Revoke in one
+click.
 
 </td>
 <td valign="top">
 
-**Works with any coding agent**<br>
-Connect Claude Code, Copilot or Cursor. Use them to build tools, tune them using
-session data, or review the audit log.
+**6. Every call recorded, and it gets better**<br>
+Who called what, when, how long, how many tokens. mcpDeck turns that into
+suggestions (merge these calls, drop these fields, run these in parallel) with
+plain rules, no LLM.
+
+</td>
+</tr>
+<tr>
+<td colspan="2" valign="top">
+
+**7. Agents can build what's missing.** Inside your limits an agent can search
+your APIs, try them and save a tool. Read-only tools with passing tests go
+live; tools that write wait for you.
 
 </td>
 </tr>
 </table>
 
-## How it fits together
+## How it works
 
 ```
-Application ─▶ APIs ─▶ Credentials ─▶ Examples
-  (Jira)      (import)   (vault)      (saved responses)
+Application ─▶ Requests ─▶ Environments · Variables · Credentials ─▶ Examples
+ (like a        (Swagger,     ({{baseUrl}}, {{tenantId}},            (saved
+  Postman        OpenAPI,      encrypted keys)                        responses)
+  collection)    Postman, curl)
                      │
                      ▼
-            Project ─▶ Tools        one or more APIs, versioned
-                     │
-                     ▼
-            Agent ─▶ Access         read · read+write · needs approval
-                     │
-                     ▼
-            Session ─▶ calls · time · tokens ─▶ audit log
+Toolkit ─▶ Tools                 TypeScript, one or more requests, versioned
+   │
+   ▼
+MCP endpoint /mcp/<toolkit> ─▶ Connections   Claude Code · VS Code · Cursor · Claude Desktop
+                                   │          read or read+write
+                                   ▼
+                           Calls · time · tokens ─▶ suggestions
 ```
 
-<details>
-<summary><b>Screenshots</b></summary>
-<br>
+A tool is a short TypeScript file. If you've written a Postman script or an
+async function, you can write one, and so can your agent:
 
-| | |
-|---|---|
-| <img src="docs/screenshots/home.png" alt="Home"> | <img src="docs/screenshots/application.png" alt="Application: APIs, credentials, examples"> |
-| **Home:** live sessions and tools made by agents | **Application:** import APIs, run them, save examples |
-| <img src="docs/screenshots/agent-sessions.png" alt="Agent sessions"> | <img src="docs/screenshots/export.png" alt="Export a copy"> |
-| **Agent:** every session, call, duration and token count | **Settings › Export:** take a working copy anywhere |
+```ts
+export const tool = {
+  name: "customer_360",
+  description: "One view of a customer: account, balance, overdue invoices and open tickets.",
+  inputSchema: { type: "object", properties: { accountId: { type: "string" } }, required: ["accountId"] },
+};
 
-</details>
+export default async function (input: Input) {
+  const account = await crm.getAccount({ id: input.accountId });
+  const [summary, tickets] = await Promise.all([
+    billing.getCustomerSummary({ id: account.billingId }),
+    support.searchIssues({ body: { jql: `org = "${account.jiraOrg}" AND status != Done` } }),
+  ]);
+  return {
+    name: account.name,
+    balance: summary.balance,
+    overdueInvoices: summary.invoices.filter((i) => i.overdue),
+    openTickets: tickets.issues.map((t) => t.key),
+  };
+}
+```
+
+`crm`, `billing` and `support` are your applications, with autocomplete for
+every request and response field. Credentials are added on the way out; the
+code never sees them.
+
+## Two ways to run it
+
+| | **Dev**: the focus now | **Prod**: later |
+|---|---|---|
+| Runs as | One binary on your laptop. Double-click, the UI opens | The same binary as a service |
+| Data | SQLite | Postgres |
+| Secrets | Encrypted, key in your OS keychain | HashiCorp, AWS, Azure, GCP, 1Password |
+| People | You | SSO, roles, approvals |
 
 ## Quickstart
 
 > mcpDeck is in the design phase. This is how it will work.
 
-```sh
-brew install mcpdeck
-mcpdeck serve                 # UI + MCP on http://localhost:8080
-mcpdeck connect claude        # or: copilot, cursor
-```
+Download `mcpdeck.exe` (or the macOS / Linux binary) and run it. The UI opens
+at `http://127.0.0.1:47800`.
 
-Then ask your agent:
+1. **Applications › Import**: paste a Swagger page URL, or drop an OpenAPI
+   file or Postman collection.
+2. Send a few requests and save good responses.
+3. **Toolkits › New toolkit**, then **New tool**, or select requests in
+   History and choose **Create tool**.
+4. **Add to… › Claude Code**. Then ask your agent:
 
-> make a tool that shows a customer's balance and open Jira tickets
+> what's the balance and open tickets for account 001Ab00000XyZ?
 
-It searches your APIs, runs them with credentials it never sees, and saves
-`customer_360` as v1. The tool, its versions and every call it makes show up
-in the UI.
+Want to try it without real APIs? `mcpdeck dev` starts with mock CRM, billing,
+ticketing and a legacy cookie-login service already set up.
 
-Want to try it without real APIs? `mcpdeck dev` starts mcpDeck with mock CRM,
-billing and ticketing apps already set up.
+## What mcpDeck protects, and what it doesn't
+
+Agents connected over MCP never receive your keys, and the database file alone
+decrypts nothing because the key is in your OS keychain. mcpDeck can't stop a
+program running as you on the same machine, including an agent with a shell,
+from using your keychain or calling an API directly. Use it to control what
+agents get through MCP, not as a sandbox for the agent itself.
 
 ## Status
 
-Design phase. Built in this order:
+Design phase. Phase 1 (dev) is built in this order:
 
-1. Applications, API import, runner, examples
-2. Vault, agents, access, proxy
-3. Sessions and audit log
-4. MCP server and agent skill
-5. Tool builder and versions
-6. Approval rules
-7. Export / import
+1. Walking skeleton: binary, UI, SQLite, one request, one tool, one toolkit, add to Claude Code, see the call
+2. Applications: imports, environments, variables, auth, runner, scripts, examples
+3. Credentials: local encrypted store
+4. Code tools: editor with autocomplete, sandbox, tests, versions, tools as files
+5. Toolkits and MCP: endpoints, connections, one-click add, access, agent-built tools
+6. Calls and usage
+7. Suggestions
 
+Phase 2 adds the visual tool builder, external vaults and team server mode.
 Read [`docs/requirements.md`](docs/requirements.md) for the full list and
-[`docs/design.md`](docs/design.md) for the architecture and stack.
+[`docs/design.md`](docs/design.md) for the architecture.
 
 ## Contributing
 
