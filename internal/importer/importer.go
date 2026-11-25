@@ -203,8 +203,17 @@ func pathOf(u string) string {
 	return u
 }
 
-// uniqueNames makes request names unique within one import.
+// uniqueNames makes request names unique within one import, and gives every
+// request empty lists rather than nil.
 func uniqueNames(reqs []store.Request) {
+	for i := range reqs {
+		if reqs[i].Headers == nil {
+			reqs[i].Headers = []store.KV{}
+		}
+		if reqs[i].Query == nil {
+			reqs[i].Query = []store.KV{}
+		}
+	}
 	seen := map[string]int{}
 	for i := range reqs {
 		n := reqs[i].Name

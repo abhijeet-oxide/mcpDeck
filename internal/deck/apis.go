@@ -113,6 +113,9 @@ func (d *Deck) GetAPI(ctx context.Context, id string) (*APIDetail, error) {
 		return nil, notFound("API")
 	}
 	reqs, _ := d.Store.Requests(ctx, id)
+	for i := range reqs {
+		normalize(&reqs[i])
+	}
 	sort.SliceStable(reqs, func(i, j int) bool { return reqs[i].Folder < reqs[j].Folder })
 	envs, _ := d.Store.Environments(ctx, id)
 	vars, _ := d.Store.Variables(ctx, id)
@@ -416,6 +419,7 @@ func (d *Deck) Import(ctx context.Context, in ImportInput) (*ImportReport, error
 		if len(r.Example) > 0 {
 			r.Example = proxy.MaskJSON(r.Example)
 		}
+		normalize(&r)
 		if err := d.Store.PutRequest(ctx, r); err != nil {
 			return nil, err
 		}
@@ -468,6 +472,15 @@ func (d *Deck) Import(ctx context.Context, in ImportInput) (*ImportReport, error
 		d.audit(ctx, audit.You, "credential.set", a.Name, "from import: "+strings.Join(rep.Credentials, ", "))
 	}
 	return rep, nil
+}
+
+func normalize(r *store.Request) {
+	if r.Headers == nil {
+		r.Headers = []store.KV{}
+	}
+	if r.Query == nil {
+		r.Query = []store.KV{}
+	}
 }
 
 // SaveRequest creates or updates a request.
