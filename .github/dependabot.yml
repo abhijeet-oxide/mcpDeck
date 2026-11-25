@@ -1,11 +1,26 @@
 version: 2
+# Commit prefixes drive releases (NFR-8): Go and web dependencies end up in
+# the binary, so their bumps are `fix(deps)` and ship as a patch release;
+# workflow bumps are `ci(deps)` and don't release.
 updates:
   - package-ecosystem: gomod
     directory: /
-    schedule: { interval: weekly }
+    schedule: { interval: weekly, day: monday }
+    commit-message: { prefix: fix, include: scope }
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /web
-    schedule: { interval: weekly }
+    schedule: { interval: weekly, day: monday }
+    commit-message: { prefix: fix, prefix-development: chore, include: scope }
+    groups:
+      web-minor-patch:
+        update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
-    schedule: { interval: weekly }
+    schedule: { interval: weekly, day: monday }
+    commit-message: { prefix: ci, include: scope }
+    groups:
+      actions:
+        patterns: ["*"]
