@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>mcpDeck UI Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="mockup.css">
+</head>
+<body>
+<div class="glows" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="mockbar" role="note">
+  <span><b>mcpDeck UI mockup</b> · clickable, running on the demo world · not the product</span>
+  <div class="seg" id="mock-state" aria-label="Mockup state">
+    <button type="button" data-a="mockstate" data-v="new">First run</button>
+    <button type="button" data-a="mockstate" data-v="demo">Demo world</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="glass side" id="side" aria-label="Main"></nav>
+  <main class="main" id="main"></main>
+</div>
+<div id="layer"></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<!-- Tool files, exactly as mcpDeck stores them (TOOL-1). -->
+<script type="text/plain" id="src-customer_360">export const tool = {
+  name: "customer_360",
+  description: "One customer: account, tier, balance, overdue invoices and open tickets.",
+  useWhen: "A question is about one customer or account",
+  dontUseWhen: "Searching across many customers",
+  inputSchema: {
+    type: "object",
+    properties: { accountId: { type: "string", examples: ["001Ab00000XyZ"] } },
+    required: ["accountId"],
+  },
+};
+
+export default async function (input: Input) {
+  const account = await crm.getAccount({ id: input.accountId });
+  const [summary, tickets] = await Promise.all([
+    billing.getCustomerSummary({ id: account.billingId }),
+    support.searchIssues({ body: { jql: `org = "${account.jiraOrg}" AND status != Done` } }),
+  ]);
+  return {
+    name: account.name,
+    tier: account.tier,
+    balance: summary.balance,
+    overdueInvoices: summary.invoices.filter((i) => i.overdue),
+    openTickets: tickets.issues.map((t) => ({ key: t.key, title: t.fields.summary })),
+  };
+}
+</script>
+<script type="text/plain" id="src-open_tickets_for_account">export const tool = {
+  name: "open_tickets_for_account",
+  description: "Open support tickets for one account, newest first, with status, priority and assignee.",
+  useWhen: "Someone asks about a customer's open issues or tickets",
+  inputSchema: {
+    type: "object",
+    properties: {
+      accountId: { type: "string", examples: ["001Ab00000XyZ"] },
+      limit: { type: "integer", description: "Most tickets to return", examples: [20] },
+    },
+    required: ["accountId"],
+  },
+};
+
+export default async function (input: Input) {
+  const account = await crm.getAccount({ id: input.accountId });
+  const res = await support.searchIssues({
+    body: { jql: `org = "${account.jiraOrg}" AND status != Done ORDER BY created DESC`, maxResults: input.limit ?? 20 },
+  });
+  return {
+    total: res.total,
+    issues: res.issues.map((t) => ({
+      key: t.key,
+      fields: {
+        summary: t.fields.summary,
+        status: t.fields.status.name,
+        priority: t.fields.priority.name,
+        assignee: t.fields.assignee?.displayName ?? null,
+        description: t.fields.description,
+      },
+    })),
+  };
+}
+</script>
+<script type="text/plain" id="src-invoice_status">export const tool = {
+  name: "invoice_status",
+  description: "Status of one invoice: amount, amount paid, due date and whether it is overdue.",
+  useWhen: "Someone gives an invoice number",
+  inputSchema: {
+    type: "object",
+    properties: { number: { type: "string", examples: ["INV-88213"] } },
+    required: ["number"],
+  },
+};
+
+export default async function (input: Input) {
+  const inv = await billing.getInvoice({ number: input.number });
+  return {
+    number: inv.number,
+    amount: inv.total.amount,
+    paid: inv.amountPaid.amount,
+    currency: inv.total.currency,
+    dueDate: inv.dueDate,
+    overdue: inv.status === "OVERDUE",
+  };
+}
+</script>
+<script type="text/plain" id="src-overdue_invoices">export const tool = {
+  name: "overdue_invoices",
+  description: "Overdue invoices for one account, with the billing contact to chase.",
+  useWhen: "Collections work on one account",
+  inputSchema: {
+    type: "object",
+    properties: { accountId: { type: "string", examples: ["001Ab00000XyZ"] } },
+    required: ["accountId"],
+  },
+};
+
+export default async function (input: Input) {
+  const account = await crm.getAccount({ id: input.accountId });
+  const invoices = await billing.listInvoices({ customer: account.billingId, status: "OVERDUE" });
+  const contacts = await crm.listContacts({ id: input.accountId });
+  return {
+    account: account.name,
+    contact: contacts.items.find((c) => c.role === "Billing")?.email ?? null,
+    invoices: invoices.items.map((i) => ({ number: i.number, amount: i.total.amount, dueDate: i.dueDate })),
+  };
+}
+</script>
+<script type="text/plain" id="src-credit_hold">export const tool = {
+  name: "credit_hold",
+  description: "Whether an account is on credit hold in the order system, with the reason and since when.",
+  useWhen: "Before promising a shipment or a new order to a customer",
+  inputSchema: {
+    type: "object",
+    properties: { accountId: { type: "string", examples: ["001Ab00000XyZ"] } },
+    required: ["accountId"],
+  },
+};
+
+// legacy is a SOAP service with a cookie login. mcpDeck logs in for you (CRED-1).
+export default async function (input: Input) {
+  const xml = await legacy.getCreditHold({ body: { accountId: input.accountId } });
+  return {
+    onHold: xml.Envelope.Body.GetCreditHoldResponse.Hold === "true",
+    reason: xml.Envelope.Body.GetCreditHoldResponse.Reason || null,
+    since: xml.Envelope.Body.GetCreditHoldResponse.Since || null,
+  };
+}
+</script>
+<script type="text/plain" id="src-reassign_ticket">export const tool = {
+  name: "reassign_ticket",
+  description: "Assign a support ticket to another person and add a comment saying why.",
+  useWhen: "A ticket is with the wrong person or team",
+  dontUseWhen: "Only reading ticket details",
+  inputSchema: {
+    type: "object",
+    properties: {
+      key: { type: "string", examples: ["NWT-482"] },
+      assignee: { type: "string", description: "Email of the new assignee", examples: ["dana@acme.example"] },
+      reason: { type: "string", examples: ["Billing question, moving to finance support"] },
+    },
+    required: ["key", "assignee", "reason"],
+  },
+};
+
+export default async function (input: Input) {
+  const issue = await support.getIssue({ key: input.key });
+  await support.assignIssue({ key: input.key, body: { email: input.assignee } });
+  await support.addComment({ key: input.key, body: { body: `Reassigned from ${issue.fields.assignee?.displayName ?? "nobody"}: ${input.reason}` } });
+  return { key: input.key, assignee: input.assignee, previous: issue.fields.assignee?.displayName ?? null };
+}
+</script>
+<script src="mockup.js"></script>
+</body>
+</html>
