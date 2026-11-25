@@ -680,6 +680,11 @@
   .num {
     text-align: right;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  div:has(> table.table) {
+    overflow-x: auto;
+    border-radius: inherit;
   }
   .table th.num {
     text-align: right;

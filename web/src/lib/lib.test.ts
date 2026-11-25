@@ -28,7 +28,7 @@ describe("bytes", () => {
   });
 });
 
-// REQ: API-1
+// REQ: APP-1
 describe("nameFromURL", async () => {
   const { nameFromURL } = await import("../routes/APIWorkspace");
   it("names a manually added request from its method and path", () => {

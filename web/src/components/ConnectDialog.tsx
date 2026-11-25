@@ -1,10 +1,11 @@
-import { CheckCircle2, ExternalLink, FileCode2, Loader2 } from "lucide-react";
+import { CheckCircle2, ExternalLink, FileCode2, Loader2, ToolCase } from "lucide-react";
 import { useEffect, useState } from "react";
 import { post } from "../lib/api";
 import { useAction, useAgent, useAgents, useToolkits } from "../lib/hooks";
+import { navigate } from "../lib/router";
 import type { ConnectResponse, Plan } from "../lib/types";
 import { ClientIcon } from "./ClientIcon";
-import { Button, Chip, CopyButton, CopyField, Dialog, ErrorBox, Field, Seg, Toggle, useToast } from "./ui";
+import { Button, Chip, CopyButton, CopyField, Dialog, EmptyState, ErrorBox, Field, Seg, Toggle, useToast } from "./ui";
 
 const clients = [
   { id: "claude-code", label: "Claude Code", sub: "claude mcp add + builder subagent" },
@@ -82,6 +83,30 @@ export function ConnectDialog({
   const connected = res && live.data?.lastSeenAt && new Date(live.data.lastSeenAt).getTime() > startedAt - 2000;
   const tkName = tks.data?.find((t) => t.id === tk)?.name ?? "";
 
+  if (tks.data && tks.data.length === 0) {
+    return (
+      <Dialog title="Connect an agent" onClose={onClose}>
+        <EmptyState
+          icon={<ToolCase size={22} />}
+          title="Create a toolkit first"
+          actions={
+            <Button
+              kind="ink"
+              onClick={() => {
+                onClose();
+                navigate("/toolkits?new=1");
+              }}
+            >
+              Create toolkit
+            </Button>
+          }
+        >
+          An agent connects to a toolkit and gets its tools. Create one, then connect Claude Code, VS Code or Cursor to
+          it.
+        </EmptyState>
+      </Dialog>
+    );
+  }
   if (!res) {
     return (
       <Dialog

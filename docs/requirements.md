@@ -112,9 +112,12 @@ except the port.
 APIs behave like Postman or Bruno collections. Someone who has used
 either should not need to read anything.
 
-**APP-1 API.** Create, rename, duplicate and delete an API,
-with folders inside it. Deleting one that tools use is refused with a list of
-those tools.
+**APP-1 Applications.** An application is one system tools call (a CRM, a
+ticket desk, a SOAP service); in code and the CLI it's an "API" and tools call
+it by its code name (`crm.getAccount()`). Create, rename (its display name),
+duplicate and delete an application, with folders inside it. One application
+can take requests from several imports (collections, specs, curl). Deleting
+one that tools use is refused with a list of those tools.
 
 **APP-2 Allowed hosts.** Each API has an allow-list of outbound hosts,
 defaulting to the hosts of its environments' base URLs. Calls to any other host
@@ -717,15 +720,15 @@ it with a real screenshot of the running app on the demo, captured
 by a script (`make screenshots`) at a fixed size, light and dark. Mockups
 are never shown as the product.
 
-**UI-1 The sidebar is the mental model.** Navigation is Home, APIs,
-Toolkits, Agents, Activity, with About and Settings at the bottom. Read top to bottom
-it's the pipeline: systems you call → tools grouped into MCP servers →
+**UI-1 The sidebar is the mental model.** Navigation is Home, Applications,
+Toolkits, Agents, Activity, with About and Settings at the bottom. Read top to
+bottom it's the pipeline: systems you call → tools grouped into MCP servers →
 clients that use them → what they did. Each thing has one home: requests are
-added inside an API, tools are created inside a toolkit, agents connect to a
-toolkit, and every recorded call is in Activity. No onboarding wizard. Home
-shows what needs a person (pending versions, tool requests, suggestions) and
-today's numbers. Screens follow [ui.md](ui.md) and the
-[mockup](mockups/index.html).
+added inside an application, tools are created inside a toolkit, agents
+connect to a toolkit, and every recorded call is in Activity. Home shows what
+needs a person (pending versions, tool requests, suggestions) and today's
+numbers. Every page says what it's for in one line, and every empty page says
+what to do first. Screens follow [ui.md](ui.md).
 
 **UI-10 Ask an agent.** Home, an API, a toolkit and a tool have an "Ask an
 agent" button with two or three prompts for that page. Prompts use real
@@ -735,14 +738,17 @@ Tool requests, suggestions and failed calls each have a "Copy prompt".
 *Accept:* every prompt in the UI names only tools and requests that exist
 and that the named agent's grant allows.
 
-**UI-11 Onboarding that gets out of the way.** With no APIs, Home is a first-run
-page: what mcpDeck does and four steps (Add an API, Create a toolkit, Connect
-an agent, Build the first tool), each disabled until the one before is done,
-with the reason shown. Once the first API exists, Home is the normal Home with
-a small "Getting started · n of 4" card showing the next step. The card
-disappears for good when all four are done or the user hides it, and it never
-comes back on its own.
-*Accept:* after the four steps, or after Hide, no onboarding text appears
+**UI-11 Guided, never in the way.** The first time mcpDeck opens with no
+data, a welcome page says what it does in three ideas (applications, toolkits,
+agents) and offers the demo tour or "Set up my own"; it's shown once. A
+"Getting started" list then follows the journey: create an application, send
+a request, save a response as an example, create a toolkit, build a tool,
+connect an agent. Steps can be done in any order; one that needs another first
+says so. Home shows the list; a small card at the bottom of the sidebar shows
+the next step on every page. Pages also suggest the next step in place (after
+a send: save it as an example; after an example: create a tool). The guide
+can be hidden, and shown again from Settings.
+*Accept:* after the six steps, or after Hide, no onboarding text appears
 anywhere.
 
 **UI-12 Demo kept apart.** "Demo" (on Home, the welcome page and About)
@@ -754,25 +760,31 @@ signed in. The tour walks through applications, a request, toolkits, what an
 agent sees, agents and activity, one short step at a time, and can be closed
 at any step.
 
-**UI-13 About and the repository.** The sidebar shows the GitHub repository
-(`abhijeet-oxide/mcpDeck`) with a Star link, and an About page says what
-mcpDeck does and links to the repository, docs, releases, how to contribute,
-the license and "Report a bug" (a new issue). Links open in the browser;
-mcpDeck itself makes no network calls for them (no star counts).
+**UI-13 About and the repository.** The sidebar has a Star on GitHub
+link, and the About page says what mcpDeck does, how it works and how keys are
+protected, offers the demo or its tour, and links to the repository (Star),
+docs, releases, how to contribute, the license and "Report a bug" (a new
+issue). Links open in the browser; mcpDeck itself makes no network calls for
+them (no star counts).
 
-**UI-14 Add an API is a page.** Adding an API, and importing into one, is a
-full page: sources on the left (Swagger or Redoc page, OpenAPI file or URL,
-Postman collection with optional environment, curl, start empty), the input
-for the chosen source, then a preview of every request found with method,
-path, folder and read/write, each with a checkbox. The API name is shown as
-code (`crm.getAccount()`). curl previews update as you paste. Credentials
-found in curl or a Postman environment are listed as moving into an encrypted
+**UI-14 New application is a page.** Creating an application, and
+importing into one, is a full page. Sources: upload files (drop several at
+once: Postman collections with their environment, OpenAPI or Swagger, JSON or
+YAML; the type is detected), a link (spec URL or Swagger/Redoc docs page),
+curl, or add manually. Each source shows a preview of every request found with
+method, path, folder and read/write, each with a checkbox. The display name
+suggests a code name (`acmeCrm`), checked as you type, shown as code
+(`acmeCrm.getAccount()`). curl previews update as you paste. Credentials found
+in curl or a Postman environment are listed as moving into an encrypted
 credential before anything is saved.
 
-**UI-2 Look.** Calm, compact and professional: solid panels with hairline
-borders on a neutral background, Inter, black and blue pill actions, coloured
-mono chips for HTTP methods. Pages answer their question in the first screen.
-No glass, glows, purple, emoji or gradients on content. See
+**UI-2 Look.** Calm, modern and professional: solid panels with hairline
+borders and short soft shadows on a neutral background, Inter, 8px-radius
+controls, ink for the main action and blue to confirm, coloured mono chips for
+HTTP methods. Actions sit on the right: page actions top right, destructive
+ones in the "…" menu, Save in the panel footer or a save bar that appears only
+when something changed. Pages answer their question in the first screen. No
+glass, glows, purple, emoji or gradients on content. See
 [design.md](design.md#ui).
 
 **UI-3 Familiar patterns.** Each screen follows the pattern listed in

@@ -13,13 +13,13 @@ bottom. Each item is one step of the same pipeline, in order:
 
 | Sidebar | What lives there | The one way to... |
 |---|---|---|
-| **Home** | What needs you (reviews, tool requests, suggestions) and today's numbers. On first run: four steps with their real state | See what to do next |
-| **APIs** | One API per system (your CRM, Jira, a SOAP service). Inside it: requests, environments, credentials | Add an API, add requests to it, store its credential |
+| **Home** | What needs you (reviews, tool requests, suggestions) and today's numbers. Until set up: the Getting started list | See what to do next |
+| **Applications** | One application per system (your CRM, Jira, a SOAP service). Inside it: requests from any number of imports, environments, credentials | Create an application, add requests to it, store its credential |
 | **Toolkits** | Toolkits (one MCP server each) and, under *All tools*, the tool library | Create a toolkit, create or edit a tool, set approval rules |
 | **Agents** | One row per client (Claude Code on this laptop, Cursor...) and what each may do | Connect, change access, revoke |
 | **Activity** | Calls, usage and the audit log | See who called what, what it cost, what changed |
-| About | What mcpDeck does, and the GitHub repository: star, docs, releases, report a bug | Find the project |
-| Settings | Port, theme, security, skills, data, demo | Change how mcpDeck runs |
+| About | What mcpDeck does and how it works, the demo and its tour, security, and the GitHub repository: star, docs, releases, report a bug | Understand and find the project |
+| Settings | Theme, port, timeouts, call history, setup guide, security, data | Change how mcpDeck runs |
 
 The sidebar runs the full height of the window, like VS Code, Linear or Vercel:
 logo and a light/dark switch at the top, then search (`Ctrl+K`), the five
@@ -109,37 +109,40 @@ always end with what to check (`test_tool` before `save_tool`).
 
 Screenshots are from the mockup (`docs/mockups/screens/`).
 
-### First run, and onboarding that goes away
+### First run, the tour, and a guide that goes away
 
-![First run](mockups/screens/01-home-first-run.jpg)
+The first time mcpDeck opens with no data, a **welcome page** explains the
+three ideas (applications → toolkits → agents) and offers "Take the 2-minute
+tour" or "Set up my own". It's shown once (`welcomeSeen`).
 
-With nothing added yet, Home says what mcpDeck does and shows four steps: Add
-an API → Create a toolkit → Connect an agent → Build the first tool. A step is
-disabled until the one before is done, with the reason next to it.
+**The demo is kept apart** (UI-12). The tour opens the demo in a new tab: its
+own instance with sample applications and temporary data, in the same theme.
+A blue bar on every page says so, with "Tour" and "Leave demo". The tour is a
+small card in the corner, eight steps (applications, a request, toolkits,
+what an agent sees, agents, activity), Back/Next/close at every step, and ends
+with "Leave demo and start", which returns to the user's own mcpDeck, still
+signed in, on Home.
 
-Once the first API exists, Home becomes the normal Home with a small
-**Getting started · n of 4** card that shows only the next step. It disappears
-for good when all four are done, or when you hide it (UI-11):
+**Getting started** (UI-11) follows the journey: create an application,
+send a request, save a response as an example, create a toolkit, build a
+tool, connect an agent. Any order; a step that needs another says which. Home
+shows the list; a small card at the bottom of the sidebar shows the next step
+on every page. Pages suggest the next step in place: after a successful send,
+"Save as example"; after saving one, "Create tool". Hide it from the card or
+Home; bring it back in Settings.
 
-![Getting started](mockups/screens/04-home-getting-started.jpg) ![Three of four](mockups/screens/09-home-getting-started-3.jpg)
-
-**The demo is kept apart** (UI-12). "Open the demo" opens mock APIs,
-toolkits, agents and calls in their own temporary data; a bar on every page
-says so, with "Leave demo". The first-run page stops offering it once you have
-an API of your own; after that it's in Settings › Data.
-
-![Demo](mockups/screens/08-demo-world.jpg)
+The Demo button is on Home (top right) and About, always.
 
 ### Home
 
 ![Home](mockups/screens/10-home.jpg)
 
-The pipeline strip (APIs → Toolkits → Agents → Activity) with counts restates
-the mental model. **Needs you** lists, in order: versions waiting for review,
+Four cards (Applications, Toolkits, Agents, Calls today) with counts restate
+the mental model; each opens its page. **Needs you** lists, in order: versions waiting for review,
 tool requests from agents, suggestions. **Today** shows calls, tokens returned,
 errors and blocked writes, and the latest calls.
 
-### Add an API
+### New application
 
 A page, not a dialog (UI-14): sources on the left, the input in the middle,
 then every request found, each with a checkbox, its method, path, folder and

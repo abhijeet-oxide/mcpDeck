@@ -553,7 +553,7 @@ function Editor({
             <>
               <KVEditor rows={r.headers} onChange={(h) => setR({ ...r, headers: h })} keyLabel="Header" />
               <div className="muted mt-2 text-[12px]">
-                Auth headers come from the API's auth, so keys never sit on a request.
+                Auth headers come from the application's Authentication setting, so keys never sit on a request.
               </div>
             </>
           )}
