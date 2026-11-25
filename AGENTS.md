@@ -5,11 +5,17 @@ Cursor, Codex). People: this is a good onboarding read too.
 
 ## What we're building
 
-mcpDeck is a local, single-binary layer between AI agents and APIs. People import
-APIs, store credentials in a vault, and build versioned tools from one or more
-APIs. Agents connect over MCP, use the tools they're granted, and can build new
-tools themselves inside those limits. Every call is recorded in a session with
-time and tokens, and every change goes into an audit log.
+mcpDeck is a single-binary layer between AI agents and APIs, including legacy
+ones. People import APIs the way they would in Postman, store credentials
+locally, and write versioned tools in TypeScript that call one or more APIs.
+Each toolkit is its own MCP endpoint that people add to Claude Code, VS Code
+or Cursor in one click. Agents use the tools they're given and can build new
+ones inside those limits. Every call is recorded with time and tokens, and
+rule-based suggestions show how to make tools smaller and faster.
+
+**Phase 1 (now): dev.** One binary on a laptop, Windows first-class, SQLite,
+everything local. Phase 2 (prod: Postgres, SSO, external vaults, visual
+builder) is not scheduled; don't build it unless asked.
 
 Read before non-trivial work:
 
@@ -19,7 +25,7 @@ Read before non-trivial work:
 - [docs/testing.md](docs/testing.md): TDD loop, test layers, mock servers
 
 **Status:** design phase. Folders exist; code arrives milestone by milestone
-(M1 first). Don't build ahead of the current milestone unless asked.
+(Phase 1, M1 walking skeleton first). Don't build ahead of the current milestone unless asked.
 
 ## Repo map
 
@@ -27,7 +33,7 @@ Read before non-trivial work:
 cmd/mcpdeck/      CLI entry and wiring
 internal/        Go packages, one per feature (see docs/design.md#packages)
 web/             React + Vite UI, embedded into the binary
-skills/          files `mcpdeck connect` installs into Claude / Copilot / Cursor
+skills/          optional files `mcpdeck connect` installs into Claude / Copilot / Cursor
 examples/        demo world and sample imports
 e2e/             Playwright + MCP client tests against a running binary
 docs/            vision, requirements, design, testing, mockups, screenshots
@@ -40,7 +46,7 @@ make dev         # Go server + Vite dev server with hot reload
 make test        # all unit + integration tests (Go with -race, Vitest)
 make lint        # golangci-lint + Biome
 make e2e         # Playwright + MCP suite against `mcpdeck dev`
-make dev-up      # start mcpdeck with mock apps in the background (127.0.0.1:8080)
+make dev-up      # start mcpdeck with mock apps in the background (127.0.0.1:47800)
 make dev-down    # stop it and delete its data
 make build       # ./bin/mcpdeck
 ```
@@ -67,23 +73,31 @@ Run `make test` and `make lint` before you say a change is done.
 
 These protect users' systems. Each has a test; don't weaken it.
 
-- **Credentials never reach an agent.** Secrets are injected only inside
+- **Credentials never reach an agent.** Secrets are resolved only inside
   `internal/proxy`. They must not appear in MCP responses, API responses,
-  logs, recorded calls, examples or errors. (CRED-4)
+  logs, recorded calls, history, examples or errors, and tool or script code
+  can't read them. (CRED-4, CRED-7)
 - **All outbound HTTP goes through `internal/proxy`.** No other package
   creates an `http.Client` for upstream calls. That's where allow-lists,
   grants, recording and token counting live.
-- **Read grants block write methods at the proxy**, regardless of what a tool
-  says. (ACC-2)
-- **Agent tokens can't escalate:** no granting, approving, publishing write
-  tools, or reading secrets. (ACC-6)
+- **Read connections can't write.** Write requests are blocked at the proxy,
+  regardless of what a tool says. (ACC-2)
+- **Connection tokens can't escalate:** no changing access, approving, making
+  write tools live, or reading secrets. (ACC-6)
+- **The local server is local.** `127.0.0.1` only; `Host` and `Origin` are
+  checked; the UI needs its launch cookie. (RUN-5)
 - **Tool versions are immutable.** Saving creates a new version. (VER-1)
-- **The JS sandbox has no I/O.** `call()` is the only way out. (TOOL-4)
+- **The JS sandbox has no I/O.** The application clients and `call()` are
+  the only way out. (TOOL-4)
 - **The audit log is append-only.** (AUD-1)
 
 If a task seems to need breaking one of these, stop and ask.
 
 ## Go conventions
+
+- Windows is first-class: use `filepath`, never hard-code `/` or `~`; OS
+  specifics (paths, keychain, browser open, client config locations) go
+  behind an interface with a fake.
 
 - Stdlib first. A new dependency needs a one-line reason in the PR.
 - Constructors take dependencies explicitly (`New(store, clock, ids)`);
@@ -100,13 +114,17 @@ If a task seems to need breaking one of these, stop and ask.
 - TypeScript strict. Function components and hooks.
 - Server state through TanStack Query; the API client is generated from the
   server's OpenAPI. Don't hand-write fetch calls.
+- Reuse familiar patterns: see the table in `docs/design.md#familiar-patterns`
+  (Postman, Bruno, VS Code, DevTools). Don't invent a new interaction when one
+  exists.
+- Nothing fake: every control works; no "coming soon", no lorem ipsum. (UI-4)
 - Styling with Tailwind and the tokens in `web/src/styles/tokens.css`. Match
   the look in `docs/screenshots/`: frosted glass panels, neutral background,
   black and blue pill buttons, coloured mono chips for HTTP methods. No purple,
   no emoji, no gradients on content.
 - Accessible by default: real `<button>`/`<a>`, labels on inputs, visible focus,
   AA contrast.
-- Navigation stays at Home, Applications, Projects, Agents and Settings. Ask
+- Navigation stays at Home, Applications, Toolkits, Agents and Settings. Ask
   before adding a top-level item.
 
 ## Commits and PRs

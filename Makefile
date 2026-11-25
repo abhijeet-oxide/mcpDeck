@@ -26,10 +26,10 @@ test-web: ## Vitest
 e2e: dev-up ## Playwright + MCP client suite against mcpdeck dev
 	go test ./e2e/... ; status=$$?; pnpm -C web exec playwright test --trace off; $(MAKE) dev-down; exit $$status
 
-dev-up: build ## mcpdeck dev with mock apps on 127.0.0.1:8080
+dev-up: build ## mcpdeck dev with mock apps on 127.0.0.1:47800
 	@mkdir -p .mcpdeck
 	@$(BIN) dev --data .mcpdeck/dev > .mcpdeck/dev.log 2>&1 & echo $$! > .mcpdeck/dev.pid
-	@for i in $$(seq 1 50); do curl -fs http://127.0.0.1:8080/healthz >/dev/null && exit 0; sleep 0.1; done; echo "mcpdeck dev did not start, see .mcpdeck/dev.log"; exit 1
+	@for i in $$(seq 1 50); do curl -fs http://127.0.0.1:47800/healthz >/dev/null && exit 0; sleep 0.1; done; echo "mcpdeck dev did not start, see .mcpdeck/dev.log"; exit 1
 
 dev-down: ## stop mcpdeck dev and delete its data
 	@-kill $$(cat .mcpdeck/dev.pid 2>/dev/null) 2>/dev/null

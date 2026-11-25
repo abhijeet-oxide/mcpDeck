@@ -26,13 +26,14 @@ get green. If a test is wrong, fix it in its own commit and say why.
 
 | Layer | Tool | Lives in | What it covers |
 |---|---|---|---|
-| Unit | Go `testing`, `go-cmp` | next to code, `*_test.go` | Pure logic: importers, output fields, access calc, schema merge |
-| Golden | Go + `testdata/` | `internal/<pkg>/testdata/` | Importers, OpenAPI → API, tool export. `go test ./... -update` rewrites |
+| Unit | Go `testing`, `go-cmp` | next to code, `*_test.go` | Pure logic: importers, variable resolution, access calc, schema merge, typegen, suggestion rules |
+| Golden | Go + `testdata/` | `internal/<pkg>/testdata/` | Importers, OpenAPI → requests, `.d.ts` generation, client config writers, tool files. `go test ./... -update` rewrites |
 | Integration | Go + `httptest` + real SQLite in `t.TempDir()` | `internal/<pkg>/*_test.go` | Proxy, sessions, MCP handlers, store |
-| Security | Go | `internal/proxy`, `internal/tool`, `e2e/` | Canary secrets (CRED-4), sandbox escapes (TOOL-4), escalation (ACC-6), SSRF (APP-2) |
+| Security | Go | `internal/proxy`, `internal/tool`, `internal/server`, `e2e/` | Canary secrets (CRED-4, CRED-7), sandbox escapes (TOOL-4), escalation (ACC-6), SSRF (APP-2), local guard: Host × Origin × cookie × token (RUN-5) |
 | UI unit | Vitest + Testing Library + MSW | `web/src/**/*.test.tsx` | Components and routes against mocked API |
 | End to end | Playwright + real binary + mock apps | `e2e/` | Real flows through UI and MCP |
-| MCP client | Go MCP client from the SDK | `e2e/mcp_test.go` | An agent's view: list tools, call, errors |
+| MCP client | Go MCP client from the SDK | `e2e/mcp_test.go` | An agent's view: list tools, call, errors, build a tool with only `instructions` (TK-3) |
+| Windows | Same suites on `windows-latest` | CI | Paths, keychain, client config locations, browser open (NFR-4) |
 
 Rules:
 
@@ -41,7 +42,9 @@ Rules:
   or `internal/mock`.
 - Table-driven tests for anything with a matrix (methods × grants, auth types).
 - Every bug fix starts with a test that reproduces it.
-- Tests must pass with `-race` and in any order (`-shuffle=on`).
+- Tests must pass with `-race` and in any order (`-shuffle=on`), on Linux and Windows.
+- OS specifics (keychain, paths, config locations, browser) are tested through
+  fakes everywhere and against the real OS in the Windows and Linux CI jobs.
 
 ## Coverage gates (CI)
 
@@ -72,7 +75,7 @@ builds a feature and then checks it end to end itself.
 - Usable in Go tests as `mock.Start(t, app, opts...)` returning an
   `httptest.Server`.
 
-**Demo world** (`examples/demo/`): three related mock applications with
+**Demo world** (`examples/demo/`): four related mock applications with
 consistent seeded data. The same customer IDs appear across all three, so
 cross-application tools make sense.
 
@@ -81,23 +84,26 @@ cross-application tools make sense.
 | `acme-crm` | REST, OpenAPI 3 | accounts, contacts, owners |
 | `acme-billing` | REST, Swagger 2, API-key auth | customers, invoices (large responses on purpose) |
 | `acme-support` | Jira-like, Postman collection, bearer auth | issues, comments, search via POST |
+| `acme-legacy` | SOAP-style XML over POST, cookie login form | customer notes, credit holds |
 
 `acme-billing` returns deliberately bloated responses so output-field savings
 are visible. `acme-support` uses `POST /search` so read overrides get exercised.
+`acme-legacy` exercises login-request auth (CRED-1), XML bodies and the
+"check access" flag (API-1).
 
 **CLI**
 
 ```sh
 mcpdeck mock acme-crm --port 9001 --seed 42 --faults "GET /accounts/*:latency=200ms"
-mcpdeck dev                    # throwaway data dir + demo world + seeded agent
+mcpdeck dev                    # throwaway data dir + demo world + dev toolkit
 ```
 
 `mcpdeck dev` prints:
 
 ```
-mcpDeck  http://127.0.0.1:8080
-mocks   acme-crm :9001 · acme-billing :9002 · acme-support :9003
-agent   dev-agent   token: mcpdeck-dev
+mcpDeck  http://127.0.0.1:47800
+mocks   acme-crm :9001 · acme-billing :9002 · acme-support :9003 · acme-legacy :9004
+toolkit dev   http://127.0.0.1:47800/mcp/dev   token: mcpdeck-dev
 ```
 
 Dev mode uses a fixed token, `mcpdeck-dev`, so the editor configs in this repo can
@@ -114,11 +120,11 @@ human in the loop.
    `/healthz`.
 2. The repo's `.mcp.json` (Claude Code), `.vscode/mcp.json` (VS Code / Copilot)
    and `.cursor/mcp.json` (Cursor) define an `mcpdeck-dev` server at
-   `http://127.0.0.1:8080/mcp` with the dev token. After `make dev-up` the agent
-   can call mcpDeck's own tools. (Until M4 ships, that server just shows as
+   `http://127.0.0.1:47800/mcp/dev` with the dev token. After `make dev-up` the agent
+   can call mcpDeck's own tools. (Until M5 ships, that server just shows as
    unavailable.)
 3. The agent exercises the change: e.g. `search_apis "invoices"` → `run_api` →
-   `save_tool` → call the new tool.
+   `run_script` → `save_tool` → call the new tool.
 4. `make e2e` runs Playwright and the MCP client suite against the same
    instance.
 5. `make dev-down` stops everything and deletes the data dir.
