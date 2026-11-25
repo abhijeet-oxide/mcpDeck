@@ -326,7 +326,9 @@ func (s *Server) routes() {
 		}
 		return d.UpdateToolkit(r.Context(), r.PathValue("ref"), in)
 	}))
-	m.HandleFunc("DELETE /api/toolkits/{ref}", h(func(r *http.Request) (any, error) { return nil, d.DeleteToolkit(r.Context(), r.PathValue("ref")) }))
+	m.HandleFunc("DELETE /api/toolkits/{ref}", h(func(r *http.Request) (any, error) {
+		return nil, d.DeleteToolkitForce(r.Context(), r.PathValue("ref"), r.URL.Query().Get("force") == "1")
+	}))
 	m.HandleFunc("POST /api/toolkits/{ref}/tools", h(func(r *http.Request) (any, error) {
 		in, err := body[struct{ Tool string }](r)
 		if err != nil {

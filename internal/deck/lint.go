@@ -66,6 +66,10 @@ func (d *Deck) LintToolkit(ctx context.Context, ref string, in LintInput) (*Lint
 		tools = append(tools, *draft)
 	}
 	out.Report = lint.Toolkit(tools)
+	if draft == nil {
+		// The real tools/list an agent receives, so every page shows one number.
+		out.ListTokens = d.ListTokens(ctx, tk, "read_write", false)
+	}
 	if draft != nil {
 		kept := []lint.Finding{}
 		for _, f := range out.Findings {

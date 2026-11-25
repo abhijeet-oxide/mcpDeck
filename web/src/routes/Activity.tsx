@@ -11,6 +11,7 @@ import {
   PageHead,
   Panel,
   Seg,
+  Select,
   StatusChip,
   Tabs,
   useCopy,
@@ -71,18 +72,17 @@ function Calls() {
     <>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Seg label="Kind" value={kind} onChange={setKind} options={kinds} />
-        <select
-          className="select"
-          style={{ width: 130 }}
-          aria-label="Status"
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-        >
-          <option value="">Any status</option>
-          <option value="ok">OK</option>
-          <option value="error">Errors</option>
-          <option value="blocked">Blocked</option>
-        </select>
+        <Select
+          label="Status"
+          value={status || "any"}
+          onChange={(v) => setStatus(v === "any" ? "" : v)}
+          options={[
+            { value: "any", label: "Any status" },
+            { value: "ok", label: "OK" },
+            { value: "error", label: "Errors" },
+            { value: "blocked", label: "Blocked" },
+          ]}
+        />
         <input
           className="input"
           style={{ width: 220 }}

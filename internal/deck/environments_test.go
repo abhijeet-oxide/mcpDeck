@@ -103,3 +103,26 @@ func TestSaveResponseKeepsOnePerStatus(t *testing.T) {
 		t.Fatal("non-JSON must be refused")
 	}
 }
+
+// REQ: TK-1
+func TestDeleteToolkitWithAgents(t *testing.T) {
+	ctx := context.Background()
+	d := newDeck(t)
+	name, desc := "sec", "x"
+	tk, err := d.CreateToolkit(ctx, deck.ToolkitInput{Name: &name, Description: &desc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.Connect(ctx, deck.ConnectInput{Client: "cursor", ToolkitID: tk.ID, Name: "Cursor", Access: "read"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.DeleteToolkitForce(ctx, "sec", false); err == nil {
+		t.Fatal("without force, a toolkit agents use is kept")
+	}
+	if err := d.DeleteToolkitForce(ctx, "sec", true); err != nil {
+		t.Fatal(err)
+	}
+	if gs, _ := d.Store.Grants(ctx, "", tk.ID); len(gs) != 0 {
+		t.Fatalf("grants left: %v", gs)
+	}
+}

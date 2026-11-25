@@ -1,6 +1,17 @@
 import { FileJson, FileUp, Globe, KeyRound, Loader2, PencilLine, Terminal, Trash2, Upload, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { AccessChip, Button, Chip, ErrorBox, Field, MethodChip, PageHead, Panel, useToast } from "../components/ui";
+import {
+  AccessChip,
+  Button,
+  Chip,
+  ErrorBox,
+  Field,
+  MethodChip,
+  PageHead,
+  Panel,
+  Select,
+  useToast,
+} from "../components/ui";
 import { patch, post } from "../lib/api";
 import { useAction, useAPI, useAPIs } from "../lib/hooks";
 import { appName, appNameError, detectImport, type ImportKind } from "../lib/names";
@@ -628,12 +639,18 @@ function Manual({ taken }: { taken: string[] }) {
           />
         </Field>
         <Field label="Authentication">
-          <select className="select" value={authType} onChange={(e) => setAuthType(e.target.value)}>
-            <option value="none">None</option>
-            <option value="bearer">Bearer token</option>
-            <option value="apikey">API key in a header</option>
-            <option value="basic">Username and password</option>
-          </select>
+          <Select
+            label="Authentication"
+            className="w-full"
+            value={authType}
+            onChange={setAuthType}
+            options={[
+              { value: "none", label: "None" },
+              { value: "bearer", label: "Bearer token" },
+              { value: "apikey", label: "API key in a header" },
+              { value: "basic", label: "Username and password" },
+            ]}
+          />
         </Field>
         {authType === "apikey" && (
           <Field label="Header name">

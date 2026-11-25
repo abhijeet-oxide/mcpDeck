@@ -954,7 +954,7 @@ function GuidePanel({ toolkit, src, run }: { toolkit: string; src: string; run: 
             <div className="font-semibold">{l.tools}</div>
           </div>
           <div className="p-2.5" style={{ background: "var(--surface)" }}>
-            <div className="muted">tools/list</div>
+            <div className="muted">tools/list (est.)</div>
             <div className="font-semibold">{num(l.listTokens)} tok</div>
           </div>
           <div className="p-2.5" style={{ background: "var(--surface)" }}>
