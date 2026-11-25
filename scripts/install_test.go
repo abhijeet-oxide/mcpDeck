@@ -31,61 +31,76 @@ func TestInstaller(t *testing.T) {
 		{name: "checksum mismatch installs nothing", corrupt: true, wantErr: "checksum mismatch"},
 	}
 	bin := buildFake(t)
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			release := t.TempDir()
-			archive := writeArchive(t, release, bin)
-			sum := sha(t, filepath.Join(release, archive))
-			if tt.corrupt {
-				sum = strings.Repeat("0", 64)
-			}
-			writeFile(t, filepath.Join(release, "checksums.txt"), fmt.Sprintf("%s  %s\n%s  other.zip\n", sum, archive, strings.Repeat("1", 64)))
-			srv := httptest.NewServer(http.FileServer(http.Dir(release)))
-			defer srv.Close()
-
-			dest := filepath.Join(t.TempDir(), "bin")
-			out, err := runInstaller(t, srv.URL, dest)
-			exe := filepath.Join(dest, exeName())
-
-			if tt.wantErr != "" {
-				if err == nil || !strings.Contains(out, tt.wantErr) {
-					t.Fatalf("want failure with %q, got err=%v\n%s", tt.wantErr, err, out)
-				}
-				if _, statErr := os.Stat(exe); statErr == nil {
-					t.Fatalf("%s was installed despite the failure", exe)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("installer failed: %v\n%s", err, out)
-			}
-			if !strings.Contains(out, fakeVersion) {
-				t.Errorf("installer output does not show the installed version:\n%s", out)
-			}
-			got, err := exec.Command(exe, "version").Output()
-			if err != nil || strings.TrimSpace(string(got)) != fakeVersion {
-				t.Fatalf("installed binary: %q, %v", got, err)
-			}
-		})
+	shells := installerShells(t)
+	for _, sh := range shells {
+		for _, tt := range tests {
+			t.Run(filepath.Base(sh[0])+"/"+tt.name, func(t *testing.T) {
+				testInstall(t, bin, sh, tt.corrupt, tt.wantErr)
+			})
+		}
 	}
 }
 
-func runInstaller(t *testing.T, url, dest string) (string, error) {
+// installerShells is every shell users run the installer from on this OS:
+// Windows PowerShell 5.1 and PowerShell 7 on Windows (each when present),
+// sh elsewhere.
+func installerShells(t *testing.T) [][]string {
 	t.Helper()
-	var cmd *exec.Cmd
+	var out [][]string
 	if runtime.GOOS == "windows" {
-		ps, err := exec.LookPath("powershell")
-		if err != nil {
-			t.Skip("powershell not found")
+		for _, name := range []string{"powershell", "pwsh"} {
+			if p, err := exec.LookPath(name); err == nil {
+				out = append(out, []string{p, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "install.ps1"})
+			}
 		}
-		cmd = exec.Command(ps, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "install.ps1")
-	} else {
-		sh, err := exec.LookPath("sh")
-		if err != nil {
-			t.Skip("sh not found")
-		}
-		cmd = exec.Command(sh, "install.sh")
+	} else if p, err := exec.LookPath("sh"); err == nil {
+		out = append(out, []string{p, "install.sh"})
 	}
+	if len(out) == 0 {
+		t.Skip("no shell to run the installer with")
+	}
+	return out
+}
+
+func testInstall(t *testing.T, bin string, shell []string, corrupt bool, wantErr string) {
+	t.Helper()
+	release := t.TempDir()
+	archive := writeArchive(t, release, bin)
+	sum := sha(t, filepath.Join(release, archive))
+	if corrupt {
+		sum = strings.Repeat("0", 64)
+	}
+	writeFile(t, filepath.Join(release, "checksums.txt"), fmt.Sprintf("%s  %s\n%s  other.zip\n", sum, archive, strings.Repeat("1", 64)))
+	srv := httptest.NewServer(http.FileServer(http.Dir(release)))
+	defer srv.Close()
+
+	dest := filepath.Join(t.TempDir(), "bin")
+	out, err := runInstaller(shell, srv.URL, dest)
+	exe := filepath.Join(dest, exeName())
+
+	if wantErr != "" {
+		if err == nil || !strings.Contains(out, wantErr) {
+			t.Fatalf("want failure with %q, got err=%v\n%s", wantErr, err, out)
+		}
+		if _, statErr := os.Stat(exe); statErr == nil {
+			t.Fatalf("%s was installed despite the failure", exe)
+		}
+		return
+	}
+	if err != nil {
+		t.Fatalf("installer failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, fakeVersion) {
+		t.Errorf("installer output does not show the installed version:\n%s", out)
+	}
+	got, err := exec.Command(exe, "version").Output()
+	if err != nil || strings.TrimSpace(string(got)) != fakeVersion {
+		t.Fatalf("installed binary: %q, %v", got, err)
+	}
+}
+
+func runInstaller(shell []string, url, dest string) (string, error) {
+	cmd := exec.Command(shell[0], shell[1:]...)
 	cmd.Env = append(os.Environ(),
 		"MCPDECK_DOWNLOAD_URL="+url,
 		"MCPDECK_INSTALL_DIR="+dest,
