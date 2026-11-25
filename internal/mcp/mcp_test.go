@@ -298,3 +298,35 @@ func TestLeastExposure_BigToolkitListsTopToolsAndUseTool(t *testing.T) {
 		t.Fatalf("small toolkits don't need use_tool: %v", names)
 	}
 }
+
+// REQ: TK-5
+func TestAgentViewMatchesWhatAClientReceives(t *testing.T) {
+	for _, access := range []string{"read", "read_write"} {
+		t.Run(access, func(t *testing.T) {
+			w := setup(t, access, true)
+			cs := connect(t, w, "/mcp/support", nil)
+			v, err := w.d.AgentView(context.Background(), "support", access, true, "claude-code")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if v.Instructions != cs.InitializeResult().Instructions {
+				t.Fatalf("instructions differ:\npreview: %s\nclient:  %s", v.Instructions, cs.InitializeResult().Instructions)
+			}
+			res, err := cs.ListTools(context.Background(), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(res.Tools) != len(v.Tools) {
+				t.Fatalf("preview lists %d tools, client got %d", len(v.Tools), len(res.Tools))
+			}
+			for i, tl := range res.Tools {
+				if v.Tools[i].Name != tl.Name || v.Tools[i].Description != tl.Description {
+					t.Fatalf("tool %d: preview %s, client %s", i, v.Tools[i].Name, tl.Name)
+				}
+			}
+			if v.Tokens <= 0 || v.Endpoint == "" {
+				t.Fatalf("preview needs a token cost and the endpoint: %+v", v)
+			}
+		})
+	}
+}

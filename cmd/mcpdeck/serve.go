@@ -136,7 +136,7 @@ func serve(o serveOpts) error {
 	opts := server.Options{Deck: d, Guard: g, UI: uiFS(), OS: connect.RealOS{}, Opener: opener{}, ReturnURL: o.returnURL,
 		Shutdown: func() { stop() }}
 	if !o.dev {
-		// The demo world runs as its own instance with throwaway data (UI-12).
+		// The demo runs as its own instance with temporary data (UI-12).
 		opts.StartDemo = func(context.Context) (string, error) {
 			demoMu.Lock()
 			defer demoMu.Unlock()
@@ -160,7 +160,7 @@ func serve(o serveOpts) error {
 				}
 				time.Sleep(100 * time.Millisecond)
 			}
-			return "", errors.New("the demo world didn't start; run mcpdeck dev in a terminal to see why")
+			return "", errors.New("the demo didn't start; run mcpdeck dev in a terminal to see why")
 		}
 	}
 	httpSrv.Handler = server.New(opts)
@@ -195,7 +195,7 @@ func serve(o serveOpts) error {
 	launch := g.LaunchURL("/")
 	base := "http://127.0.0.1:" + strconv.Itoa(o.port)
 	if o.dev {
-		fmt.Printf("mcpDeck dev mode · throwaway data in %s\n\n", o.data)
+		fmt.Printf("mcpDeck dev mode · temporary data in %s\n\n", o.data)
 		fmt.Printf("  UI          %s\n", launch)
 		fmt.Printf("  dev toolkit %s/mcp/dev   (Authorization: Bearer %s)\n", base, mock.DevToken)
 		fmt.Printf("  builder     %s/mcp/dev/build\n\n", base)

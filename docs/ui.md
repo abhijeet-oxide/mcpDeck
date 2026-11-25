@@ -2,7 +2,7 @@
 
 How every screen works, and why. The clickable mockup is
 [`mockups/index.html`](mockups/index.html): open it in a browser, or regenerate
-the screenshots with `node docs/mockups/shoot.mjs`. It runs on the demo world
+the screenshots with `node docs/mockups/shoot.mjs`. It runs on the demo
 and every control in it does something. The mockup is the reference for
 layout and behaviour; it is never shown as the product (DOC-1).
 
@@ -19,7 +19,7 @@ bottom. Each item is one step of the same pipeline, in order:
 | **Agents** | One row per client (Claude Code on this laptop, Cursor...) and what each may do | Connect, change access, revoke |
 | **Activity** | Calls, usage and the audit log | See who called what, what it cost, what changed |
 | About | What mcpDeck does, and the GitHub repository: star, docs, releases, report a bug | Find the project |
-| Settings | Port, theme, security, skills, data, demo world | Change how mcpDeck runs |
+| Settings | Port, theme, security, skills, data, demo | Change how mcpDeck runs |
 
 The sidebar runs the full height of the window, like VS Code, Linear or Vercel:
 logo and a light/dark switch at the top, then search (`Ctrl+K`), the five
@@ -123,12 +123,12 @@ for good when all four are done, or when you hide it (UI-11):
 
 ![Getting started](mockups/screens/04-home-getting-started.jpg) ![Three of four](mockups/screens/09-home-getting-started-3.jpg)
 
-**The demo world is kept apart** (UI-12). "Open the demo world" opens mock APIs,
-toolkits, agents and calls in their own throwaway data; a bar on every page
+**The demo is kept apart** (UI-12). "Open the demo" opens mock APIs,
+toolkits, agents and calls in their own temporary data; a bar on every page
 says so, with "Leave demo". The first-run page stops offering it once you have
 an API of your own; after that it's in Settings › Data.
 
-![Demo world](mockups/screens/08-demo-world.jpg)
+![Demo](mockups/screens/08-demo-world.jpg)
 
 ### Home
 
@@ -280,12 +280,12 @@ Star on GitHub, Report a bug, Docs, Releases, Contribute, License (UI-13).
 ## What the mockup fakes
 
 The mockup has no server, so a few things are simulated. Everything else is
-real logic over the demo world.
+real logic over the demo.
 
 - Network: URL imports only recognise the Petstore and demo-world URLs. curl
   parsing and JSON file imports (OpenAPI, Swagger, Postman collections and
   environments) are real; try the files in `docs/mockups/fixtures/`.
-- Sending a request returns the demo world's saved response.
+- Sending a request returns the demo's saved response.
 - "Connected" appears a few seconds after you copy the command or write the
   config; the product waits for the client's real `initialize`.
 - Tokens are bytes ÷ 4; the product uses a named encoder (SES-3).

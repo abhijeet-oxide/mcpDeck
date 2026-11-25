@@ -318,6 +318,7 @@ export type Home = {
   recent: Call[];
   steps: { key: string; done: boolean; reason?: string }[];
   hideOnboarding: boolean;
+  welcomeSeen: boolean;
   demo: boolean;
   daily: DayPoint[];
 };
@@ -386,4 +387,14 @@ export type ConnectResponse = {
   result: { agent: Agent; token: string; grant: Grant; toolkit: Toolkit; grants: GrantRow[] };
   plan: Plan;
   planId: string;
+};
+export type AgentView = {
+  toolkit: string;
+  endpoint: string;
+  access: "read" | "read_write";
+  canBuild: boolean;
+  client: string;
+  instructions: string;
+  tools: { name: string; description: string; inputSchema: unknown }[];
+  tokens: number;
 };

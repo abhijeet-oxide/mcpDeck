@@ -195,7 +195,7 @@ internal/
   insight/         suggestion rules over recorded calls
   connect/         client config writers (Claude Code, VS Code, Cursor, Claude Desktop)
   audit/           append-only hash-chained log
-  mock/            mock servers from specs + examples; demo world
+  mock/            mock servers from specs + examples; demo
   store/           SQLite, migrations/, queries/ (sqlc)
   clock/, version/ injected clock and IDs; build info
 web/               React app; embed.go exposes dist/

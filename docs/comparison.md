@@ -12,7 +12,7 @@ they run, what you start from, and who they're built for.
 
 | | Starts from | Runs | Tools are |
 |---|---|---|---|
-| **mcpDeck** | Swagger page, OpenAPI, Postman, curl, or requests you add by hand | One binary on your machine (team server later) | TypeScript functions over one or more requests |
+| **mcpDeck** | Swagger page, OpenAPI, Postman, curl, or requests you add manually | One binary on your machine (team server later) | TypeScript functions over one or more requests |
 | **IBM ContextForge** | REST and gRPC services, existing MCP servers | A gateway you deploy | Tools from REST/gRPC endpoints and MCP servers, grouped into virtual servers |
 | **Speakeasy Gram** | OpenAPI documents, plus Gram Functions in TypeScript | Speakeasy's platform | One per operation by default, curated into toolsets; functions for custom logic |
 | **Azure API Management** | REST APIs managed in API Management | Azure (Basic, Standard, Premium tiers) | Selected API operations |
@@ -39,7 +39,7 @@ into toolsets, and each toolset is an MCP server. Gram's docs note that the
 default one-tool-per-operation set is usually too many tools for an LLM in
 production, and recommend curating.
 *Where mcpDeck differs:* you can start from Postman, curl or requests you add
-by hand and explore them in a request runner before writing a tool; it runs
+manually and explore them in a request runner before writing a tool; it runs
 on your machine with credentials stored locally; and read-only access is
 enforced per agent at the proxy by HTTP method.
 

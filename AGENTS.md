@@ -34,7 +34,7 @@ cmd/mcpdeck/      CLI entry and wiring
 internal/        Go packages, one per feature (see docs/design.md#packages)
 web/             React + Vite UI, embedded into the binary
 skills/          optional files `mcpdeck connect` installs into Claude / Copilot / Cursor
-examples/        demo world and sample imports
+examples/        demo and sample imports
 e2e/             Playwright + MCP client tests against a running binary
 docs/            vision, requirements, design, testing, releasing, mockups
 scripts/         install.sh / install.ps1, shipped with every release

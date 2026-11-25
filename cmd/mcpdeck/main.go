@@ -35,7 +35,7 @@ func root() *cobra.Command {
 	r := &cobra.Command{
 		Use:           "mcpdeck",
 		Short:         "mcpDeck: turn your APIs into small, safe MCP tools for agents",
-		Example:       "  mcpdeck                 start and open the UI\n  mcpdeck dev             start with the demo world in throwaway data",
+		Example:       "  mcpdeck                 start and open the UI\n  mcpdeck dev             start with the demo in temporary data",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE:          func(*cobra.Command, []string) error { return serve(o) },
@@ -52,7 +52,7 @@ func root() *cobra.Command {
 	serveCmd.Flags().BoolVar(&so.noOpen, "no-open", false, "don't open the browser")
 
 	var do serveOpts
-	devCmd := &cobra.Command{Use: "dev", Short: "Start with the demo world, a dev toolkit and a fixed-token agent, in throwaway data",
+	devCmd := &cobra.Command{Use: "dev", Short: "Start with the demo, a dev toolkit and a fixed-token agent, in temporary data",
 		Example: "  mcpdeck dev\n  mcpdeck dev --port 47900 --mock-port 9101",
 		RunE: func(*cobra.Command, []string) error {
 			do.dev, do.data = true, data

@@ -180,7 +180,7 @@ func mergeJSON(path string, set func(root map[string]any)) (string, error) {
 	root := map[string]any{}
 	if b, err := os.ReadFile(path); err == nil && strings.TrimSpace(string(b)) != "" {
 		if err := json.Unmarshal(stripJSONC(b), &root); err != nil {
-			return "", fmt.Errorf("%s isn't valid JSON (%v); fix it or paste the snippet by hand", path, err)
+			return "", fmt.Errorf("%s isn't valid JSON (%v); fix it or paste the snippet yourself", path, err)
 		}
 	}
 	set(root)

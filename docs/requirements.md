@@ -25,7 +25,7 @@ early. Later milestones make each part complete.
 
 | | Milestone | Outcome |
 |---|---|---|
-| **M1** | Walking skeleton | `mcpdeck.exe` starts, opens the UI, stores in SQLite; add one request by hand, send it through the proxy, write a one-step tool, put it in a toolkit, add it to Claude Code, call it, see the call |
+| **M1** | Walking skeleton | `mcpdeck.exe` starts, opens the UI, stores in SQLite; add one request manually, send it through the proxy, write a one-step tool, put it in a toolkit, add it to Claude Code, call it, see the call |
 | **M2** | APIs | Postman-style collections: imports, environments, variables, auth, runner, history, examples, scripts |
 | **M3** | Credentials | Local encrypted store with the key in the OS keychain |
 | **M4** | Code tools | TypeScript editor with autocomplete, sandbox, tests, versions, tools as files |
@@ -96,7 +96,7 @@ each a thin client of the HTTP API (RUN-6):
 | `mcpdeck agents [revoke <name>]` | List or revoke agents (AGT-4) |
 | `mcpdeck pull` / `push` | Tools as files (FILE-1) |
 | `mcpdeck stdio --toolkit <name>` | stdio bridge (TK-2) |
-| `mcpdeck dev` | Dev mode with the demo world (MOCK-4) |
+| `mcpdeck dev` | Dev mode with the demo (MOCK-4) |
 | `mcpdeck version [--check]` | Version and build info; `--check` asks GitHub whether a newer release exists |
 
 Every command has `--help` with an example, and `--json` output where it
@@ -287,7 +287,7 @@ export default async function (input: Input) {
 `tool` has the same shape as an MCP tool definition plus `useWhen` /
 `dontUseWhen`. `Input` is generated from `inputSchema`. The return value is
 exactly what the agent gets.
-*Accept:* the example above runs against the demo world (MOCK-3).
+*Accept:* the example above runs against the demo (MOCK-3).
 
 **TOOL-2 Runtime.** Globals available to tool code, and nothing else:
 - one client per API, named after it (`crm`, `billing`), with one
@@ -400,6 +400,12 @@ building. Default: the APIs its tools already use. `search_apis`,
 APIs.
 *Accept:* `run_api` on a request outside the scope fails with an MCP-4
 error naming the toolkit setting to change.
+
+**TK-5 See what an agent sees.** The toolkit page has "Preview as agent":
+for a chosen access (read, or read and write), whether the agent may build,
+and a client, it shows the `instructions` the endpoint sends on initialize
+and the exact `tools/list` it returns, with the token cost of that list.
+*Accept:* the preview equals what an MCP client with that grant receives.
 
 **AGT-1 Agents.** An agent is a client you've added, like "Claude Code on
 this laptop": a name, a client type and one token (shown once, stored as a
@@ -693,12 +699,12 @@ deterministic, seeded, schema-valid responses.
 **MOCK-2 Fault injection.** Mocks MAY add latency, error rates, rate limiting
 and malformed responses per request, from flags or config.
 
-**MOCK-3 Demo world.** A built-in set of related mock APIs (CRM,
+**MOCK-3 Demo.** A built-in set of related mock APIs (CRM,
 billing, ticketing, and a legacy SOAP-style service with cookie login) with
 consistent seeded data, used by `mcpdeck dev`, e2e tests and demos.
 
-**MOCK-4 Dev mode.** `mcpdeck dev` starts mcpDeck with a throwaway data
-directory, the demo world, a `dev` toolkit, and an agent with a fixed
+**MOCK-4 Dev mode.** `mcpdeck dev` starts mcpDeck with a temporary data
+directory, the demo, a `dev` toolkit, and an agent with a fixed
 token, so a coding agent working on this repo can test end to end.
 
 **MOCK-5 Record → mock.** Recorded calls from a session MAY be turned into mock
@@ -707,7 +713,7 @@ responses, so a bug seen against a real system can be reproduced offline.
 ## UI
 
 **DOC-1 Real screenshots.** Once a screen exists, the README and docs show
-it with a real screenshot of the running app on the demo world, captured
+it with a real screenshot of the running app on the demo, captured
 by a script (`make screenshots`) at a fixed size, light and dark. Mockups
 are never shown as the product.
 
@@ -739,8 +745,8 @@ comes back on its own.
 *Accept:* after the four steps, or after Hide, no onboarding text appears
 anywhere.
 
-**UI-12 Demo world kept apart.** "Open the demo world" (first-run Home and
-Settings › Data) opens the demo world in its own throwaway data folder, as
+**UI-12 Demo kept apart.** "Open the demo" (first-run Home and
+Settings › Data) opens the demo in its own temporary data folder, as
 `mcpdeck dev` does, never mixed with the user's data. While it's open, every
 page shows a bar saying so with "Leave demo", which returns to the user's own
 data unchanged. The first-run Home stops offering it once the user has added

@@ -108,7 +108,7 @@ Agent → every call, with time, bytes and tokens → suggestions
 
 1. Create an **API**, like a Postman collection: one per system.
 2. Add **requests**: import a Swagger page, OpenAPI, Postman or curl, or add one
-   by hand.
+   manually.
 3. Set **environments** and **variables** (`{{baseUrl}}`, `{{tenantId}}`) and
    **credentials**, inherited by every request like collection auth in
    Postman.

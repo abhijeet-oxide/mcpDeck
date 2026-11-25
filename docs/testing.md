@@ -79,7 +79,7 @@ builds a feature and then checks it end to end itself.
 - Usable in Go tests as `mock.Start(t, app, opts...)` returning an
   `httptest.Server`.
 
-**Demo world** (`examples/demo/`): four related mock APIs with
+**Demo** (`examples/demo/`): four related mock APIs with
 consistent seeded data. The same customer IDs appear across all three, so
 cross-API tools make sense.
 
@@ -99,7 +99,7 @@ are visible. `acme-support` uses `POST /search` so read overrides get exercised.
 
 ```sh
 mcpdeck mock acme-crm --port 9001 --seed 42 --faults "GET /accounts/*:latency=200ms"
-mcpdeck dev                    # throwaway data dir + demo world + dev toolkit
+mcpdeck dev                    # temporary data dir + demo + dev toolkit
 ```
 
 `mcpdeck dev` prints:
@@ -112,7 +112,7 @@ toolkit dev   http://127.0.0.1:47800/mcp/dev   token: mcpdeck-dev
 
 Dev mode uses a fixed token, `mcpdeck-dev`, so the editor configs in this repo can
 hard-code it. It's only accepted when mcpDeck runs with `dev` on `127.0.0.1` with
-a throwaway data directory and mock APIs. Normal `serve` refuses it.
+a temporary data directory and mock APIs. Normal `serve` refuses it.
 
 ### Testing inside a coding-agent session
 

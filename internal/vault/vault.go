@@ -29,7 +29,7 @@ type OSKeychain struct{}
 func (OSKeychain) Get(service, user string) (string, error) { return keyring.Get(service, user) }
 func (OSKeychain) Set(service, user, s string) error        { return keyring.Set(service, user, s) }
 
-// NoKeychain always fails, forcing the key file (used by throwaway dev data).
+// NoKeychain always fails, forcing the key file (used by temporary dev data).
 type NoKeychain struct{}
 
 func (NoKeychain) Get(string, string) (string, error) { return "", errors.New("no keychain") }

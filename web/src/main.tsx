@@ -6,6 +6,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { ToastProvider } from "./components/ui";
+import { adoptThemeFromURL } from "./lib/journey";
 import { RouterProvider } from "./lib/router";
 
 const qc = new QueryClient({
@@ -14,6 +15,7 @@ const qc = new QueryClient({
   },
 });
 
+adoptThemeFromURL();
 try {
   const t = localStorage.getItem("mcpdeck-theme");
   if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;

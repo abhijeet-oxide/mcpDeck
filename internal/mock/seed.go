@@ -136,12 +136,12 @@ func test(name, input, script string) store.ToolTest {
 	return store.ToolTest{Name: name, Input: json.RawMessage(input), Script: script}
 }
 
-// Seed fills a fresh deck with the demo world. dev adds the `dev` toolkit
+// Seed fills a fresh deck with the demo. dev adds the `dev` toolkit
 // and the fixed-token dev agent (MOCK-4).
 func Seed(ctx context.Context, d *deck.Deck, w *World, dev bool) error {
 	step := func(what string, err error) error {
 		if err != nil {
-			return fmt.Errorf("demo world: %s: %w", what, err)
+			return fmt.Errorf("demo: %s: %w", what, err)
 		}
 		return nil
 	}
@@ -186,7 +186,7 @@ func Seed(ctx context.Context, d *deck.Deck, w *World, dev bool) error {
 		}
 	}
 
-	// Legacy: added by hand, with a login request.
+	// Legacy: added manually, with a login request.
 	leg, err := d.CreateAPI(ctx, deck.CreateAPIInput{Name: "legacy", Title: "Acme Legacy ERP", BaseURL: w.URL("legacy")})
 	if err := step("legacy", err); err != nil {
 		return err
