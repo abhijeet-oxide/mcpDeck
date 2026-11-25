@@ -15,6 +15,6 @@ first. The essentials:
 - Read grants can't send write requests (blocked at the proxy).
   Connection tokens can't change access, approve or read secrets. Tool
   versions are immutable. The local server checks `Host` and `Origin`.
-- UI must match `docs/screenshots/` and the tokens in `docs/design.md#ui`.
+- UI must match the mockup in `docs/mockups/` (see `docs/ui.md`) and the tokens in `docs/design.md#ui`.
 - Before finishing: `make test && make lint`. For proxy/MCP/UI changes also
   `make dev-up` and exercise the `mcpdeck-dev` MCP server from `.vscode/mcp.json`.

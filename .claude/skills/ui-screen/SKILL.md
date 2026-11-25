@@ -7,8 +7,10 @@ description: Build or change a screen in the mcpDeck React UI so it matches the 
 
 ## Reference
 
-- Screenshots: `docs/screenshots/*.png`. Look at the relevant one before you start.
-- Mockup source: `docs/mockups/*.dc.html`. Exact spacing, sizes and colours.
+- Screen spec: `docs/ui.md`. Read the section for the screen first.
+- Clickable mockup: open `docs/mockups/index.html`. Screenshots are in
+  `docs/mockups/screens/`; `mockup.css` has the exact spacing, sizes and colours,
+  and `mockup.js` the behaviour and wording.
 - Tokens and rules: `docs/design.md#ui`.
 
 ## Structure

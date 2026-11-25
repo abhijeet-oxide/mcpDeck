@@ -12,13 +12,13 @@ const themes = {
   light: {
     bg: "#F4F6FA", glow1: "#BFD4FF", glow2: "#D5E3EC", glow3: "#FFDCC8",
     text: "#1D1D1F", muted: "#5F6368", card: "#FFFFFF", cardLine: "#E3E6EC", shadow: "rgba(20,30,60,.10)",
-    tile: "#1D1D1F", front: "#FFFFFF", accent: "#0071E3",
+    tile: "#1D1D1F", front: "#FFFFFF", edge: "#1D1D1F", accent: "#0071E3",
     get: ["#1F7A35", "rgba(52,199,89,.16)"], post: ["#0058B0", "rgba(0,113,227,.12)"], ok: ["#1F7A35", "rgba(52,199,89,.16)"],
   },
   dark: {
     bg: "#0D1117", glow1: "#1B3A6B", glow2: "#16323A", glow3: "#4A2A1A",
     text: "#E6EDF3", muted: "#9BA6B2", card: "#161B22", cardLine: "#30363D", shadow: "rgba(0,0,0,.45)",
-    tile: "#E6EDF3", front: "#0D1117", accent: "#4493F8",
+    tile: "#E6EDF3", front: "#0D1117", edge: "#0D1117", accent: "#4493F8",
     get: ["#56D364", "rgba(46,160,67,.18)"], post: ["#79C0FF", "rgba(56,139,253,.18)"], ok: ["#56D364", "rgba(46,160,67,.18)"],
   },
 };
@@ -63,15 +63,14 @@ function banner(t) {
       <circle cx="760" cy="380" r="170" fill="${t.glow2}"/>
       <circle cx="1210" cy="400" r="150" fill="${t.glow3}"/>
     </g>
-    <g transform="translate(72 92)">
-      <rect width="72" height="72" rx="17" fill="${t.tile}"/>
+    <svg x="72" y="92" width="72" height="72" viewBox="8 8 56 56">
       <rect x="14.6" y="19.1" width="24.8" height="33.8" rx="5" fill="#0071E3" transform="rotate(-12 27 36)"/>
-      <rect x="30.4" y="16.9" width="24.8" height="33.8" rx="5" fill="${t.tile}" transform="rotate(9 42.8 33.8)"/>
-      <rect x="32.1" y="18.6" width="21.4" height="30.4" rx="4" fill="${t.front}" transform="rotate(9 42.8 33.8)"/>
-      <g transform="rotate(9 42.8 33.8)" fill="none" stroke="${t.tile}" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M38.3 28.8l-3.6 5 3.6 5"/><path d="M47.3 28.8l3.6 5-3.6 5"/>
+      <g transform="rotate(9 42.8 33.8)">
+        <rect x="30.4" y="16.9" width="24.8" height="33.8" rx="5" fill="${t.edge}"/>
+        <rect x="32.1" y="18.6" width="21.4" height="30.4" rx="4" fill="#FFFFFF"/>
+        <g fill="none" stroke="${t.edge}" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"><path d="M38.3 28.8l-3.6 5 3.6 5"/><path d="M47.3 28.8l3.6 5-3.6 5"/></g>
       </g>
-    </g>
+    </svg>
     <text x="164" y="146" ${font} font-size="54" font-weight="700" letter-spacing="-1.5" fill="${t.text}">mcpDeck</text>
     <text x="72" y="236" ${font} font-size="30" font-weight="600" letter-spacing="-.6" fill="${t.text}">Build MCP tools from the APIs</text>
     <text x="72" y="274" ${font} font-size="30" font-weight="600" letter-spacing="-.6" fill="${t.text}">you already have.</text>

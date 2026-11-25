@@ -118,7 +118,7 @@ Agent → every call, with time, bytes and tokens → suggestions
 6. Click **Add to Claude Code** (or VS Code, Cursor, Claude Desktop). The
    toolkit becomes an MCP server in that client, with read access unless you
    choose otherwise.
-7. Open **Agents** to see every call: who, when, how long, what it returned.
+7. Open **Activity** to see every call: who, when, how long, what it returned.
    Follow the suggestions to make tools smaller and faster.
 
 ## Principles
