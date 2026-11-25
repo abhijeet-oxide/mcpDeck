@@ -1,26 +1,36 @@
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   BookmarkPlus,
   CheckCircle2,
+  ChevronDown,
   Code2,
   Cookie,
   Copy,
   Download,
   FileUp,
+  Gauge,
   KeyRound,
+  Layers,
+  Pencil,
   Plus,
   Save,
   Send,
+  Settings2,
+  ShieldAlert,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AskAgentButton } from "../components/AskAgent";
+import { counts, FindingList } from "../components/Findings";
 import { KVEditor } from "../components/KVEditor";
 import {
   AccessChip,
   Avatar,
   Button,
   Chip,
+  Dialog,
   Empty,
   EmptyState,
   ErrorBox,
@@ -32,7 +42,9 @@ import {
   Panel,
   SaveBar,
   Seg,
+  Select,
   Tabs,
+  Toggle,
   useConfirm,
   useCopy,
   useToast,
@@ -41,7 +53,7 @@ import { del, patch, post, put } from "../lib/api";
 import { ago, bytes, mod, num, pretty } from "../lib/format";
 import { useAction, useAPI, useHistory, useToolkits } from "../lib/hooks";
 import { Link, navigate, useLocation } from "../lib/router";
-import type { APIDetail, Auth, Request, SendResult, Variable } from "../lib/types";
+import type { APIDetail, Auth, EnvImport, OutputReport, Request, SendResult, Variable } from "../lib/types";
 
 type Tab = "requests" | "environments" | "auth" | "settings";
 
@@ -82,22 +94,23 @@ export function APIWorkspace({ id }: { id: string }) {
         }
         actions={
           <>
-            <label className="flex items-center gap-2 text-[12.5px]">
-              <span className="muted">Environment</span>
-              <select
-                className="select"
-                style={{ width: 150 }}
-                aria-label="Environment"
-                value={a.activeEnvId}
-                onChange={(e) => setActive.mutate(e.target.value)}
-              >
-                {a.environments.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Select
+              label="Environment"
+              className="env-select"
+              value={a.activeEnvId}
+              onChange={(v) => setActive.mutate(v)}
+              options={a.environments.map((e) => ({
+                value: e.id,
+                label: e.name,
+                icon: <Layers size={14} />,
+                hint: `${a.variables.filter((v) => v.envId === e.id).length} variables`,
+              }))}
+              footer={
+                <button type="button" className="select-item w-full" onClick={() => setTab("environments")}>
+                  <Settings2 size={14} /> Manage environments
+                </button>
+              }
+            />
             <AskAgentButton
               prompts={[
                 {
@@ -278,8 +291,8 @@ function Requests({ a, onTab }: { a: APIDetail; onTab: (t: Tab) => void }) {
     return [...m.entries()];
   }, [a.requests, filter]);
   return (
-    <div className="grid items-start gap-4" style={{ gridTemplateColumns: "270px minmax(0, 1fr)" }}>
-      <Panel bodyClass="p-2">
+    <div className="grid items-start gap-4" style={{ gridTemplateColumns: "280px minmax(0, 1fr)" }}>
+      <Panel bodyClass="p-2" className="sticky top-0">
         <div className="mb-2 flex gap-2">
           <Seg
             label="List"
@@ -317,14 +330,18 @@ function Requests({ a, onTab }: { a: APIDetail; onTab: (t: Tab) => void }) {
                   <button
                     key={r.id}
                     type="button"
-                    className="nav-item"
-                    style={{ padding: "4px 8px" }}
-                    aria-current={sel === r.id || (!sel && r === a.requests[0]) ? "page" : undefined}
+                    className="tree-row"
+                    aria-current={sel === r.id || (!sel && r === a.requests[0]) ? "true" : undefined}
                     onClick={() => setSel(r.id)}
                   >
                     <MethodChip method={r.method} />
-                    <span className="truncate">{r.name}</span>
-                    {r.accessFlag && <span className="dot warn ml-auto" title="Check access" />}
+                    <span className="min-w-0 flex-1 truncate">{r.name}</span>
+                    {(r.responses?.length ?? 0) > 0 && (
+                      <span className="faint text-[11px]" title={`${r.responses!.length} saved responses`}>
+                        {r.responses!.map((x) => x.status).join(" ")}
+                      </span>
+                    )}
+                    {r.accessFlag && <span className="dot warn" title="Check access" />}
                   </button>
                 ))}
               </div>
@@ -337,7 +354,7 @@ function Requests({ a, onTab }: { a: APIDetail; onTab: (t: Tab) => void }) {
               <button
                 key={c.id}
                 type="button"
-                className="nav-item flex-col items-start gap-0"
+                className="tree-row flex-col items-start gap-0"
                 style={{ padding: "5px 8px" }}
                 onClick={() => {
                   setSide("requests");
@@ -407,7 +424,7 @@ function Editor({
   const toast = useToast();
   const confirm = useConfirm();
   const tks = useToolkits();
-  const strip = ({ example: _e, ...x }: Request) => JSON.stringify(x);
+  const strip = ({ example: _e, responses: _r, ...x }: Request) => JSON.stringify(x);
   const dirty = strip(r) !== strip(initial);
   const save = useAction(
     () => {
@@ -431,17 +448,9 @@ function Editor({
   const setAccess = useAction((acc: string) => post<Request>(`/api/requests/${r.id}/access`, { access: acc }), {
     onSuccess: (x) => setR((cur) => ({ ...cur, access: x.access, accessFlag: false, accessReason: x.accessReason })),
   });
-  const [exampleSaved, setExampleSaved] = useState(false);
-  const saveExample = useAction(() => post(`/api/requests/${r.id}/example`, { body: JSON.parse(res!.body) }), {
-    onSuccess: () => {
-      setExampleSaved(true);
-      toast("Saved as example; values that look like secrets were masked");
-    },
-  });
   const send = async () => {
     setSending(true);
     try {
-      setExampleSaved(false);
       setRes(await post<SendResult>("/api/send", { apiId: api.id, draft: r }));
     } catch (e) {
       setRes({ body: "", tokens: 0, error: (e as Error).message });
@@ -474,17 +483,16 @@ function Editor({
     <div className="flex min-w-0 flex-col gap-4">
       <Panel>
         <div className="flex items-center gap-2 p-3">
-          <select
-            className="select mono"
-            style={{ width: 104 }}
-            aria-label="Method"
+          <Select
+            label="Method"
+            className="mono"
             value={r.method}
-            onChange={(e) => setR({ ...r, method: e.target.value })}
-          >
-            {["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((m) => (
-              <option key={m}>{m}</option>
-            ))}
-          </select>
+            onChange={(m) => setR({ ...r, method: m })}
+            options={["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((m) => ({
+              value: m,
+              label: <MethodChip method={m} />,
+            }))}
+          />
           <input
             className="input mono"
             aria-label="URL"
@@ -689,54 +697,20 @@ function Editor({
                 : res.body}
           </pre>
         )}
-        {res && !res.error && (res.status ?? 0) < 400 && r.id && (
-          <div className="next-card m-3" style={{ borderLeftColor: exampleSaved ? "var(--ok-dot)" : undefined }}>
-            {exampleSaved ? (
-              <>
-                <CheckCircle2 size={18} style={{ color: "var(--ok)" }} className="flex-none" />
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium">Example saved. Turn this request into a tool?</div>
-                  <div className="muted text-[12.5px]">
-                    A tool calls it for an agent and returns only the fields that are needed.
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  kind="ink"
-                  icon={<ArrowRight size={13} />}
-                  onClick={() =>
-                    tks.data?.length
-                      ? navigate(
-                          `/toolkits/${tks.data[0].name}/tools/new?from=${encodeURIComponent(`${api.name}.${r.name}`)}`,
-                        )
-                      : navigate("/toolkits?new=1")
-                  }
-                >
-                  {tks.data?.length ? "Create tool" : "Create a toolkit first"}
-                </Button>
-              </>
-            ) : (
-              isJSON && (
-                <>
-                  <BookmarkPlus size={18} className="muted flex-none" />
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium">Looks right? Save it as an example.</div>
-                    <div className="muted text-[12.5px]">
-                      Tools can then be tested without the network, and agents see what this request returns.
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    kind="ink"
-                    loading={saveExample.isPending}
-                    onClick={() => saveExample.mutate(undefined)}
-                  >
-                    Save as example
-                  </Button>
-                </>
-              )
-            )}
-          </div>
+        {res && !res.error && isJSON && r.id && (
+          <SaveResponseCard
+            key={res.callId}
+            api={api}
+            req={r}
+            res={res}
+            onSaved={(x) => setR((cur) => ({ ...cur, responses: x.responses, example: x.example }))}
+            hasToolkit={(tks.data?.length ?? 0) > 0}
+            toolkit={tks.data?.[0]?.name}
+          />
+        )}
+        {res && !res.error && isJSON && <OutputCheck body={res.body} />}
+        {(r.responses?.length ?? 0) > 0 && (
+          <SavedResponses req={r} onChange={(x) => setR((cur) => ({ ...cur, responses: x.responses }))} />
         )}
         <div className="flex flex-wrap justify-end gap-2 p-3" style={{ borderTop: "1px solid var(--line)" }}>
           <Button
@@ -776,6 +750,216 @@ function Editor({
   );
 }
 
+function statusTone(s: number): "ok" | "warn" | "bad" {
+  return s < 300 ? "ok" : s < 500 ? "warn" : "bad";
+}
+
+const statusNames: Record<number, string> = {
+  200: "Success",
+  201: "Created",
+  204: "No content",
+  400: "Bad input",
+  401: "Not allowed",
+  403: "Not allowed",
+  404: "Not found",
+  409: "Conflict",
+  422: "Bad input",
+  429: "Rate limited",
+  500: "Server error",
+};
+
+/** SaveResponseCard offers to keep each response under its status (EX-3). */
+function SaveResponseCard({
+  api,
+  req,
+  res,
+  onSaved,
+  hasToolkit,
+  toolkit,
+}: {
+  api: APIDetail;
+  req: Request;
+  res: SendResult;
+  onSaved: (r: Request) => void;
+  hasToolkit: boolean;
+  toolkit?: string;
+}) {
+  const status = res.status ?? 0;
+  const existing = req.responses?.find((x) => x.status === status);
+  const [name, setName] = useState(
+    existing?.name ?? statusNames[status] ?? (status < 300 ? "Success" : `Status ${status}`),
+  );
+  const [saved, setSaved] = useState(false);
+  const toast = useToast();
+  const save = useAction(
+    () => post<Request>(`/api/requests/${req.id}/responses`, { name, status, body: JSON.parse(res.body) }),
+    {
+      onSuccess: (x) => {
+        setSaved(true);
+        onSaved(x);
+        toast(`Saved as ${status} ${name}; values that look like secrets were masked`);
+      },
+    },
+  );
+  if (saved)
+    return (
+      <div className="next-card m-3" style={{ borderLeftColor: "var(--ok-dot)" }}>
+        <CheckCircle2 size={18} style={{ color: "var(--ok)" }} className="flex-none" />
+        <div className="min-w-0 flex-1">
+          <div className="font-medium">
+            Saved as {status} {name}.
+          </div>
+          <div className="muted text-[12.5px]">
+            {status < 300
+              ? "Its fields are now known, so tools can chain them into the next request."
+              : "Tools and tests can now be checked against this failure without calling the API."}
+          </div>
+        </div>
+        {status < 300 && (
+          <Button
+            size="sm"
+            kind="ink"
+            icon={<ArrowRight size={13} />}
+            onClick={() =>
+              hasToolkit
+                ? navigate(`/toolkits/${toolkit}/tools/new?from=${encodeURIComponent(`${api.name}.${req.name}`)}`)
+                : navigate("/toolkits?new=1")
+            }
+          >
+            {hasToolkit ? "Build a tool" : "Create a toolkit first"}
+          </Button>
+        )}
+      </div>
+    );
+  return (
+    <div className="next-card m-3 flex-wrap">
+      <BookmarkPlus size={18} className="muted flex-none" />
+      <div className="min-w-0 flex-1">
+        <div className="font-medium">
+          {existing ? `Replace the saved ${status} response?` : `Save this ${status} response?`}
+        </div>
+        <div className="muted text-[12.5px]">
+          Keep one response per outcome (success, not found, not allowed). Tools are typed and tested from them.
+        </div>
+      </div>
+      <Chip tone={statusTone(status)}>{status}</Chip>
+      <input
+        className="input"
+        style={{ width: 150, height: 30 }}
+        aria-label="Response name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <Button size="sm" kind="ink" loading={save.isPending} onClick={() => save.mutate(undefined)}>
+        {existing ? "Replace" : "Save response"}
+      </Button>
+      <ErrorBox error={save.error} />
+    </div>
+  );
+}
+
+/** SavedResponses lists the kept responses of a request; click to view. */
+function SavedResponses({ req, onChange }: { req: Request; onChange: (r: Request) => void }) {
+  const [open, setOpen] = useState<string>("");
+  const remove = useAction((rid: string) => del<Request>(`/api/requests/${req.id}/responses/${rid}`), {
+    onSuccess: (x) => onChange(x),
+  });
+  const shown = req.responses?.find((x) => x.id === open);
+  return (
+    <div style={{ borderTop: "1px solid var(--line)" }}>
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
+        <span className="muted text-[12.5px] font-medium">Saved responses</span>
+        {req.responses!.map((x) => (
+          <button
+            key={x.id}
+            type="button"
+            className="saved-resp"
+            aria-pressed={open === x.id}
+            onClick={() => setOpen(open === x.id ? "" : x.id)}
+          >
+            <span className={`dot ${x.status < 300 ? "on" : x.status < 500 ? "warn" : "bad"}`} />
+            <span className="mono">{x.status}</span> {x.name}
+          </button>
+        ))}
+      </div>
+      {shown && (
+        <div className="px-3 pb-3">
+          <div className="mb-1.5 flex items-center gap-2 text-[12px]">
+            <span className="muted">Saved {ago(shown.savedAt)} · masked</span>
+            <Button
+              size="sm"
+              kind="ghost"
+              className="ml-auto"
+              icon={<Trash2 size={13} />}
+              onClick={() => {
+                setOpen("");
+                remove.mutate(shown.id);
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+          <pre className="code" style={{ maxHeight: 300 }}>
+            {pretty(JSON.stringify(shown.body))}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** OutputCheck says what an agent would pay to read this response (GUIDE-3). */
+function OutputCheck({ body }: { body: string }) {
+  const [open, setOpen] = useState(false);
+  const q = useQuery({
+    queryKey: ["lint-output", body.length, body.slice(0, 200)],
+    queryFn: () => post<OutputReport>("/api/lint/output", { value: JSON.parse(body) }),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+  if (!q.data) return null;
+  const r = q.data;
+  const c = counts(r.findings);
+  return (
+    <div style={{ borderTop: "1px solid var(--line)" }}>
+      <button
+        type="button"
+        className="flex w-full items-center gap-3 px-3 py-2.5 text-left"
+        style={{ background: "none", border: 0, cursor: "pointer", color: "inherit" }}
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <Gauge size={15} className="muted flex-none" />
+        <span className="text-[12.5px]">
+          <strong>If an agent read this:</strong> {num(r.tokens)} tokens · {r.fields} fields · {r.depth} levels deep
+        </span>
+        <span className="ml-auto flex gap-1.5">
+          {c.must > 0 && <Chip tone="bad">{c.must} must fix</Chip>}
+          {c.avoid > 0 && <Chip tone="warn">{c.avoid} to avoid</Chip>}
+          {c.must + c.avoid === 0 && <Chip tone="ok">Fine for agents</Chip>}
+        </span>
+        <ChevronDown size={14} className="muted" style={{ transform: open ? "rotate(180deg)" : undefined }} />
+      </button>
+      {open && (
+        <div
+          className="grid gap-0 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]"
+          style={{ borderTop: "1px solid var(--line)" }}
+        >
+          <FindingList findings={r.findings} empty="Small enough to return as is." />
+          <div className="p-3" style={{ borderLeft: "1px solid var(--line)" }}>
+            <div className="muted mb-2 text-[12px] font-semibold">Largest fields</div>
+            {r.largest.map((f) => (
+              <div key={f.path} className="flex items-center gap-2 py-1 text-[12.5px]">
+                <span className="mono min-w-0 flex-1 truncate">{f.path}</span>
+                <span className="muted">{num(f.tokens)} tok</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function VarRow({ apiId, v, envId }: { apiId: string; v?: Variable; envId: string }) {
   const [name, setName] = useState(v?.name ?? "");
   const [source, setSource] = useState<string>(v?.source ?? "literal");
@@ -807,11 +991,17 @@ function VarRow({ apiId, v, envId }: { apiId: string; v?: Variable; envId: strin
         />
       </td>
       <td style={{ width: 130 }}>
-        <select className="select" aria-label="Source" value={source} onChange={(e) => setSource(e.target.value)}>
-          <option value="literal">Value</option>
-          <option value="secret">Secret</option>
-          <option value="os_env">OS env var</option>
-        </select>
+        <Select
+          label="Source"
+          size="sm"
+          value={source}
+          onChange={setSource}
+          options={[
+            { value: "literal", label: "Value" },
+            { value: "secret", label: "Secret", hint: "Encrypted, write-only" },
+            { value: "os_env", label: "OS env var", hint: "Read from mcpDeck's environment" },
+          ]}
+        />
       </td>
       <td>
         {source === "secret" && !editing ? (
@@ -866,60 +1056,156 @@ function VarRow({ apiId, v, envId }: { apiId: string; v?: Variable; envId: strin
 function Environments({ a }: { a: APIDetail }) {
   const [env, setEnv] = useState(a.activeEnvId);
   const [newName, setNewName] = useState("");
-  const add = useAction(() => post(`/api/apis/${a.id}/environments`, { name: newName }), {
-    onSuccess: () => setNewName(""),
+  const [renaming, setRenaming] = useState("");
+  const [importing, setImporting] = useState(false);
+  const toast = useToast();
+  const confirm = useConfirm();
+  const add = useAction(() => post<{ id: string }>(`/api/apis/${a.id}/environments`, { name: newName }), {
+    onSuccess: (e) => {
+      setNewName("");
+      setEnv(e.id);
+    },
   });
-  const remove = useAction((id: string) => del(`/api/environments/${id}`));
+  const rename = useAction((x: { id: string; name: string }) => patch(`/api/environments/${x.id}`, { name: x.name }), {
+    onSuccess: () => {
+      setRenaming("");
+      toast("Environment renamed");
+    },
+    onError: (e) => toast((e as Error).message, true),
+  });
+  const setActive = useAction((id: string) => patch(`/api/apis/${a.id}`, { activeEnvId: id }), {
+    onSuccess: () => toast("Active environment changed"),
+  });
+  const remove = useAction((id: string) => del(`/api/environments/${id}`), {
+    onSuccess: () => setEnv(a.activeEnvId),
+  });
   const vars = a.variables.filter((v) => v.envId === env);
+  const cur = a.environments.find((e) => e.id === env);
   return (
-    <div className="grid items-start gap-4" style={{ gridTemplateColumns: "230px minmax(0, 1fr)" }}>
-      <Panel bodyClass="p-1.5">
+    <div className="grid items-start gap-4" style={{ gridTemplateColumns: "250px minmax(0, 1fr)" }}>
+      <Panel
+        bodyClass="p-1.5"
+        title="Environments"
+        right={
+          <Button size="sm" kind="ghost" icon={<Upload size={13} />} onClick={() => setImporting(true)}>
+            Import
+          </Button>
+        }
+      >
         <button
           type="button"
-          className="nav-item"
-          aria-current={env === "" ? "page" : undefined}
+          className="tree-row"
+          aria-current={env === "" ? "true" : undefined}
           onClick={() => setEnv("")}
         >
-          All environments
+          <Layers size={14} className="muted" />
+          <span className="flex-1">Shared by all</span>
+          <span className="faint text-[11px]">{a.variables.filter((v) => v.envId === "").length}</span>
         </button>
-        {a.environments.map((e) => (
-          <button
-            key={e.id}
-            type="button"
-            className="nav-item"
-            aria-current={env === e.id ? "page" : undefined}
-            onClick={() => setEnv(e.id)}
-          >
-            {e.name}
-            {e.id === a.activeEnvId && <span className="muted ml-auto text-[11.5px]">active</span>}
-          </button>
-        ))}
-        <div className="flex gap-1.5 p-1.5">
+        {a.environments.map((e) =>
+          renaming === e.id ? (
+            <form
+              key={e.id}
+              className="p-1"
+              onSubmit={(ev) => {
+                ev.preventDefault();
+                const name = new FormData(ev.currentTarget).get("name") as string;
+                rename.mutate({ id: e.id, name });
+              }}
+            >
+              <input
+                // biome-ignore lint/a11y/noAutofocus: the field appears because the person asked to rename
+                autoFocus
+                name="name"
+                className="input"
+                aria-label={`New name for ${e.name}`}
+                defaultValue={e.name}
+                onBlur={() => setRenaming("")}
+                onKeyDown={(k) => k.key === "Escape" && setRenaming("")}
+              />
+            </form>
+          ) : (
+            <button
+              key={e.id}
+              type="button"
+              className="tree-row group"
+              aria-current={env === e.id ? "true" : undefined}
+              onClick={() => setEnv(e.id)}
+              onDoubleClick={() => setRenaming(e.id)}
+            >
+              <span className={`dot ${e.id === a.activeEnvId ? "on" : ""}`} />
+              <span className="min-w-0 flex-1 truncate">{e.name}</span>
+              {e.id === a.activeEnvId && <Chip tone="ok">active</Chip>}
+            </button>
+          ),
+        )}
+        <form
+          className="flex gap-1.5 p-1.5"
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            if (newName) add.mutate(undefined);
+          }}
+        >
           <input
             className="input"
             aria-label="New environment"
-            placeholder="Staging"
+            placeholder="New environment, like Staging"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
           />
-          <Button
-            size="sm"
-            disabled={!newName}
-            onClick={() => add.mutate(undefined)}
-            aria-label="Add environment"
-            icon={<Plus size={13} />}
-          />
-        </div>
+          <Button size="sm" disabled={!newName} type="submit" aria-label="Add environment" icon={<Plus size={13} />} />
+        </form>
         <ErrorBox error={add.error || remove.error} />
       </Panel>
       <Panel
-        title={env ? a.environments.find((e) => e.id === env)?.name : "All environments (API variables)"}
+        title={
+          cur ? (
+            <span className="flex items-center gap-2">
+              {cur.name}
+              {cur.id === a.activeEnvId && <Chip tone="ok">active</Chip>}
+            </span>
+          ) : (
+            "Shared by all environments"
+          )
+        }
         right={
-          env &&
-          env !== a.activeEnvId && (
-            <Button size="sm" kind="bad" onClick={() => remove.mutate(env)}>
-              Delete environment
-            </Button>
+          cur && (
+            <>
+              {cur.id !== a.activeEnvId && (
+                <Button size="sm" onClick={() => setActive.mutate(cur.id)}>
+                  Make active
+                </Button>
+              )}
+              <Button size="sm" kind="ghost" icon={<Pencil size={13} />} onClick={() => setRenaming(cur.id)}>
+                Rename
+              </Button>
+              <Menu
+                label="Environment actions"
+                items={[
+                  {
+                    label: "Delete environment",
+                    icon: <Trash2 size={14} />,
+                    danger: true,
+                    onClick: async () => {
+                      if (cur.id === a.activeEnvId) {
+                        toast(`${cur.name} is active; make another environment active first`, true);
+                        return;
+                      }
+                      if (
+                        await confirm({
+                          title: `Delete ${cur.name}?`,
+                          body: `Its ${vars.length} variables, including secrets, are deleted. Agents whose grants use it fall back to the active environment.`,
+                          action: "Delete environment",
+                          danger: true,
+                          typeToConfirm: cur.name,
+                        })
+                      )
+                        remove.mutate(cur.id);
+                    },
+                  },
+                ]}
+              />
+            </>
           )
         }
       >
@@ -941,10 +1227,157 @@ function Environments({ a }: { a: APIDetail }) {
         </table>
         <div className="muted p-3 text-[12px]" style={{ borderTop: "1px solid var(--line)" }}>
           Use them as <code>{"{{name}}"}</code> in URLs, params, headers, bodies and auth. Environment values win over
-          API values. Secrets are encrypted with a key kept in your OS keychain and are never shown again.
+          shared ones. Secrets are encrypted and never shown again. Double-click an environment to rename it.
         </div>
       </Panel>
+      {importing && <ImportEnvDialog a={a} onClose={() => setImporting(false)} onDone={(id) => setEnv(id)} />}
     </div>
+  );
+}
+
+/** ImportEnvDialog reads a Postman, Bruno or .env export, shows it, then saves it (ENV-2). */
+function ImportEnvDialog({ a, onClose, onDone }: { a: APIDetail; onClose: () => void; onDone: (id: string) => void }) {
+  const [file, setFile] = useState<{ name: string; content: string } | null>(null);
+  const [text, setText] = useState("");
+  const [name, setName] = useState("");
+  const [over, setOver] = useState(false);
+  const toast = useToast();
+  const src = file ?? (text.trim() ? { name: "", content: text } : null);
+  const preview = useQuery({
+    queryKey: ["env-preview", src?.name, src?.content.length, src?.content.slice(0, 64)],
+    queryFn: () =>
+      post<EnvImport>(`/api/apis/${a.id}/environments/import`, {
+        filename: src!.name,
+        content: src!.content,
+        preview: true,
+      }),
+    enabled: !!src,
+    retry: false,
+  });
+  useEffect(() => {
+    if (preview.data && !name) setName(preview.data.parsed.name);
+  }, [preview.data]);
+  const save = useAction(
+    () =>
+      post<EnvImport>(`/api/apis/${a.id}/environments/import`, {
+        filename: src!.name,
+        content: src!.content,
+        name,
+      }),
+    {
+      onSuccess: (r) => {
+        toast(`${r.environment!.name} imported with ${r.parsed.vars.length} variables`);
+        onDone(r.environment!.id);
+        onClose();
+      },
+    },
+  );
+  const read = async (f: File) => setFile({ name: f.name, content: await f.text() });
+  const p = preview.data;
+  return (
+    <Dialog
+      wide
+      title="Import an environment"
+      sub="From Postman (Export environment), Bruno (an environment's .bru or JSON), or a .env file. You'll see the variables before anything is saved."
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button
+            kind="ink"
+            disabled={!p || !name.trim()}
+            loading={save.isPending}
+            onClick={() => save.mutate(undefined)}
+          >
+            Import {p ? `${p.parsed.vars.length} variables` : ""}
+          </Button>
+        </>
+      }
+    >
+      {!file ? (
+        <>
+          <label
+            className={`dropzone${over ? " over" : ""}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setOver(true);
+            }}
+            onDragLeave={() => setOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setOver(false);
+              const f = e.dataTransfer.files[0];
+              if (f) read(f);
+            }}
+          >
+            <Upload size={20} className="muted" />
+            <span className="font-medium">Drop the exported file here, or click to choose</span>
+            <span className="muted text-[12.5px]">.postman_environment.json · .bru · .json · .env</span>
+            <input
+              type="file"
+              className="sr-only"
+              accept=".json,.bru,.env,text/plain,application/json"
+              onChange={(e) => e.target.files?.[0] && read(e.target.files[0])}
+            />
+          </label>
+          <div className="muted my-3 text-center text-[12px]">or paste it</div>
+          <textarea
+            className="textarea"
+            rows={5}
+            aria-label="Environment file contents"
+            placeholder={"vars {\n  baseUrl: https://api.acme.example\n}\nvars:secret [\n  token\n]"}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+        </>
+      ) : (
+        <div className="mb-3 flex items-center gap-2">
+          <FileUp size={15} className="muted" />
+          <span className="mono">{file.name}</span>
+          <Button size="sm" kind="ghost" className="ml-auto" onClick={() => setFile(null)}>
+            Choose another
+          </Button>
+        </div>
+      )}
+      {preview.error && <ErrorBox error={preview.error} />}
+      {p && (
+        <div className="mt-4">
+          <div className="mb-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <Field label="Environment name" hint={`Found a ${p.parsed.kind} environment.`}>
+              <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+            </Field>
+            <div className="flex gap-1.5 pb-5">
+              <Chip>{p.parsed.vars.length} variables</Chip>
+              {p.secrets > 0 && <Chip tone="info">{p.secrets} secret</Chip>}
+            </div>
+          </div>
+          <div className="panel" style={{ maxHeight: 260, overflow: "auto" }}>
+            <table className="table">
+              <tbody>
+                {p.parsed.vars.map((v) => (
+                  <tr key={v.name}>
+                    <td className="mono">{v.name}</td>
+                    <td className="mono muted truncate" style={{ maxWidth: 320 }}>
+                      {v.preview || (v.secret ? "(empty: fill in after import)" : "")}
+                    </td>
+                    <td className="num">
+                      {v.secret ? <Chip tone="info">secret, encrypted</Chip> : <Chip>value</Chip>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {p.emptySecrets.length > 0 && (
+            <div className="banner warn mt-3">
+              {p.emptySecrets.join(", ")} came without values (Bruno never exports secrets). Fill them in after the
+              import.
+            </div>
+          )}
+        </div>
+      )}
+      <ErrorBox error={save.error} />
+    </Dialog>
   );
 }
 
@@ -976,13 +1409,18 @@ function AuthTab({ a }: { a: APIDetail }) {
         }
       >
         <Field label="Type" hint="Every request uses this unless it sets its own.">
-          <select className="select" value={auth.type} onChange={(e) => set({ type: e.target.value })}>
-            <option value="none">None</option>
-            <option value="bearer">Bearer token</option>
-            <option value="apikey">API key</option>
-            <option value="basic">Username and password</option>
-            <option value="login">Login request (cookie or header)</option>
-          </select>
+          <Select
+            label="Auth type"
+            value={auth.type}
+            onChange={(v) => set({ type: v })}
+            options={[
+              { value: "none", label: "None" },
+              { value: "bearer", label: "Bearer token" },
+              { value: "apikey", label: "API key" },
+              { value: "basic", label: "Username and password" },
+              { value: "login", label: "Login request", hint: "Log in first; keep the cookie, a header or a token" },
+            ]}
+          />
         </Field>
         {auth.type === "bearer" && (
           <Field label="Token" hint="Point it at a secret variable">
@@ -1013,10 +1451,15 @@ function AuthTab({ a }: { a: APIDetail }) {
               />
             </Field>
             <Field label="In">
-              <select className="select" value={auth.in ?? "header"} onChange={(e) => set({ in: e.target.value })}>
-                <option value="header">Header</option>
-                <option value="query">Query</option>
-              </select>
+              <Select
+                label="Send in"
+                value={auth.in ?? "header"}
+                onChange={(v) => set({ in: v })}
+                options={[
+                  { value: "header", label: "Header" },
+                  { value: "query", label: "Query" },
+                ]}
+              />
             </Field>
           </div>
         )}
@@ -1042,20 +1485,25 @@ function AuthTab({ a }: { a: APIDetail }) {
         {auth.type === "login" && (
           <div className="grid grid-cols-2 gap-2">
             <Field label="Login request" hint="Run when needed; tools never handle the login">
-              <select
-                className="select"
+              <Select
+                label="Login request"
+                placeholder="Choose a request"
                 value={auth.loginRequestId ?? ""}
-                onChange={(e) => set({ loginRequestId: e.target.value })}
-              >
-                <option value="">Choose…</option>
-                {a.requests.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.method} {r.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => set({ loginRequestId: v })}
+                options={a.requests.map((r) => ({
+                  value: r.id,
+                  label: (
+                    <span className="flex items-center gap-2">
+                      <MethodChip method={r.method} /> {r.name}
+                    </span>
+                  ),
+                }))}
+              />
             </Field>
-            <Field label="Capture" hint="cookie, or a response header name">
+            <Field
+              label="Capture"
+              hint="cookie, a response header name, or json:access_token to send a body field as a bearer token"
+            >
               <input
                 className="input mono"
                 value={auth.capture ?? "cookie"}
@@ -1086,6 +1534,69 @@ function AuthTab({ a }: { a: APIDetail }) {
   );
 }
 
+function TLSPanel({ a }: { a: APIDetail }) {
+  const init = { insecure: a.tls?.insecure ?? false, caCerts: a.tls?.caCerts ?? "" };
+  const [t, setT] = useState(init);
+  const toast = useToast();
+  const dirty = JSON.stringify(t) !== JSON.stringify(init);
+  const save = useAction(() => patch(`/api/apis/${a.id}`, { tls: t }), {
+    onSuccess: () => toast("TLS settings saved"),
+  });
+  return (
+    <Panel
+      title="TLS and certificates"
+      icon={<ShieldAlert size={15} className="muted" />}
+      className="mt-5"
+      footer={
+        dirty && (
+          <>
+            <Button kind="ghost" onClick={() => setT(init)}>
+              Discard
+            </Button>
+            <Button kind="ink" loading={save.isPending} onClick={() => save.mutate(undefined)}>
+              Save TLS settings
+            </Button>
+          </>
+        )
+      }
+    >
+      <div className="settings-row">
+        <div className="what">
+          <strong>Verify certificates</strong>
+          <span>
+            Turn off only for a dev or internal server with a self-signed certificate you trust. Anyone in between could
+            read the traffic.
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <Toggle label="Verify certificates" checked={!t.insecure} onChange={(on) => setT({ ...t, insecure: !on })} />
+          {t.insecure ? <Chip tone="warn">not verified</Chip> : <Chip tone="ok">verified</Chip>}
+        </div>
+      </div>
+      <div className="settings-row">
+        <div className="what">
+          <strong>Trusted certificates</strong>
+          <span>
+            PEM certificates to trust for this application, on top of the system ones: your company's CA, or the
+            server's own certificate. Safer than turning verification off.
+          </span>
+        </div>
+        <textarea
+          className="textarea"
+          rows={5}
+          aria-label="Trusted certificates"
+          placeholder={"-----BEGIN CERTIFICATE-----\n…\n-----END CERTIFICATE-----"}
+          value={t.caCerts}
+          onChange={(e) => setT({ ...t, caCerts: e.target.value })}
+        />
+      </div>
+      <div className="px-4 pb-3">
+        <ErrorBox error={save.error} />
+      </div>
+    </Panel>
+  );
+}
+
 function SettingsTab({ a }: { a: APIDetail }) {
   const init = { title: a.title, desc: a.description, hosts: (a.allowedHosts ?? []).join("\n") };
   const [v, setV] = useState(init);
@@ -1101,8 +1612,8 @@ function SettingsTab({ a }: { a: APIDetail }) {
     { onSuccess: () => toast("Application saved") },
   );
   return (
-    <div style={{ maxWidth: 880 }}>
-      <Panel>
+    <div style={{ maxWidth: 1040 }}>
+      <Panel title="Application">
         <div className="settings-row">
           <div className="what">
             <strong>Display name</strong>
@@ -1147,6 +1658,7 @@ function SettingsTab({ a }: { a: APIDetail }) {
           />
         </div>
       </Panel>
+      <TLSPanel a={a} />
       <ErrorBox error={save.error} />
       <SaveBar
         dirty={dirty}

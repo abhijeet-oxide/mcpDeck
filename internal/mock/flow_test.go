@@ -110,6 +110,16 @@ func TestScannerFlow_EndToEnd(t *testing.T) {
 		t.Fatalf("pick should trim: out %d vs upstream %d", r.OutputBytes, r.UpstreamBytes)
 	}
 
+	// 4b. Or let mcpDeck log in: capture the token from the login body, and
+	// the tool needs no headers at all (CRED-1).
+	if _, err := d.UpdateAPI(ctx, api.ID, deck.UpdateAPIInput{Auth: &store.Auth{Type: "login", LoginRequestID: login.ID, Capture: "json:access_token"}}); err != nil {
+		t.Fatal(err)
+	}
+	r2 := d.RunScript(ctx, deck.Caller{Actor: audit.You}, `const a = await scanner.listApplications({ name: "ledger" }); return a.items[0].name`, nil)
+	if r2.Error != "" || r2.OutputJSON != `"ledger"` {
+		t.Fatalf("login capture: %s %s", r2.Error, r2.OutputJSON)
+	}
+
 	// 5. The guidelines see the raw vulnerability list as too big, and the
 	// trimmed output as fine on size.
 	vr := byName["listVulnerabilities"]

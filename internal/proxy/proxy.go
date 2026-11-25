@@ -765,7 +765,11 @@ func (p *Proxy) applyAuth(ctx context.Context, api store.API, a store.Auth, req 
 			p.mu.Lock()
 			v := p.captured[api.ID]
 			p.mu.Unlock()
-			req.Header.Set(a.Capture, v)
+			if strings.HasPrefix(a.Capture, "json:") {
+				req.Header.Set("Authorization", "Bearer "+v)
+			} else {
+				req.Header.Set(a.Capture, v)
+			}
 		}
 	}
 	if len(missing) > 0 {
@@ -803,13 +807,30 @@ func (p *Proxy) login(ctx context.Context, api store.API, a store.Auth, res reso
 		return &Error{Code: CodeLoginFailed, Message: res.secrets.String("login request failed: " + err.Error())}
 	}
 	defer hr.Body.Close()
-	_, _ = io.Copy(io.Discard, hr.Body)
+	body, _ := io.ReadAll(io.LimitReader(hr.Body, 1<<20))
 	if hr.StatusCode >= 400 {
 		return &Error{Code: CodeLoginFailed, Message: fmt.Sprintf("login to %s returned %s; check its credential in mcpDeck", api.Name, hr.Status)}
 	}
+	captured := ""
+	if field, ok := strings.CutPrefix(a.Capture, "json:"); ok {
+		// A token in the response body, sent as a bearer token (CRED-1).
+		var v any
+		_ = json.Unmarshal(body, &v)
+		for _, k := range strings.Split(field, ".") {
+			m, _ := v.(map[string]any)
+			v = m[k]
+		}
+		tok, _ := v.(string)
+		if tok == "" {
+			return &Error{Code: CodeLoginFailed, Message: fmt.Sprintf("the %s login response has no %q field; set Capture to the field that holds the token, like json:access_token", api.Name, field)}
+		}
+		captured = tok
+	} else if a.Capture != "" && a.Capture != "cookie" {
+		captured = hr.Header.Get(a.Capture)
+	}
 	p.mu.Lock()
 	if a.Capture != "" && a.Capture != "cookie" {
-		p.captured[api.ID] = hr.Header.Get(a.Capture)
+		p.captured[api.ID] = captured
 	}
 	p.loggedIn[api.ID] = p.clock.Now()
 	p.mu.Unlock()

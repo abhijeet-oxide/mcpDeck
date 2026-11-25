@@ -22,7 +22,7 @@ type Auth struct {
 	Username       string `json:"username,omitempty"`
 	Password       string `json:"password,omitempty"`
 	LoginRequestID string `json:"loginRequestId,omitempty"`
-	Capture        string `json:"capture,omitempty"` // cookie (default) or a response header name
+	Capture        string `json:"capture,omitempty"` // cookie (default), a response header name, or json:<field> sent as a bearer token
 }
 
 // API is one system you call (APP-1). Name is the client name in tool code.

@@ -46,7 +46,7 @@ func ParseEnvironment(data []byte, filename string) (*Environment, error) {
 			v.Secret = true
 		}
 		v.Preview = v.Value
-		if v.Secret {
+		if v.Secret && v.Value != "" {
 			v.Preview = maskPreview(v.Value)
 		}
 	}

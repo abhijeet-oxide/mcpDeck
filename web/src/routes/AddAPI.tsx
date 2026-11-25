@@ -34,6 +34,8 @@ type Item = {
   error?: string;
   loading?: boolean;
   skip: Set<number>;
+  /** Fetch without checking the certificate (API-9). */
+  insecure?: boolean;
 };
 
 let seq = 0;
@@ -62,6 +64,7 @@ export function AddAPI({ apiId }: { apiId?: string }) {
     try {
       const p = await post<ImportPreview>("/api/import/preview", {
         url: it.url,
+        insecure: !!it.insecure,
         text: it.text,
         environment: it.kind === "postman" ? envText : "",
       });
@@ -149,6 +152,7 @@ export function AddAPI({ apiId }: { apiId?: string }) {
         if (it.preview!.requests.length === it.skip.size) continue;
         const r = await post<ImportReport>("/api/import", {
           url: it.url,
+          insecure: !!it.insecure,
           text: it.text,
           environment: it.kind === "postman" ? (env?.text ?? "") : "",
           apiId: id,
@@ -316,6 +320,11 @@ export function AddAPI({ apiId }: { apiId?: string }) {
               it={it}
               name={shownName}
               onRemove={() => remove(it.key)}
+              onInsecure={() => {
+                const next = { ...it, insecure: true };
+                setItems((l) => l.map((x) => (x.key === it.key ? next : x)));
+                previewItem(next);
+              }}
               onToggle={(i, on) => toggle(it.key, i, on)}
             />
           ))}
@@ -422,10 +431,12 @@ function ItemPreview({
   name,
   onRemove,
   onToggle,
+  onInsecure,
 }: {
   it: Item;
   name: string;
   onRemove: () => void;
+  onInsecure: () => void;
   onToggle: (i: number | "all", on: boolean) => void;
 }) {
   const reqs = it.preview?.requests ?? [];
@@ -459,6 +470,22 @@ function ItemPreview({
       {it.error && (
         <div className="p-4">
           <ErrorBox error={it.error} />
+          {/certificate/i.test(it.error) && !it.insecure && (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Button kind="ink" size="sm" onClick={onInsecure}>
+                Skip certificate check
+              </Button>
+              <span className="muted text-[12.5px]">
+                For a server with a self-signed certificate you trust. The new application starts with verification off;
+                add its CA under Settings → TLS later to turn it back on.
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+      {it.insecure && it.preview && (
+        <div className="banner warn mx-4 mt-3">
+          Certificate not checked. The application will skip verification too.
         </div>
       )}
       {it.loading && !it.preview && <div className="muted p-4 text-[13px]">Reading…</div>}

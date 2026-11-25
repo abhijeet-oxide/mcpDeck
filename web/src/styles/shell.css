@@ -695,3 +695,29 @@
     padding: 20px 16px 48px;
   }
 }
+
+.saved-resp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.saved-resp:hover {
+  border-color: var(--line-strong);
+}
+.saved-resp[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.env-select {
+  min-width: 170px;
+}
