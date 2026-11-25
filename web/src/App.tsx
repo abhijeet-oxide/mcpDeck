@@ -100,7 +100,9 @@ function DemoBar({ returnUrl }: { returnUrl: string }) {
     <div className="demo-bar" role="status">
       <FlaskConical size={15} />
       <strong>You're in the demo</strong>
-      <span className="hidden opacity-85 md:inline">Sample applications and temporary data. Your own mcpDeck is untouched.</span>
+      <span className="hidden opacity-85 md:inline">
+        Sample applications and temporary data. Your own mcpDeck is untouched.
+      </span>
       <span className="ml-auto flex gap-2">
         <Button size="sm" icon={<CirclePlay size={13} />} onClick={startTour}>
           Tour

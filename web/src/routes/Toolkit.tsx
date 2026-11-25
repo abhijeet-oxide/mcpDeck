@@ -1,7 +1,9 @@
+import { useQuery } from "@tanstack/react-query";
 import { Bot, ChevronDown, Code2, Library, Plus, ScanEye, Settings2, Trash2, Wrench } from "lucide-react";
 import { useState } from "react";
 import { useConnect } from "../App";
 import { AskAgentButton, toolRequestPrompt } from "../components/AskAgent";
+import { ClientIcon, clientLabels } from "../components/ClientIcon";
 import {
   AccessChip,
   Avatar,
@@ -26,11 +28,8 @@ import {
   useConfirm,
   useToast,
 } from "../components/ui";
-import { del, patch, post } from "../lib/api";
+import { del, get, patch, post } from "../lib/api";
 import { ago, num } from "../lib/format";
-import { useQuery } from "@tanstack/react-query";
-import { ClientIcon, clientLabels } from "../components/ClientIcon";
-import { get } from "../lib/api";
 import { useAction, useAPIs, useLibrary, useToolkit } from "../lib/hooks";
 import { Link, navigate, useLocation } from "../lib/router";
 import type { AgentView, Rules, ToolkitDetail } from "../lib/types";
@@ -93,9 +92,6 @@ export function ToolkitPage({ name }: { name: string }) {
                 },
               ]}
             />
-            <Button icon={<ScanEye size={14} />} onClick={() => setPreview(true)} data-tour="preview">
-              Preview as agent
-            </Button>
             <Button icon={<Plus size={14} />} onClick={newTool}>
               New tool
             </Button>
@@ -131,6 +127,9 @@ export function ToolkitPage({ name }: { name: string }) {
           <div className="min-w-[260px] flex-1">
             <CopyField value={t.endpoint} label="Endpoint" />
           </div>
+          <Button size="sm" icon={<ScanEye size={13} />} onClick={() => setPreview(true)} data-tour="preview">
+            Preview as agent
+          </Button>
           <Button
             size="sm"
             kind="ghost"
@@ -138,7 +137,7 @@ export function ToolkitPage({ name }: { name: string }) {
             onClick={() => setDetails((d) => !d)}
             icon={<ChevronDown size={13} style={{ transform: details ? "rotate(180deg)" : undefined }} />}
           >
-            {details ? "Fewer details" : "More ways to connect"}
+            {details ? "Less" : "More ways to connect"}
           </Button>
         </div>
         {details && (

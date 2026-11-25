@@ -107,17 +107,13 @@ export function NewToolkitDialog({ onClose }: { onClose: () => void }) {
                 <input
                   type="checkbox"
                   checked={chosen.includes(a.id)}
-                  onChange={(e) =>
-                    setScope(e.target.checked ? [...chosen, a.id] : chosen.filter((x) => x !== a.id))
-                  }
+                  onChange={(e) => setScope(e.target.checked ? [...chosen, a.id] : chosen.filter((x) => x !== a.id))}
                 />
                 <span>{a.title || a.name}</span>
               </label>
             ))}
             {apis.data?.length === 0 && (
-              <span className="muted">
-                No applications yet. You can add them later in the toolkit's settings.
-              </span>
+              <span className="muted">No applications yet. You can add them later in the toolkit's settings.</span>
             )}
           </div>
         </Field>
@@ -172,10 +168,13 @@ export function Toolkits() {
               </Button>
             }
           >
-            Group the tools for one job, like support or finance. Each toolkit gets one URL that you add to Claude
-            Code, VS Code or Cursor.
+            Group the tools for one job, like support or finance. Each toolkit gets one URL that you add to Claude Code,
+            VS Code or Cursor.
           </EmptyState>
-          <div className="grid gap-px sm:grid-cols-3" style={{ background: "var(--line)", borderTop: "1px solid var(--line)" }}>
+          <div
+            className="grid gap-px sm:grid-cols-3"
+            style={{ background: "var(--line)", borderTop: "1px solid var(--line)" }}
+          >
             {[
               { icon: AppWindow, t: "1. Applications", d: "The systems tools call. Add them first." },
               { icon: Wrench, t: "2. Tools", d: "Short TypeScript functions that return only what's needed." },
@@ -238,7 +237,10 @@ export function Toolkits() {
       )}
       {tab === "library" && (
         <Panel>
-          <div className="muted flex items-center gap-2 px-4 py-3 text-[12.5px]" style={{ borderBottom: "1px solid var(--line)" }}>
+          <div
+            className="muted flex items-center gap-2 px-4 py-3 text-[12.5px]"
+            style={{ borderBottom: "1px solid var(--line)" }}
+          >
             <Info size={14} /> Every tool lives here once and can be in several toolkits. Tools are created inside a
             toolkit.
           </div>

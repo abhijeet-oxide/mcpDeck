@@ -18,8 +18,8 @@ import { AskAgentButton } from "../components/AskAgent";
 import { KVEditor } from "../components/KVEditor";
 import {
   AccessChip,
-  Button,
   Avatar,
+  Button,
   Chip,
   Empty,
   EmptyState,
@@ -152,7 +152,7 @@ export function APIWorkspace({ id }: { id: string }) {
           { id: "settings", label: "Settings" },
         ]}
       />
-      {tab === "requests" && <Requests a={a} />}
+      {tab === "requests" && <Requests a={a} onTab={setTab} />}
       {tab === "environments" && <Environments a={a} />}
       {tab === "auth" && <AuthTab a={a} />}
       {tab === "settings" && <SettingsTab a={a} />}
@@ -225,6 +225,22 @@ const blank = (apiId: string): Request => ({
   accessFlag: false,
 });
 
+export function nameFromURL(method: string, url: string): string {
+  const parts = url
+    .replace(/\{\{baseUrl\}\}/, "")
+    .split("?")[0]
+    .split("/")
+    .filter((p) => p && !p.startsWith("{") && !p.startsWith(":"))
+    .map((p) => p.replace(/\.[a-z]+$/i, "").replace(/[^A-Za-z0-9]+/g, " "));
+  const last = parts.slice(-2).join(" ").trim() || "request";
+  const verb = { GET: "get", POST: "create", PUT: "update", PATCH: "update", DELETE: "delete" }[method] ?? "call";
+  const words = `${verb} ${last}`.split(" ").filter(Boolean);
+  return words
+    .map((w, i) => (i ? w[0].toUpperCase() + w.slice(1) : w.toLowerCase()))
+    .join("")
+    .slice(0, 48);
+}
+
 function curlOf(r: Request): string {
   const q = r.query.filter((k) => !k.disabled && k.value);
   const url = r.url + (q.length ? `?${q.map((k) => `${k.key}=${encodeURIComponent(k.value)}`).join("&")}` : "");
@@ -240,7 +256,7 @@ function toolCallOf(api: string, r: Request): string {
   return `await ${api}.${r.name}(${args ? `{ ${args} }` : ""})`;
 }
 
-function Requests({ a }: { a: APIDetail }) {
+function Requests({ a, onTab }: { a: APIDetail; onTab: (t: Tab) => void }) {
   const [sel, setSel] = useState<string>(a.requests[0]?.id ?? "");
   const [side, setSide] = useState<"requests" | "history">("requests");
   const [filter, setFilter] = useState("");
@@ -345,7 +361,7 @@ function Requests({ a }: { a: APIDetail }) {
         )}
       </Panel>
       {draft ? (
-        <Editor key={draft.id || "new"} api={a} initial={draft} onSaved={(id) => setSel(id)} />
+        <Editor key={draft.id || "new"} api={a} initial={draft} onSaved={(id) => setSel(id)} onTab={onTab} />
       ) : (
         <Panel>
           <EmptyState
@@ -362,8 +378,8 @@ function Requests({ a }: { a: APIDetail }) {
               </>
             }
           >
-            Import a Postman collection, an OpenAPI file or curl, or add a request manually: a method, a URL and
-            any parameters.
+            Import a Postman collection, an OpenAPI file or curl, or add a request manually: a method, a URL and any
+            parameters.
           </EmptyState>
         </Panel>
       )}
@@ -371,7 +387,17 @@ function Requests({ a }: { a: APIDetail }) {
   );
 }
 
-function Editor({ api, initial, onSaved }: { api: APIDetail; initial: Request; onSaved: (id: string) => void }) {
+function Editor({
+  api,
+  initial,
+  onSaved,
+  onTab,
+}: {
+  api: APIDetail;
+  initial: Request;
+  onSaved: (id: string) => void;
+  onTab?: (t: Tab) => void;
+}) {
   const [r, setR] = useState<Request>(initial);
   const [sub, setSub] = useState<"params" | "headers" | "body" | "docs">(initial.body ? "body" : "params");
   const [res, setRes] = useState<SendResult | null>(null);
@@ -381,9 +407,14 @@ function Editor({ api, initial, onSaved }: { api: APIDetail; initial: Request; o
   const toast = useToast();
   const confirm = useConfirm();
   const tks = useToolkits();
-  const dirty = JSON.stringify(r) !== JSON.stringify(initial);
+  const strip = ({ example: _e, ...x }: Request) => JSON.stringify(x);
+  const dirty = strip(r) !== strip(initial);
   const save = useAction(
-    () => (r.id ? put<Request>(`/api/requests/${r.id}`, r) : post<Request>(`/api/apis/${api.id}/requests`, r)),
+    () => {
+      // A request added manually gets a name from its method and path, like getAccount.
+      const body = r.id || r.name !== "newRequest" ? r : { ...r, name: nameFromURL(r.method, r.url) };
+      return r.id ? put<Request>(`/api/requests/${r.id}`, body) : post<Request>(`/api/apis/${api.id}/requests`, body);
+    },
     {
       onSuccess: (x) => {
         toast(`Saved ${api.name}.${x.name}`);
@@ -598,7 +629,7 @@ function Editor({ api, initial, onSaved }: { api: APIDetail; initial: Request; o
         title={
           res ? (
             res.error ? (
-              <Chip tone="bad">{res.code ?? "error"}</Chip>
+              <Chip tone="bad">Couldn't send</Chip>
             ) : (
               <span className="flex items-center gap-3">
                 <Chip tone={res.status! < 400 ? "ok" : "bad"}>{res.statusText}</Chip>
@@ -633,7 +664,20 @@ function Editor({ api, initial, onSaved }: { api: APIDetail; initial: Request; o
             in tokens an agent would read.
           </EmptyState>
         )}
-        {res?.error && <div className="banner bad m-3">{res.error}</div>}
+        {res?.error && (
+          <div className="banner bad m-3 items-center">
+            <span className="min-w-0 flex-1">{res.error}</span>
+            {res.code === "unresolved_variables" && onTab && (
+              <Button
+                size="sm"
+                icon={<KeyRound size={13} />}
+                onClick={() => onTab(/token|key|secret|password/i.test(res.error ?? "") ? "auth" : "environments")}
+              >
+                {/token|key|secret|password/i.test(res.error ?? "") ? "Add credential" : "Open environments"}
+              </Button>
+            )}
+          </div>
+        )}
         {res && !res.error && (
           <pre className="code" style={{ border: 0, borderRadius: 0, maxHeight: 440 }}>
             {view === "headers"
@@ -681,7 +725,12 @@ function Editor({ api, initial, onSaved }: { api: APIDetail; initial: Request; o
                       Tools can then be tested without the network, and agents see what this request returns.
                     </div>
                   </div>
-                  <Button size="sm" kind="ink" loading={saveExample.isPending} onClick={() => saveExample.mutate(undefined)}>
+                  <Button
+                    size="sm"
+                    kind="ink"
+                    loading={saveExample.isPending}
+                    onClick={() => saveExample.mutate(undefined)}
+                  >
                     Save as example
                   </Button>
                 </>
@@ -690,10 +739,20 @@ function Editor({ api, initial, onSaved }: { api: APIDetail; initial: Request; o
           </div>
         )}
         <div className="flex flex-wrap justify-end gap-2 p-3" style={{ borderTop: "1px solid var(--line)" }}>
-          <Button size="sm" kind="ghost" icon={<Copy size={13} />} onClick={() => copy(curlOf(r), "curl copied; variables stay as {{names}}")}>
+          <Button
+            size="sm"
+            kind="ghost"
+            icon={<Copy size={13} />}
+            onClick={() => copy(curlOf(r), "curl copied; variables stay as {{names}}")}
+          >
             Copy as curl
           </Button>
-          <Button size="sm" kind="ghost" icon={<Copy size={13} />} onClick={() => copy(toolCallOf(api.name, r), "Tool call copied")}>
+          <Button
+            size="sm"
+            kind="ghost"
+            icon={<Copy size={13} />}
+            onClick={() => copy(toolCallOf(api.name, r), "Tool call copied")}
+          >
             Copy as tool call
           </Button>
           <Button
@@ -703,7 +762,9 @@ function Editor({ api, initial, onSaved }: { api: APIDetail; initial: Request; o
             title={!r.id ? "Save the request first" : tks.data?.length ? "" : "Create a toolkit first"}
             onClick={() =>
               tks.data?.length
-                ? navigate(`/toolkits/${tks.data[0].name}/tools/new?from=${encodeURIComponent(`${api.name}.${r.name}`)}`)
+                ? navigate(
+                    `/toolkits/${tks.data[0].name}/tools/new?from=${encodeURIComponent(`${api.name}.${r.name}`)}`,
+                  )
                 : navigate("/toolkits?new=1")
             }
           >
@@ -890,7 +951,9 @@ function Environments({ a }: { a: APIDetail }) {
 function AuthTab({ a }: { a: APIDetail }) {
   const [auth, setAuth] = useState<Auth>(a.auth ?? { type: "none" });
   const toast = useToast();
-  const save = useAction(() => patch(`/api/apis/${a.id}`, { auth }), { onSuccess: () => toast("Authentication saved") });
+  const save = useAction(() => patch(`/api/apis/${a.id}`, { auth }), {
+    onSuccess: () => toast("Authentication saved"),
+  });
   const secrets = a.variables.filter((v) => v.source === "secret");
   const set = (p: Partial<Auth>) => setAuth({ ...auth, ...p });
   const dirty = JSON.stringify(auth) !== JSON.stringify(a.auth ?? { type: "none" });
@@ -1085,7 +1148,12 @@ function SettingsTab({ a }: { a: APIDetail }) {
         </div>
       </Panel>
       <ErrorBox error={save.error} />
-      <SaveBar dirty={dirty} saving={save.isPending} onSave={() => save.mutate(undefined)} onDiscard={() => setV(init)} />
+      <SaveBar
+        dirty={dirty}
+        saving={save.isPending}
+        onSave={() => save.mutate(undefined)}
+        onDiscard={() => setV(init)}
+      />
     </div>
   );
 }

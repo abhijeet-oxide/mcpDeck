@@ -44,7 +44,7 @@ export function SetupGuide() {
   if (!next) return null;
   const s = steps[next.key as StepKey];
   return (
-    <div className="panel mx-0.5 mb-2 p-3" aria-label="Setup guide">
+    <section className="panel mx-0.5 mb-2 p-3" aria-label="Setup guide">
       <div className="flex items-center gap-2">
         <span className="text-[12px] font-semibold">Get started</span>
         <span className="muted text-[11.5px]">
@@ -82,7 +82,7 @@ export function SetupGuide() {
         </span>
         <ArrowRight size={14} className="muted" />
       </button>
-    </div>
+    </section>
   );
 }
 
@@ -149,7 +149,12 @@ export function GettingStarted({ compact }: { compact?: boolean }) {
 
 // ───────── The demo tour ─────────
 
-type TourStep = { path: string | ((ids: Record<string, string>) => string); spot?: string; title: string; body: string };
+type TourStep = {
+  path: string | ((ids: Record<string, string>) => string);
+  spot?: string;
+  title: string;
+  body: string;
+};
 const tour: TourStep[] = [
   {
     path: "/",

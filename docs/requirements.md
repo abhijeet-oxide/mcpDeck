@@ -745,12 +745,14 @@ comes back on its own.
 *Accept:* after the four steps, or after Hide, no onboarding text appears
 anywhere.
 
-**UI-12 Demo kept apart.** "Open the demo" (first-run Home and
-Settings › Data) opens the demo in its own temporary data folder, as
-`mcpdeck dev` does, never mixed with the user's data. While it's open, every
-page shows a bar saying so with "Leave demo", which returns to the user's own
-data unchanged. The first-run Home stops offering it once the user has added
-an API.
+**UI-12 Demo kept apart.** "Demo" (on Home, the welcome page and About)
+opens the demo in a new tab: its own instance and temporary data folder, as
+`mcpdeck dev` does, never mixed with the user's data, in the same light or
+dark theme. While it's open, every page shows a bar saying so with "Tour" and
+"Leave demo", which returns to the user's own data unchanged and still
+signed in. The tour walks through applications, a request, toolkits, what an
+agent sees, agents and activity, one short step at a time, and can be closed
+at any step.
 
 **UI-13 About and the repository.** The sidebar shows the GitHub repository
 (`abhijeet-oxide/mcpDeck`) with a Star link, and an About page says what

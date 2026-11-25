@@ -103,3 +103,32 @@ func TestGuard_HostOriginCookieToken(t *testing.T) {
 		})
 	}
 }
+
+// REQ: UI-12, RUN-5
+// Browsers share cookies across ports on 127.0.0.1, so the demo (its own
+// instance on the next port) must not replace the user's session.
+func TestGuard_SessionCookiePerPort(t *testing.T) {
+	main, demo := NewGuard(47800), NewGuard(47801)
+	if main.CookieName() == demo.CookieName() {
+		t.Fatalf("two instances share the cookie name %q", main.CookieName())
+	}
+	srv, g, _ := newServer(t)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", strings.TrimPrefix(g.LaunchURL("/"), "http://127.0.0.1:47800"), nil)
+	req.Host = "127.0.0.1:47800"
+	srv.ServeHTTP(rec, req)
+	c := rec.Result().Cookies()[0]
+	if c.Name != g.CookieName() {
+		t.Fatalf("launch set %q, want %q", c.Name, g.CookieName())
+	}
+	// A demo cookie alongside it doesn't sign the user out.
+	req = httptest.NewRequest("GET", "/api/info", nil)
+	req.Host = "127.0.0.1:47800"
+	req.AddCookie(&http.Cookie{Name: demo.CookieName(), Value: "demo-session"})
+	req.AddCookie(c)
+	rec = httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("with a demo cookie present: %d", rec.Code)
+	}
+}

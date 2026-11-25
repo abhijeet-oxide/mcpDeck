@@ -292,7 +292,7 @@ func (d *Deck) Home(ctx context.Context) (*Home, error) {
 			hasLive = true
 		}
 	}
-	sent, _ := d.Store.Calls(ctx, store.CallFilter{Kind: "upstream", Limit: 1})
+	sent, _ := d.Store.Calls(ctx, store.CallFilter{Kind: "upstream", Status: "ok", Limit: 1})
 	hasExample := false
 	for _, r := range reqs {
 		if len(r.Example) > 0 && string(r.Example) != "null" {

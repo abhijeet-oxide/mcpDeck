@@ -1,7 +1,7 @@
-import { FolderOpen, Sparkles } from "lucide-react";
+import { Compass, Database, FolderOpen, Palette, ShieldCheck, SlidersHorizontal, Timer } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTheme } from "../components/Sidebar";
-import { Button, Chip, ErrorBox, Field, Loading, PageHead, Panel, Seg, useToast } from "../components/ui";
+import { Button, Chip, ErrorBox, Loading, PageHead, Panel, SaveBar, Seg, Toggle, useToast } from "../components/ui";
 import { post, put } from "../lib/api";
 import { useAction, useSettings } from "../lib/hooks";
 
@@ -16,6 +16,27 @@ export const SECURITY_LIMITS = [
   "Agent tokens are stored in plain text in each client's config, as MCP clients require. Revoke a token if it leaks.",
 ];
 
+const sections = [
+  { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "general", label: "General", icon: SlidersHorizontal },
+  { id: "calls", label: "Call history", icon: Timer },
+  { id: "guide", label: "Getting started", icon: Compass },
+  { id: "security", label: "Security", icon: ShieldCheck },
+  { id: "data", label: "Data", icon: Database },
+];
+
+function Row({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
+  return (
+    <div className="settings-row">
+      <div className="what">
+        <strong>{title}</strong>
+        {sub && <span>{sub}</span>}
+      </div>
+      <div>{children}</div>
+    </div>
+  );
+}
+
 export function Settings() {
   const q = useSettings();
   const toast = useToast();
@@ -25,133 +46,141 @@ export function Settings() {
     if (q.data) setVals(q.data.values);
   }, [q.data]);
   const save = useAction(() => put("/api/settings", vals), { onSuccess: () => toast("Settings saved") });
+  const guide = useAction((hide: boolean) => put("/api/settings", { hideOnboarding: hide ? "true" : "false" }), {
+    onSuccess: (_, hide) => toast(hide ? "Setup guide hidden" : "Setup guide shown in the sidebar"),
+  });
   const reveal = useAction(() => post("/api/reveal-data"));
-  const demo = async () => {
-    try {
-      const r = await post<{ url: string }>("/api/demo");
-      window.open(r.url, "_blank", "noopener");
-    } catch (e) {
-      toast((e as Error).message, true);
-    }
-  };
   if (q.isLoading) return <Loading />;
+  if (q.error)
+    return (
+      <div className="page">
+        <ErrorBox error={q.error} />
+      </div>
+    );
   const s = q.data!;
+  const keys = ["toolTimeoutSeconds", "retentionBodiesDays", "retentionCallsDays"];
+  const dirty = keys.some((k) => (vals[k] ?? "") !== (s.values[k] ?? ""));
+  const num = (k: string) => (
+    <input
+      className="input"
+      style={{ maxWidth: 160 }}
+      type="number"
+      min={1}
+      value={vals[k] ?? ""}
+      onChange={(e) => setVals({ ...vals, [k]: e.target.value })}
+    />
+  );
   return (
-    <div className="page" style={{ maxWidth: 900 }}>
+    <div className="page" style={{ maxWidth: 1160 }}>
       <PageHead title="Settings" sub="How mcpDeck runs on this computer." />
-      <div className="flex flex-col gap-4">
-        <Panel title="General" bodyClass="panel-body grid gap-4 sm:grid-cols-2">
-          <Field label="Theme">
-            <Seg
-              label="Theme"
-              value={theme}
-              onChange={set}
-              options={[
-                { id: "system", label: "System" },
-                { id: "light", label: "Light" },
-                { id: "dark", label: "Dark" },
-              ]}
-            />
-          </Field>
-          <Field
-            label="Port"
-            hint="Kept so client configs stay valid. Change with mcpdeck --port, then reconnect agents."
-          >
-            <input className="input mono" value={`127.0.0.1:${s.port}`} readOnly />
-          </Field>
-          <Field label="Tool timeout (seconds)">
-            <input
-              className="input"
-              type="number"
-              min={1}
-              value={vals.toolTimeoutSeconds ?? ""}
-              onChange={(e) => setVals({ ...vals, toolTimeoutSeconds: e.target.value })}
-            />
-          </Field>
-          <Field label="Version">
-            <input className="input mono" value={s.version} readOnly />
-          </Field>
-        </Panel>
-        <Panel title="Calls" bodyClass="panel-body grid gap-4 sm:grid-cols-2">
-          <Field label="Keep call bodies (days)" hint="Inputs and outputs">
-            <input
-              className="input"
-              type="number"
-              min={1}
-              value={vals.retentionBodiesDays ?? ""}
-              onChange={(e) => setVals({ ...vals, retentionBodiesDays: e.target.value })}
-            />
-          </Field>
-          <Field label="Keep call records (days)" hint="Who, when, time, size, tokens">
-            <input
-              className="input"
-              type="number"
-              min={1}
-              value={vals.retentionCallsDays ?? ""}
-              onChange={(e) => setVals({ ...vals, retentionCallsDays: e.target.value })}
-            />
-          </Field>
-          <div className="sm:col-span-2">
-            <Button kind="ink" onClick={() => save.mutate(undefined)}>
-              Save
-            </Button>
-            <ErrorBox error={save.error} />
-          </div>
-        </Panel>
-        <Panel title="Security" bodyClass="panel-body" className="scroll-mt-4">
-          <div id="security" className="mb-3 flex items-center gap-2">
-            Key storage: <Chip tone={s.keychain === "os keychain" ? "ok" : "warn"}>{s.keychain}</Chip>
-          </div>
-          {s.keychain !== "os keychain" && (
-            <div className="banner warn mb-3">
-              No OS keychain was available, so the encryption key is in a file readable only by you:{" "}
-              <code>{s.keyFile}</code>. Anyone who can read that file and the database can decrypt your keys.
+      <div className="grid items-start gap-8 md:grid-cols-[200px_minmax(0,1fr)]">
+        <nav className="sticky top-4 hidden flex-col gap-px md:flex" aria-label="Settings sections">
+          {sections.map(({ id, label, icon: I }) => (
+            <a key={id} href={`#${id}`} className="nav-item" style={{ height: 34 }}>
+              <I size={16} strokeWidth={1.75} /> {label}
+            </a>
+          ))}
+        </nav>
+        <div className="flex min-w-0 flex-col gap-6">
+          <Panel title="Appearance" id="appearance">
+            <Row title="Theme" sub="System follows your computer's light or dark setting.">
+              <Seg
+                label="Theme"
+                value={theme}
+                onChange={set}
+                options={[
+                  { id: "system", label: "System" },
+                  { id: "light", label: "Light" },
+                  { id: "dark", label: "Dark" },
+                ]}
+              />
+            </Row>
+          </Panel>
+          <Panel title="General" id="general">
+            <Row
+              title="Address"
+              sub="Kept the same so client configs stay valid. Change it with mcpdeck --port, then reconnect agents."
+            >
+              <input className="input mono" value={`127.0.0.1:${s.port}`} readOnly aria-label="Address" />
+            </Row>
+            <Row title="Tool timeout" sub="Seconds a tool may run before it's stopped.">
+              {num("toolTimeoutSeconds")}
+            </Row>
+            <Row title="Version">
+              <span className="mono">{s.version}</span>
+            </Row>
+          </Panel>
+          <Panel title="Call history" id="calls">
+            <Row title="Keep inputs and outputs" sub="Days. The full bodies of calls, used for debugging.">
+              {num("retentionBodiesDays")}
+            </Row>
+            <Row title="Keep call records" sub="Days. Who called what, when, how long it took, its size and tokens.">
+              {num("retentionCallsDays")}
+            </Row>
+          </Panel>
+          <Panel title="Getting started" id="guide">
+            <Row title="Setup guide" sub="The card at the bottom of the sidebar that shows your next step.">
+              <Toggle
+                label="Show the setup guide"
+                checked={s.values.hideOnboarding !== "true"}
+                onChange={(on) => guide.mutate(!on)}
+              />
+            </Row>
+          </Panel>
+          <Panel title="Security" id="security">
+            <Row title="Key storage" sub="Where the key that encrypts your credentials is kept.">
+              <Chip tone={s.keychain === "os keychain" ? "ok" : "warn"}>{s.keychain}</Chip>
+              {s.keychain !== "os keychain" && (
+                <div className="banner warn mt-3">
+                  No OS keychain was available, so the encryption key is in a file readable only by you:{" "}
+                  <code>{s.keyFile}</code>. Anyone who can read that file and the database can decrypt your keys.
+                </div>
+              )}
+            </Row>
+            <div className="grid gap-6 p-5 sm:grid-cols-2">
+              <div>
+                <div className="mb-2 font-semibold">What mcpDeck protects</div>
+                <ul className="text-2 m-0 pl-4 text-[13px]">
+                  {SECURITY_PROTECTS.map((t) => (
+                    <li key={t} className="mb-1.5">
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <div className="mb-2 font-semibold">What it can't</div>
+                <ul className="text-2 m-0 pl-4 text-[13px]">
+                  {SECURITY_LIMITS.map((t) => (
+                    <li key={t} className="mb-1.5">
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
-          )}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <div className="mb-1 font-semibold">What mcpDeck protects</div>
-              <ul className="text-2 m-0 pl-4 text-[13px]">
-                {SECURITY_PROTECTS.map((t) => (
-                  <li key={t} className="mb-1">
-                    {t}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <div className="mb-1 font-semibold">What it doesn't</div>
-              <ul className="text-2 m-0 pl-4 text-[13px]">
-                {SECURITY_LIMITS.map((t) => (
-                  <li key={t} className="mb-1">
-                    {t}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </Panel>
-        <Panel title="Data" bodyClass="panel-body flex flex-col gap-3">
-          <Field label="Data folder" hint="Delete it to reset mcpDeck completely.">
-            <div className="flex gap-2">
-              <input className="input mono" value={s.dataDir} readOnly />
-              <Button icon={<FolderOpen size={14} />} onClick={() => reveal.mutate(undefined)}>
-                Reveal
-              </Button>
-            </div>
-          </Field>
-          <ErrorBox error={reveal.error} />
-          {!s.demo && (
-            <div className="flex items-center gap-3">
-              <Button icon={<Sparkles size={14} />} onClick={demo}>
-                Open the demo world
-              </Button>
-              <span className="muted text-[12.5px]">
-                Mock APIs, toolkits and agents in their own throwaway data, in a new tab.
-              </span>
-            </div>
-          )}
-        </Panel>
+          </Panel>
+          <Panel title="Data" id="data">
+            <Row title="Data folder" sub="Everything mcpDeck stores. Delete the folder to reset mcpDeck completely.">
+              <div className="flex gap-2">
+                <input className="input mono" value={s.dataDir} readOnly aria-label="Data folder" />
+                <Button icon={<FolderOpen size={14} />} onClick={() => reveal.mutate(undefined)}>
+                  Open
+                </Button>
+              </div>
+              <div className="mt-2">
+                <ErrorBox error={reveal.error} />
+              </div>
+            </Row>
+          </Panel>
+          <ErrorBox error={save.error} />
+          <SaveBar
+            dirty={dirty}
+            saving={save.isPending}
+            onSave={() => save.mutate(undefined)}
+            onDiscard={() => setVals(s.values)}
+          />
+        </div>
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { post } from "../lib/api";
 import { useAction, useAgent, useAgents, useToolkits } from "../lib/hooks";
 import type { ConnectResponse, Plan } from "../lib/types";
+import { ClientIcon } from "./ClientIcon";
 import { Button, Chip, CopyButton, CopyField, Dialog, ErrorBox, Field, Seg, Toggle, useToast } from "./ui";
 
 const clients = [
@@ -85,12 +86,15 @@ export function ConnectDialog({
     return (
       <Dialog
         title={existing ? `Add a toolkit to ${existing.name}` : "Connect an agent"}
+        sub="Pick the client, the toolkit it gets and what it may do. You'll get a command or a one-click link next."
         onClose={onClose}
         wide
         footer={
           <>
-            <Button onClick={onClose}>Cancel</Button>
-            <Button kind="ink" disabled={!tk || go.isPending} onClick={() => go.mutate(undefined)}>
+            <Button kind="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button kind="ink" disabled={!tk} loading={go.isPending} onClick={() => go.mutate(undefined)}>
               Connect
             </Button>
           </>
@@ -103,17 +107,18 @@ export function ConnectDialog({
                 <button
                   key={c.id}
                   type="button"
-                  className="panel p-2.5 text-left"
-                  style={
-                    client === c.id
-                      ? { borderColor: "var(--accent)", boxShadow: "0 0 0 3px var(--accent-soft)" }
-                      : { cursor: "pointer" }
-                  }
+                  className="choice"
+                  style={{ padding: 12 }}
                   aria-pressed={client === c.id}
                   onClick={() => setClient(c.id)}
                 >
-                  <div className="font-semibold">{c.label}</div>
-                  <div className="muted text-[12px]">{c.sub}</div>
+                  <span className="icon-tile plain">
+                    <ClientIcon client={c.id} size={18} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-semibold">{c.label}</span>
+                    <span className="muted block text-[12px]">{c.sub}</span>
+                  </span>
                 </button>
               ))}
             </div>

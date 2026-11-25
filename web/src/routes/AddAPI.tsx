@@ -1,16 +1,6 @@
 import { FileJson, FileUp, Globe, KeyRound, Loader2, PencilLine, Terminal, Trash2, Upload, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import {
-  AccessChip,
-  Button,
-  Chip,
-  ErrorBox,
-  Field,
-  MethodChip,
-  PageHead,
-  Panel,
-  useToast,
-} from "../components/ui";
+import { AccessChip, Button, Chip, ErrorBox, Field, MethodChip, PageHead, Panel, useToast } from "../components/ui";
 import { patch, post } from "../lib/api";
 import { useAction, useAPI, useAPIs } from "../lib/hooks";
 import { appName, appNameError, detectImport, type ImportKind } from "../lib/names";
@@ -101,7 +91,8 @@ export function AddAPI({ apiId }: { apiId?: string }) {
     setItems((l) => [...l, ...added]);
     for (const it of added) previewItem(it, envText);
     // A new environment applies to collections already added too.
-    if (envText !== (env?.text ?? "")) for (const it of items.filter((x) => x.kind === "postman")) previewItem(it, envText);
+    if (envText !== (env?.text ?? ""))
+      for (const it of items.filter((x) => x.kind === "postman")) previewItem(it, envText);
   };
 
   const addURL = () => {
@@ -455,7 +446,13 @@ function ItemPreview({
               {reqs.length - it.skip.size} of {reqs.length}
             </span>
           )}
-          <Button size="sm" kind="ghost" aria-label={`Remove ${it.label}`} icon={<Trash2 size={13} />} onClick={onRemove} />
+          <Button
+            size="sm"
+            kind="ghost"
+            aria-label={`Remove ${it.label}`}
+            icon={<Trash2 size={13} />}
+            onClick={onRemove}
+          />
         </>
       }
     >

@@ -1,4 +1,16 @@
-import { AppWindow, Bot, ChartNoAxesColumn, House, Info, Moon, Search, Settings, Star, Sun, ToolCase } from "lucide-react";
+import {
+  AppWindow,
+  Bot,
+  ChartNoAxesColumn,
+  House,
+  Info,
+  Moon,
+  Search,
+  Settings,
+  Star,
+  Sun,
+  ToolCase,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { mod } from "../lib/format";
 import { useHome, useInfo } from "../lib/hooks";
@@ -77,13 +89,7 @@ export function Sidebar({ onSearch }: { onSearch: () => void }) {
         <Search size={14} /> Search or run <kbd>{mod()} K</kbd>
       </button>
       {nav.map(({ to, label, icon: Icon, tour }) => (
-        <Link
-          key={to}
-          to={to}
-          className="nav-item"
-          data-tour={tour}
-          aria-current={active(to) ? "page" : undefined}
-        >
+        <Link key={to} to={to} className="nav-item" data-tour={tour} aria-current={active(to) ? "page" : undefined}>
           <Icon size={17} strokeWidth={1.75} />
           {label}
           {to === "/" && needs > 0 && (
