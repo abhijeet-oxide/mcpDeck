@@ -20,8 +20,11 @@ export type API = {
   allowedHosts: string[] | null;
   auth: Auth;
   activeEnvId: string;
+  tls?: TLS;
   createdAt: string;
 };
+export type TLS = { insecure: boolean; caCerts?: string };
+export type SavedResponse = { id: string; name: string; status: number; body: unknown; savedAt: string };
 export type APISummary = API & {
   requests: number;
   environments: string[];
@@ -47,6 +50,8 @@ export type Request = {
   accessReason: string;
   accessFlag: boolean;
   example?: unknown;
+  responseSchema?: unknown;
+  responses?: SavedResponse[] | null;
 };
 export type Environment = { id: string; apiId: string; name: string };
 export type Variable = {
@@ -321,6 +326,22 @@ export type Home = {
   welcomeSeen: boolean;
   demo: boolean;
   daily: DayPoint[];
+  health?: ToolkitHealth[];
+  heaviest?: UsageRow[];
+  fetched?: number;
+  returned?: number;
+  calls7d?: number;
+  errors7d?: number;
+};
+export type ToolkitHealth = {
+  name: string;
+  tools: number;
+  listTokens: number;
+  score: number;
+  must: number;
+  avoid: number;
+  top?: string;
+  agents: number;
 };
 export type UsageRow = {
   key: string;
@@ -362,6 +383,40 @@ export type Info = {
   demo: boolean;
   returnUrl: string;
   dataDir: string;
+  practice?: { specUrl: string; username: string; password: string } | null;
+};
+export type Finding = {
+  rule: string;
+  level: "must" | "avoid" | "tip";
+  title: string;
+  detail: string;
+  fix: string;
+  tool?: string;
+  path?: string;
+};
+export type LintReport = {
+  tools: number;
+  listTokens: number;
+  score: number;
+  findings: Finding[];
+  draft: Finding[];
+  draftError?: string;
+};
+export type FieldStat = { path: string; bytes: number; tokens: number; type: string; empty: number; count: number };
+export type OutputReport = {
+  tokens: number;
+  bytes: number;
+  fields: number;
+  depth: number;
+  largest: FieldStat[];
+  findings: Finding[];
+};
+export type EnvImportVar = { name: string; secret: boolean; env: string; preview: string };
+export type EnvImport = {
+  environment?: Environment;
+  parsed: { kind: string; name: string; vars: EnvImportVar[] };
+  secrets: number;
+  emptySecrets: string[];
 };
 export type SettingsView = {
   values: Record<string, string>;

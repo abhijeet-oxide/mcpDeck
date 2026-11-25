@@ -1,6 +1,7 @@
 import "@fontsource-variable/inter";
 import "@fontsource-variable/jetbrains-mono";
 import "./styles/app.css";
+import "./styles/shell.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
@@ -19,6 +20,8 @@ adoptThemeFromURL();
 try {
   const t = localStorage.getItem("mcpdeck-theme");
   if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+  const a = localStorage.getItem("mcpdeck-accent");
+  if (a && a !== "blue") document.documentElement.dataset.accent = a;
 } catch {
   /* storage off */
 }

@@ -1,4 +1,8 @@
-import { Check, CheckCircle2, CircleAlert, Copy, Loader2, MoreHorizontal, X } from "lucide-react";
+import * as RMenu from "@radix-ui/react-dropdown-menu";
+import * as RSelect from "@radix-ui/react-select";
+import * as RTabs from "@radix-ui/react-tabs";
+import * as RTooltip from "@radix-ui/react-tooltip";
+import { Check, CheckCircle2, ChevronDown, CircleAlert, Copy, Loader2, MoreHorizontal, X } from "lucide-react";
 import {
   type ButtonHTMLAttributes,
   createContext,
@@ -152,21 +156,106 @@ export function Tabs<T extends string>({
   tabs,
   value,
   onChange,
+  variant = "line",
 }: {
   tabs: { id: T; label: ReactNode; n?: number; icon?: ReactNode }[];
   value: T;
   onChange: (t: T) => void;
+  variant?: "line" | "pill";
 }) {
   return (
-    <div className="tabs" role="tablist">
-      {tabs.map((t) => (
-        <button key={t.id} type="button" role="tab" aria-selected={value === t.id} onClick={() => onChange(t.id)}>
-          {t.icon}
-          {t.label}
-          {t.n !== undefined && t.n > 0 && <span className="n">{t.n}</span>}
-        </button>
-      ))}
-    </div>
+    <RTabs.Root value={value} onValueChange={(v) => onChange(v as T)} activationMode="manual">
+      <RTabs.List className={variant === "pill" ? "tabs-pill" : "tabs"} aria-label="Sections">
+        {tabs.map((t) => (
+          <RTabs.Trigger key={t.id} value={t.id} className="tab">
+            {t.icon}
+            {t.label}
+            {t.n !== undefined && t.n > 0 && <span className="n">{t.n}</span>}
+          </RTabs.Trigger>
+        ))}
+      </RTabs.List>
+    </RTabs.Root>
+  );
+}
+
+/** Select is a styled dropdown (Radix Select): keyboard, typeahead, portal. */
+export function Select<T extends string>({
+  value,
+  onChange,
+  options,
+  label,
+  placeholder,
+  className = "",
+  size,
+  disabled,
+  footer,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: ReactNode; hint?: ReactNode; icon?: ReactNode }[];
+  label: string;
+  placeholder?: string;
+  className?: string;
+  size?: "sm";
+  disabled?: boolean;
+  footer?: ReactNode;
+}) {
+  const current = options.find((o) => o.value === value);
+  return (
+    <RSelect.Root value={value || undefined} onValueChange={(v) => onChange(v as T)} disabled={disabled}>
+      <RSelect.Trigger className={`select-trigger${size === "sm" ? " sm" : ""} ${className}`} aria-label={label}>
+        <span className="flex min-w-0 items-center gap-2 truncate">
+          {current?.icon}
+          <RSelect.Value placeholder={placeholder ?? "Choose…"}>{current?.label}</RSelect.Value>
+        </span>
+        <RSelect.Icon className="select-chevron">
+          <ChevronDown size={14} />
+        </RSelect.Icon>
+      </RSelect.Trigger>
+      <RSelect.Portal>
+        <RSelect.Content className="select-content" position="popper" sideOffset={6} collisionPadding={12}>
+          <RSelect.Viewport className="select-viewport">
+            {options.map((o) => (
+              <RSelect.Item key={o.value} value={o.value} className="select-item">
+                {o.icon}
+                <span className="min-w-0 flex-1">
+                  <RSelect.ItemText>{o.label}</RSelect.ItemText>
+                  {o.hint && <span className="select-hint">{o.hint}</span>}
+                </span>
+                <RSelect.ItemIndicator className="select-check">
+                  <Check size={14} />
+                </RSelect.ItemIndicator>
+              </RSelect.Item>
+            ))}
+          </RSelect.Viewport>
+          {footer && <div className="select-footer">{footer}</div>}
+        </RSelect.Content>
+      </RSelect.Portal>
+    </RSelect.Root>
+  );
+}
+
+/** Tip is a hover/focus tooltip (Radix Tooltip). */
+export function Tip({
+  content,
+  children,
+  side = "top",
+}: {
+  content: ReactNode;
+  children: ReactNode;
+  side?: "top" | "bottom" | "left" | "right";
+}) {
+  return (
+    <RTooltip.Provider delayDuration={250}>
+      <RTooltip.Root>
+        <RTooltip.Trigger asChild>{children}</RTooltip.Trigger>
+        <RTooltip.Portal>
+          <RTooltip.Content className="tooltip" side={side} sideOffset={6}>
+            {content}
+          </RTooltip.Content>
+        </RTooltip.Portal>
+      </RTooltip.Root>
+    </RTooltip.Provider>
   );
 }
 
@@ -315,67 +404,43 @@ export function Field({
   );
 }
 
-/** Menu is a "more actions" button with a popover list. */
+/** Menu is a "more actions" button with a popover list (Radix DropdownMenu). */
 export function Menu({
   label = "More actions",
   items,
   trigger,
+  align = "end",
 }: {
   label?: string;
   trigger?: ReactNode;
-  items: ({ label: string; icon?: ReactNode; onClick: () => void; danger?: boolean } | "sep")[];
+  align?: "start" | "end";
+  items: ({ label: string; icon?: ReactNode; onClick: () => void; danger?: boolean; hint?: string } | "sep")[];
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const down = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    const key = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("mousedown", down);
-    window.addEventListener("keydown", key);
-    ref.current?.querySelector<HTMLElement>(".menu button")?.focus();
-    return () => {
-      window.removeEventListener("mousedown", down);
-      window.removeEventListener("keydown", key);
-    };
-  }, [open]);
   return (
-    <div className="relative" ref={ref}>
-      {trigger ? (
-        <span onClickCapture={() => setOpen((o) => !o)}>{trigger}</span>
-      ) : (
-        <Button
-          aria-label={label}
-          aria-haspopup="menu"
-          aria-expanded={open}
-          icon={<MoreHorizontal size={16} />}
-          onClick={() => setOpen((o) => !o)}
-        />
-      )}
-      {open && (
-        <div className="menu" role="menu">
+    <RMenu.Root modal={false}>
+      <RMenu.Trigger asChild>
+        {trigger ?? <Button aria-label={label} icon={<MoreHorizontal size={16} />} />}
+      </RMenu.Trigger>
+      <RMenu.Portal>
+        <RMenu.Content className="menu" align={align} sideOffset={6} collisionPadding={12}>
           {items.map((it, i) =>
             it === "sep" ? (
-              <hr key={`sep${i}`} />
+              <RMenu.Separator key={`sep${i}`} className="menu-sep" />
             ) : (
-              <button
+              <RMenu.Item
                 key={it.label}
-                type="button"
-                role="menuitem"
-                className={it.danger ? "danger" : ""}
-                onClick={() => {
-                  setOpen(false);
-                  it.onClick();
-                }}
+                className={`menu-item${it.danger ? " danger" : ""}`}
+                onSelect={() => it.onClick()}
               >
                 {it.icon}
-                {it.label}
-              </button>
+                <span className="flex-1">{it.label}</span>
+                {it.hint && <span className="menu-hint">{it.hint}</span>}
+              </RMenu.Item>
             ),
           )}
-        </div>
-      )}
-    </div>
+        </RMenu.Content>
+      </RMenu.Portal>
+    </RMenu.Root>
   );
 }
 
@@ -436,12 +501,14 @@ export function StatCard({
   value,
   foot,
   onClick,
+  children,
 }: {
   icon: ReactNode;
   label: string;
   value: ReactNode;
   foot?: ReactNode;
   onClick?: () => void;
+  children?: ReactNode;
 }) {
   const inner = (
     <>
@@ -451,6 +518,7 @@ export function StatCard({
       </div>
       <div className="value">{value}</div>
       {foot && <div className="foot">{foot}</div>}
+      {children}
     </>
   );
   return onClick ? (
@@ -489,15 +557,24 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 export const useToast = () => useContext(ToastCtx);
 
 // Confirm: a real dialog instead of the browser's confirm().
-type ConfirmOpts = { title: string; body?: ReactNode; action: string; danger?: boolean };
+type ConfirmOpts = { title: string; body?: ReactNode; action: string; danger?: boolean; typeToConfirm?: string };
 const ConfirmCtx = createContext<(o: ConfirmOpts) => Promise<boolean>>(async () => false);
 function ConfirmProvider({ children }: { children: ReactNode }) {
   const [req, setReq] = useState<(ConfirmOpts & { resolve: (v: boolean) => void }) | null>(null);
-  const ask = useCallback((o: ConfirmOpts) => new Promise<boolean>((resolve) => setReq({ ...o, resolve })), []);
+  const [typed, setTyped] = useState("");
+  const ask = useCallback(
+    (o: ConfirmOpts) =>
+      new Promise<boolean>((resolve) => {
+        setTyped("");
+        setReq({ ...o, resolve });
+      }),
+    [],
+  );
   const done = (v: boolean) => {
     req?.resolve(v);
     setReq(null);
   };
+  const blocked = !!req?.typeToConfirm && typed.trim() !== req.typeToConfirm;
   return (
     <ConfirmCtx.Provider value={ask}>
       {children}
@@ -508,13 +585,28 @@ function ConfirmProvider({ children }: { children: ReactNode }) {
           footer={
             <>
               <Button onClick={() => done(false)}>Cancel</Button>
-              <Button kind={req.danger ? "bad" : "ink"} onClick={() => done(true)}>
+              <Button kind={req.danger ? "bad" : "ink"} disabled={blocked} onClick={() => done(true)}>
                 {req.action}
               </Button>
             </>
           }
         >
           <div className="text-2">{req.body}</div>
+          {req.typeToConfirm && (
+            <label className="field mt-4">
+              <span>
+                Type <code className="inline-code">{req.typeToConfirm}</code> to confirm
+              </span>
+              <input
+                className="input mono"
+                value={typed}
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(e) => setTyped(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !blocked && done(true)}
+              />
+            </label>
+          )}
         </Dialog>
       )}
     </ConfirmCtx.Provider>
@@ -550,11 +642,28 @@ export function CopyButton({ text, label = "Copy", what }: { text: string; label
   );
 }
 
-export function CopyField({ value, label }: { value: string; label?: string }) {
+/** CopyField shows a value with an attached copy button, like a terminal snippet. */
+export function CopyField({ value, label, prefix }: { value: string; label?: string; prefix?: ReactNode }) {
+  const copy = useCopy();
+  const [done, setDone] = useState(false);
   return (
     <div className="copy-field" title={value}>
+      {prefix && <span className="copy-prefix">{prefix}</span>}
       <code>{value}</code>
-      <CopyButton text={value} what={label ? `${label} copied` : "Copied"} />
+      <Tip content={done ? "Copied" : `Copy${label ? ` ${label.toLowerCase()}` : ""}`}>
+        <button
+          type="button"
+          className="copy-btn"
+          aria-label={`Copy ${label ?? "value"}`}
+          onClick={() => {
+            copy(value, label ? `${label} copied` : "Copied");
+            setDone(true);
+            setTimeout(() => setDone(false), 1500);
+          }}
+        >
+          {done ? <Check size={14} /> : <Copy size={14} />}
+        </button>
+      </Tip>
     </div>
   );
 }

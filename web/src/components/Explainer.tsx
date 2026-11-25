@@ -63,8 +63,8 @@ export function HowItWorks() {
 
 export function Promises() {
   const items = [
-    { icon: Lock, text: "Keys are encrypted on this computer and never reach an agent." },
-    { icon: MonitorSmartphone, text: "Runs only on 127.0.0.1. Nothing is sent anywhere else." },
+    { icon: Lock, text: "Keys are encrypted at rest and used only inside mcpDeck's proxy; they never reach an agent." },
+    { icon: MonitorSmartphone, text: "One binary, no cloud account. Your APIs are called from where mcpDeck runs." },
     { icon: ChartNoAxesColumn, text: "Every call is recorded with its time and tokens." },
   ];
   return (
