@@ -41,6 +41,9 @@ func conflict(format string, a ...any) *Error {
 	return errf(http.StatusConflict, "conflict", format, a...)
 }
 
+// Forbidden is an action this caller may not take, with what to do instead.
+func Forbidden(msg string) *Error { return errf(http.StatusForbidden, "forbidden", "%s", msg) }
+
 // StatusOf maps any error to an HTTP status.
 func StatusOf(err error) int {
 	var e *Error
@@ -125,7 +128,18 @@ func (d *Deck) agentRevoked(id string) {
 }
 
 func (d *Deck) audit(ctx context.Context, a audit.Actor, action, target, detail string) {
+	if over, ok := ctx.Value(actorKey{}).(audit.Actor); ok && a.Kind == "you" {
+		a = over
+	}
 	_ = d.Audit.Append(context.WithoutCancel(ctx), a, action, target, detail)
+}
+
+type actorKey struct{}
+
+// WithActor records actions in ctx as a's instead of the person's, for the
+// agent behind the admin MCP server (PAR-2).
+func WithActor(ctx context.Context, a audit.Actor) context.Context {
+	return context.WithValue(ctx, actorKey{}, a)
 }
 
 // BaseURL is where mcpDeck listens.

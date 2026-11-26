@@ -23,6 +23,8 @@ type ToolDef struct {
 	InputSchema json.RawMessage `json:"inputSchema"`
 	ReadOnly    bool            `json:"-"`
 	Destructive bool            `json:"-"`
+	Idempotent  bool            `json:"-"`
+	Title       string          `json:"-"`
 }
 
 // listLimit and listTop implement ACC-3.
@@ -71,7 +73,16 @@ func (d *Deck) mcpToolDefs(ctx context.Context, tk store.Toolkit, access string)
 			cs, _ := d.Store.Calls(ctx, store.CallFilter{Kind: "tool", Name: t.Name, Since: since, Limit: 10000})
 			n = len(cs)
 		}
-		all = append(all, ranked{def: ToolDef{Name: v.Name, Description: desc, InputSchema: v.InputSchema, ReadOnly: v.Access == "read", Destructive: v.Access == "write"}, calls: n})
+		def := ToolDef{Name: v.Name, Description: desc, InputSchema: v.InputSchema, ReadOnly: v.Access == "read", Destructive: v.Access == "write"}
+		// Declared hints may narrow, never widen, what mcpDeck derived (LINT-1).
+		if a := d.annotations(v); a != nil {
+			def.Title = a.Title
+			def.Idempotent = a.IdempotentHint != nil && *a.IdempotentHint
+			if def.Destructive && a.DestructiveHint != nil && !*a.DestructiveHint && !hasDelete(d.callMethods(ctx, v.Calls)) {
+				def.Destructive = false
+			}
+		}
+		all = append(all, ranked{def: def, calls: n})
 	}
 	truncated := len(all) > listLimit
 	if truncated {
@@ -223,7 +234,7 @@ func (d *Deck) AgentCall(ctx context.Context, s AgentSession, name string, raw j
 		text, isErr, versionID = d.runPublished(ctx, s, callID, name, raw)
 	}
 	tok := tokens.Count(text)
-	if !isErr && kind == "tool" && s.Toolkit.Hints && s.Toolkit.HintTokens > 0 && tok > s.Toolkit.HintTokens {
+	if !isErr && kind == "tool" && s.Toolkit.Hints && s.Toolkit.HintTokens > 0 && tok > s.Toolkit.HintTokens && !strings.Contains(text, `"_mcpdeck":{`) {
 		text += fmt.Sprintf("\n\nLarge response (%d tokens). If you used only some fields, call report_field_usage.", tok)
 		tok = tokens.Count(text)
 	}
@@ -307,7 +318,8 @@ func (d *Deck) runPublished(ctx context.Context, s AgentSession, callID, name st
 		}
 		return msg, true, v.ID
 	}
-	return r.OutputJSON, false, v.ID
+	out, _ := fitOutput(r.OutputJSON, OutputBudget)
+	return out, false, v.ID
 }
 
 func (d *Deck) searchTools(ctx context.Context, tk store.Toolkit, access, q string) string {
@@ -647,3 +659,12 @@ func trim(v any, depth int) any {
 
 // UseExtrasFor are the extra tools on the use endpoint.
 func (d *Deck) UseExtrasFor(truncated bool) []ToolDef { return d.useExtras(truncated) }
+
+func hasDelete(ms []string) bool {
+	for _, m := range ms {
+		if m == "DELETE" {
+			return true
+		}
+	}
+	return false
+}

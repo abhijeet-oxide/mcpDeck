@@ -23,9 +23,16 @@ type toolDetail struct {
 
 // pullCmd writes a toolkit's tools as files (FILE-1).
 func pullCmd(data *string) *cobra.Command {
-	return &cobra.Command{Use: "pull <toolkit> <dir>", Short: "Write a toolkit's tools as .ts files with types, for any editor or coding agent",
-		Example: "  mcpdeck pull support ./tools && npx tsc --noEmit -p ./tools", Args: cobra.ExactArgs(2),
+	var dirFlag string
+	c := &cobra.Command{Use: "pull <toolkit> [dir]", Short: "Write a toolkit's tools as .ts files with types, for any editor or coding agent",
+		Example: "  mcpdeck pull support --dir ./tools && npx tsc --noEmit -p ./tools", Args: cobra.RangeArgs(1, 2),
 		RunE: func(_ *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				if dirFlag == "" {
+					dirFlag = args[0]
+				}
+				args = append(args, dirFlag)
+			}
 			cl, err := localClient(*data)
 			if err != nil {
 				return err
@@ -53,19 +60,35 @@ func pullCmd(data *string) *cobra.Command {
 			_ = os.WriteFile(filepath.Join(dir, "mcpdeck.d.ts"), req, 0o644)
 			tsconfig := `{"compilerOptions":{"target":"ES2020","module":"ESNext","strict":false,"noEmit":true,"skipLibCheck":true,"lib":["ES2020"]},"include":["*.ts"]}` + "\n"
 			_ = os.WriteFile(filepath.Join(dir, "tsconfig.json"), []byte(tsconfig), 0o644)
-			fmt.Printf("Wrote %d tools, mcpdeck.d.ts and tsconfig.json to %s. Edit, then: mcpdeck push %s --toolkit %s\n", len(tk.ToolRows), dir, dir, args[0])
+			fmt.Printf("Wrote %s, mcpdeck.d.ts and tsconfig.json to %s. Edit, then: mcpdeck push %s --dir %s\n", plural(len(tk.ToolRows), "tool"), dir, args[0], dir)
 			return nil
 		}}
+	c.Flags().StringVar(&dirFlag, "dir", "", "folder to write (default: the toolkit name)")
+	return c
 }
 
 var nameRe = regexp.MustCompile(`name:\s*["']([a-z][a-z0-9_]+)["']`)
 
 // pushCmd saves changed files as new versions (FILE-1).
 func pushCmd(data *string) *cobra.Command {
-	var toolkit string
-	c := &cobra.Command{Use: "push <dir> --toolkit <name>", Short: "Save changed tool files as new versions (tests run, approval rules apply)",
-		Example: "  mcpdeck push ./tools --toolkit support", Args: cobra.ExactArgs(1),
+	var toolkit, dirFlag string
+	c := &cobra.Command{Use: "push <toolkit> --dir <dir>", Short: "Save changed tool files as new versions (tests run, approval rules apply)",
+		Example: "  mcpdeck push support --dir ./tools", Args: cobra.MaximumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
+			// push <toolkit> --dir <dir>, or the older push <dir> --toolkit <name>.
+			switch {
+			case len(args) == 1 && dirFlag != "":
+				toolkit = args[0]
+				args = []string{dirFlag}
+			case len(args) == 0 && dirFlag != "":
+				args = []string{dirFlag}
+			case len(args) == 1 && toolkit == "":
+				toolkit = args[0]
+				args = []string{args[0]}
+			}
+			if len(args) == 0 {
+				return fmt.Errorf("say which folder: --dir <dir>")
+			}
 			if toolkit == "" {
 				return fmt.Errorf("say which toolkit: --toolkit <name>")
 			}
@@ -126,5 +149,6 @@ func pushCmd(data *string) *cobra.Command {
 			return nil
 		}}
 	c.Flags().StringVar(&toolkit, "toolkit", "", "toolkit name")
+	c.Flags().StringVar(&dirFlag, "dir", "", "folder with the .ts files")
 	return c
 }

@@ -12,6 +12,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -106,6 +107,7 @@ type Response struct {
 	Method      string              `json:"method"`
 	URL         string              `json:"url"`
 	FromExample bool                `json:"fromExample"`
+	Binary      bool                `json:"binary,omitempty"` // Body holds the facts of a binary file, not the file
 	StartedAt   time.Time           `json:"startedAt"`
 }
 
@@ -126,17 +128,18 @@ type Proxy struct {
 	ids   clock.IDs
 	tr    http.RoundTripper
 
-	mu       sync.Mutex
-	jars     map[string]*cookiejar.Jar
-	captured map[string]string // apiID → captured login header value
-	loggedIn map[string]time.Time
-	tls      map[string]tlsTransport // apiID → transport for its TLS settings
+	mu        sync.Mutex
+	jars      map[string]*cookiejar.Jar
+	sessions  map[string]*session     // apiID → sign-in values (AUTH-2)
+	sessLocks map[string]*sync.Mutex  // one sign-in at a time per API
+	tls       map[string]tlsTransport // apiID → transport for its TLS settings
 }
 
 type tlsTransport struct {
-	key store.TLS
-	rt  http.RoundTripper
-	err error
+	key    store.TLS
+	keyPEM string
+	rt     http.RoundTripper
+	err    error
 }
 
 // New returns a proxy. tr may be nil for the default transport.
@@ -145,10 +148,18 @@ func New(s *store.Store, v *vault.Vault, c clock.Clock, ids clock.IDs, tr http.R
 		tr = &http.Transport{Proxy: http.ProxyFromEnvironment, MaxIdleConnsPerHost: 16, IdleConnTimeout: 60 * time.Second}
 	}
 	return &Proxy{store: s, vault: v, clock: c, ids: ids, tr: tr,
-		jars: map[string]*cookiejar.Jar{}, captured: map[string]string{}, loggedIn: map[string]time.Time{}, tls: map[string]tlsTransport{}}
+		jars: map[string]*cookiejar.Jar{}, sessions: map[string]*session{}, sessLocks: map[string]*sync.Mutex{}, tls: map[string]tlsTransport{}}
 }
 
-func (p *Proxy) client(api store.API, timeout time.Duration) (*http.Client, error) {
+func (p *Proxy) client(api store.API, timeout time.Duration, res resolved) (*http.Client, error) {
+	keyPEM := ""
+	if api.TLS.ClientKey != "" {
+		missing := map[string]bool{}
+		keyPEM = res.expand(api.TLS.ClientKey, missing)
+		if len(missing) > 0 {
+			return nil, unresolvedErr(api, missing)
+		}
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	jar, ok := p.jars[api.ID]
@@ -156,7 +167,7 @@ func (p *Proxy) client(api store.API, timeout time.Duration) (*http.Client, erro
 		jar, _ = cookiejar.New(nil)
 		p.jars[api.ID] = jar
 	}
-	rt, err := p.transportLocked(api)
+	rt, err := p.transportLocked(api, keyPEM)
 	if err != nil {
 		return nil, err
 	}
@@ -166,11 +177,11 @@ func (p *Proxy) client(api store.API, timeout time.Duration) (*http.Client, erro
 
 // transportLocked is the transport for an API's TLS settings (API-9): the
 // shared one by default, or a clone with its own TLS config.
-func (p *Proxy) transportLocked(api store.API) (http.RoundTripper, error) {
-	if !api.TLS.Insecure && strings.TrimSpace(api.TLS.CACerts) == "" {
+func (p *Proxy) transportLocked(api store.API, keyPEM string) (http.RoundTripper, error) {
+	if !api.TLS.Insecure && strings.TrimSpace(api.TLS.CACerts) == "" && strings.TrimSpace(api.TLS.ClientCert) == "" {
 		return p.tr, nil
 	}
-	if t, ok := p.tls[api.ID]; ok && t.key == api.TLS {
+	if t, ok := p.tls[api.ID]; ok && t.key == api.TLS && t.keyPEM == keyPEM {
 		return t.rt, t.err
 	}
 	base, ok := p.tr.(*http.Transport)
@@ -179,7 +190,15 @@ func (p *Proxy) transportLocked(api store.API) (http.RoundTripper, error) {
 		return p.tr, nil
 	}
 	cfg, err := TLSConfig(api.TLS)
-	t := tlsTransport{key: api.TLS, err: err}
+	if err == nil && strings.TrimSpace(api.TLS.ClientCert) != "" {
+		cert, cerr := tls.X509KeyPair([]byte(api.TLS.ClientCert), []byte(keyPEM))
+		if cerr != nil {
+			err = &Error{Code: CodeBadTLS, Message: "the client certificate or key in the " + api.Name + " API's TLS settings can't be used (" + cerr.Error() + "); paste the PEM certificate and keep the key in a secret variable"}
+		} else {
+			cfg.Certificates = []tls.Certificate{cert}
+		}
+	}
+	t := tlsTransport{key: api.TLS, keyPEM: keyPEM, err: err}
 	if err == nil {
 		c := base.Clone()
 		c.TLSClientConfig = cfg
@@ -212,8 +231,7 @@ func TLSConfig(s store.TLS) (*tls.Config, error) {
 func (p *Proxy) ClearCookies(apiID string) {
 	p.mu.Lock()
 	delete(p.jars, apiID)
-	delete(p.captured, apiID)
-	delete(p.loggedIn, apiID)
+	delete(p.sessions, apiID)
 	delete(p.tls, apiID)
 	p.mu.Unlock()
 }
@@ -222,6 +240,13 @@ func (p *Proxy) ClearCookies(apiID string) {
 // insecure skips certificate checks, for servers with self-signed
 // certificates (API-9).
 func (p *Proxy) Fetch(ctx context.Context, rawURL string, insecure bool) ([]byte, string, error) {
+	return p.FetchTLS(ctx, rawURL, store.TLS{Insecure: insecure})
+}
+
+// FetchTLS is Fetch with an API's TLS settings, so a spec behind a company
+// CA imports with that CA trusted (API-9).
+func (p *Proxy) FetchTLS(ctx context.Context, rawURL string, ts store.TLS) ([]byte, string, error) {
+	insecure := ts.Insecure
 	u, err := url.Parse(rawURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return nil, "", &Error{Code: CodeUpstream, Message: "use an http or https URL"}
@@ -232,9 +257,9 @@ func (p *Proxy) Fetch(ctx context.Context, rawURL string, insecure bool) ([]byte
 	}
 	req.Header.Set("Accept", "application/json, application/yaml, text/html;q=0.9, */*;q=0.8")
 	rt := p.tr
-	if insecure {
+	if insecure || strings.TrimSpace(ts.CACerts) != "" {
 		p.mu.Lock()
-		rt, err = p.transportLocked(store.API{ID: "\x00fetch", TLS: store.TLS{Insecure: true}})
+		rt, err = p.transportLocked(store.API{ID: "\x00fetch", TLS: store.TLS{Insecure: insecure, CACerts: ts.CACerts}}, "")
 		p.mu.Unlock()
 		if err != nil {
 			return nil, "", err
@@ -428,8 +453,40 @@ func (p *Proxy) build(ctx context.Context, api store.API, c Call, res resolved) 
 			return built{}, nil, &Error{Code: CodeNotFound, Message: "request not found; list requests with search_apis"}
 		}
 	default:
-		r = store.Request{APIID: api.ID, Method: strings.ToUpper(c.Method), URL: "{{baseUrl}}" + c.Path,
-			Access: ClassifyMethod(c.Method), Name: strings.ToUpper(c.Method) + " " + c.Path, BodyType: "json"}
+		pathOnly, rawQ, _ := strings.Cut(c.Path, "?")
+		base := "{{baseUrl}}"
+		if u, err := url.Parse(pathOnly); err == nil && (u.Scheme == "http" || u.Scheme == "https") {
+			// An absolute URL from a Location or next link; the host
+			// allowlist still applies.
+			base, pathOnly = u.Scheme+"://"+u.Host, u.EscapedPath()
+		}
+		if reqs, err := p.store.Requests(ctx, api.ID); err == nil && base == "{{baseUrl}}" {
+			if m, params := MatchRequest(reqs, c.Method, pathOnly); m != nil {
+				// call("api", "METHOD /path") on a saved request uses its
+				// headers, body type and access (TOOL-9).
+				// The call spells out its own path, query and body; saved
+				// example values don't apply.
+				r = *m
+				r.Query, r.Body = nil, ""
+				c.Args = withPathArgs(c.Args, params)
+			}
+		}
+		if r.ID == "" {
+			r = store.Request{APIID: api.ID, Method: strings.ToUpper(c.Method), URL: base + pathOnly,
+				Access: ClassifyRaw(c.Method, pathOnly, c.Args), Name: strings.ToUpper(c.Method) + " " + pathOnly, BodyType: "json"}
+		}
+		if rawQ != "" {
+			if q, err := url.ParseQuery(rawQ); err == nil {
+				keys := make([]string, 0, len(q))
+				for k := range q {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+				for _, k := range keys {
+					r.Query = append(r.Query, store.KV{Key: k, Value: q[k][0]})
+				}
+			}
+		}
 	}
 	a := c.Args
 	path := map[string]any{}
@@ -465,6 +522,29 @@ func (p *Proxy) build(ctx context.Context, api store.API, c Call, res resolved) 
 			default:
 				bodyArgs[k] = v
 			}
+		}
+		if len(bodyArgs) > 0 && !hasBody && r.BodyType != "json" && r.BodyType != "none" && r.BodyType != "" {
+			// Text, XML and form templates take arguments in {{name}} slots.
+			tmpl := r.Body
+			for k, v := range bodyArgs {
+				val := fmtArg(v)
+				if r.BodyType == "xml" {
+					val = xmlEscape(val)
+				}
+				if strings.Contains(tmpl, "{{"+k+"}}") {
+					tmpl = strings.ReplaceAll(tmpl, "{{"+k+"}}", val)
+					delete(bodyArgs, k)
+				}
+			}
+			if r.BodyType == "form" && len(bodyArgs) > 0 {
+				form, _ := url.ParseQuery(tmpl)
+				for k, v := range bodyArgs {
+					form.Set(k, fmtArg(v))
+				}
+				tmpl = form.Encode()
+				bodyArgs = nil
+			}
+			r.Body = tmpl
 		}
 		if len(bodyArgs) > 0 && !hasBody {
 			// Merge over the saved JSON body template.
@@ -566,8 +646,12 @@ func (p *Proxy) build(ctx context.Context, api store.API, c Call, res resolved) 
 		return built{}, &r, unresolvedErr(api, missing)
 	}
 	access := r.EffectiveAccess()
-	if c.Draft == nil && c.RequestID == "" {
-		access = ClassifyMethod(r.Method)
+	if c.Draft == nil && c.RequestID == "" && r.ID == "" {
+		access = ClassifyRaw(r.Method, r.URL, c.Args)
+	}
+	// A GraphQL mutation writes, whatever request carries it.
+	if strings.ToUpper(r.Method) == "POST" && IsGraphQLPath(pu.Path) && IsGraphQLMutation(string(b)) {
+		access = "write"
 	}
 	name := api.Name + "." + r.Name
 	return built{method: strings.ToUpper(r.Method), url: pu.String(), headers: h, body: b, access: access, name: name, reqID: r.ID}, &r, nil
@@ -589,7 +673,7 @@ func unresolvedErr(api store.API, missing map[string]bool) error {
 		parts = append(parts, "missing path values: "+strings.Join(params, ", ")+"; pass them as arguments")
 	}
 	if len(vars) > 0 {
-		parts = append(parts, "unresolved variables "+strings.Join(vars, ", ")+"; add them on the "+api.Name+" API's Environments tab in mcpDeck")
+		parts = append(parts, "unresolved variables "+strings.Join(vars, ", ")+"; set them with mcpdeck var set (or secret set) "+api.Name+" <name>, or on the "+api.Name+" application's Environments tab in mcpDeck")
 	}
 	return &Error{Code: CodeUnresolved, Message: strings.Join(parts, "; ")}
 }
@@ -614,6 +698,13 @@ func (p *Proxy) Do(ctx context.Context, c Call) (*Response, error) {
 		_ = p.store.InsertCall(context.WithoutCancel(ctx), rec)
 		return nil, e
 	}
+	// Sign in first, so {{login.*}} works in any template (AUTH-2).
+	if pre := p.preAuth(ctx, api, c); usesSession(pre) {
+		if err := p.ensureSession(ctx, api, pre, &res, false); err != nil {
+			rec.Name = api.Name
+			return fail("error", err)
+		}
+	}
 	b, r, err := p.build(ctx, api, c, res)
 	if r != nil {
 		rec.Name = api.Name + "." + r.Name
@@ -622,6 +713,10 @@ func (p *Proxy) Do(ctx context.Context, c Call) (*Response, error) {
 	}
 	if err != nil {
 		return fail("error", err)
+	}
+	// Tools and agents never send the sign-in requests themselves (CRED-8).
+	if c.Actor.Kind == "agent" && r != nil && isAuthRequest(api, r) {
+		return fail("blocked", &Error{Code: CodeWriteBlocked, Message: b.name + " is how mcpDeck signs in to " + api.Name + "; tools can't call it. Call the API's other requests and mcpDeck signs in for them."})
 	}
 	rec.URL = res.secrets.String(b.url)
 	rec.Input = res.secrets.String(string(MaskJSON(b.body)))
@@ -658,11 +753,8 @@ func (p *Proxy) Do(ctx context.Context, c Call) (*Response, error) {
 			"host %s isn't in the allowed hosts of the %s API (%s). A person can add it in mcpDeck under the API's Settings.", pu.Host, api.Name, strings.Join(allowed, ", "))})
 	}
 
-	auth := api.Auth
-	if r != nil && r.Auth != nil && r.Auth.Type != "" && r.Auth.Type != "inherit" {
-		auth = *r.Auth
-	}
-	cl, err := p.client(api, 30*time.Second)
+	auth := effectiveAuth(api, r)
+	cl, err := p.client(api, 30*time.Second, res)
 	if err != nil {
 		return fail("error", err)
 	}
@@ -675,7 +767,7 @@ func (p *Proxy) Do(ctx context.Context, c Call) (*Response, error) {
 		if req.Header.Get("User-Agent") == "" {
 			req.Header.Set("User-Agent", "mcpdeck")
 		}
-		if err := p.applyAuth(ctx, api, auth, req, res, c.EnvID); err != nil {
+		if err := p.applyAuth(ctx, api, auth, req, res, b.body); err != nil {
 			return nil, nil, err
 		}
 		hr, err := cl.Do(req)
@@ -687,10 +779,25 @@ func (p *Proxy) Do(ctx context.Context, c Call) (*Response, error) {
 		return hr, body, err
 	}
 	hr, body, err := send()
-	if err == nil && hr.StatusCode == http.StatusUnauthorized && auth.Type == "login" {
-		p.mu.Lock()
-		delete(p.loggedIn, api.ID)
-		p.mu.Unlock()
+	// A session the API no longer accepts: sign in again once (AUTH-2).
+	if err == nil && usesSession(auth) && (hr.StatusCode == http.StatusUnauthorized || looksLikeLoginRedirect(hr)) {
+		p.dropSession(api.ID)
+		if serr := p.ensureSession(ctx, api, auth, &res, false); serr != nil {
+			return fail("error", serr)
+		}
+		hr, body, err = send()
+	}
+	// Rate limits and brief outages: wait as told and retry reads (RESP-1).
+	for attempt := 0; err == nil && attempt < 3 && (hr.StatusCode == http.StatusTooManyRequests || hr.StatusCode == http.StatusServiceUnavailable) && b.access == "read"; attempt++ {
+		wait, ok := retryAfter(hr.Header, attempt, p.clock.Now())
+		if !ok {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return fail("error", ctx.Err())
+		case <-time.After(wait):
+		}
 		hr, body, err = send()
 	}
 	if err != nil {
@@ -703,9 +810,13 @@ func (p *Proxy) Do(ctx context.Context, c Call) (*Response, error) {
 		}
 		return fail("error", &Error{Code: CodeUpstream, Message: res.secrets.String(fmt.Sprintf("%s couldn't be reached: %v. Check the %s API's base URL and that the service is running.", b.name, err, api.Name))})
 	}
+	binary := isBinary(hr.Header.Get("Content-Type"), body)
+	if binary {
+		body = binaryFacts(hr.Header, body)
+	}
 	body = res.secrets.Bytes(body)
 	out := &Response{CallID: rec.ID, Status: hr.StatusCode, StatusText: hr.Status, Headers: map[string][]string{},
-		Body: body, Size: len(body), Method: b.method, URL: rec.URL, StartedAt: start}
+		Body: body, Size: len(body), Method: b.method, URL: rec.URL, StartedAt: start, Binary: binary}
 	for k, v := range hr.Header {
 		if strings.EqualFold(k, "Set-Cookie") {
 			out.Headers[k] = []string{"[masked]"}
@@ -733,6 +844,14 @@ func (p *Proxy) Do(ctx context.Context, c Call) (*Response, error) {
 	return out, nil
 }
 
+// effectiveAuth is a request's own auth, or its API's.
+func effectiveAuth(api store.API, r *store.Request) store.Auth {
+	if r != nil && r.Auth != nil && r.Auth.Type != "" && r.Auth.Type != "inherit" {
+		return *r.Auth
+	}
+	return api.Auth
+}
+
 func truncate(s string) string {
 	const max = 64 << 10
 	if len(s) > max {
@@ -741,8 +860,17 @@ func truncate(s string) string {
 	return s
 }
 
-func (p *Proxy) applyAuth(ctx context.Context, api store.API, a store.Auth, req *http.Request, res resolved, envID string) error {
+// applyAuth adds credentials to a request. A session (login, oauth2) is
+// already in res as {{login.*}}; its Apply headers are added here.
+func (p *Proxy) applyAuth(ctx context.Context, api store.API, a store.Auth, req *http.Request, res resolved, body []byte) error {
 	missing := map[string]bool{}
+	apply := func(r resolved) {
+		for _, kv := range a.Apply {
+			if kv.Key != "" && !kv.Disabled {
+				req.Header.Set(kv.Key, r.expand(kv.Value, missing))
+			}
+		}
+	}
 	switch a.Type {
 	case "bearer":
 		req.Header.Set("Authorization", "Bearer "+res.expand(a.Token, missing))
@@ -758,82 +886,36 @@ func (p *Proxy) applyAuth(ctx context.Context, api store.API, a store.Auth, req 
 	case "basic":
 		req.SetBasicAuth(res.expand(a.Username, missing), res.expand(a.Password, missing))
 	case "login":
-		if err := p.login(ctx, api, a, res, envID); err != nil {
-			return err
-		}
-		if a.Capture != "" && a.Capture != "cookie" {
-			p.mu.Lock()
-			v := p.captured[api.ID]
-			p.mu.Unlock()
-			if strings.HasPrefix(a.Capture, "json:") {
-				req.Header.Set("Authorization", "Bearer "+v)
-			} else {
-				req.Header.Set(a.Capture, v)
+		apply(res)
+		if len(a.Steps) == 0 && len(a.Apply) == 0 {
+			apply2 := normalizeLogin(a)
+			for _, kv := range apply2.Apply {
+				req.Header.Set(kv.Key, res.expand(kv.Value, missing))
 			}
 		}
+	case "oauth2":
+		if len(a.Apply) == 0 {
+			req.Header.Set("Authorization", "Bearer "+res.expand("{{login.access_token}}", missing))
+		}
+		apply(res)
+	case "hmac":
+		vals, err := sign(a, req, body, res, p.clock.Now())
+		if err != nil {
+			return err
+		}
+		r := res
+		r.vars = map[string]string{}
+		for k, v := range res.vars {
+			r.vars[k] = v
+		}
+		for k, v := range vals {
+			r.vars[k] = v
+		}
+		apply(r)
 	}
 	if len(missing) > 0 {
 		return unresolvedErr(api, missing)
 	}
-	return nil
-}
-
-// login runs the API's login request once and keeps what it returns (CRED-1).
-func (p *Proxy) login(ctx context.Context, api store.API, a store.Auth, res resolved, envID string) error {
-	p.mu.Lock()
-	at, ok := p.loggedIn[api.ID]
-	p.mu.Unlock()
-	if ok && p.clock.Now().Sub(at) < 30*time.Minute {
-		return nil
-	}
-	if a.LoginRequestID == "" {
-		return &Error{Code: CodeLoginFailed, Message: "the " + api.Name + " API uses a login request but none is chosen; pick one on its Auth tab"}
-	}
-	b, _, err := p.build(ctx, api, Call{RequestID: a.LoginRequestID}, res)
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequestWithContext(ctx, b.method, b.url, bytes.NewReader(b.body))
-	if err != nil {
-		return err
-	}
-	req.Header = b.headers
-	cl, err := p.client(api, 30*time.Second)
-	if err != nil {
-		return err
-	}
-	hr, err := cl.Do(req)
-	if err != nil {
-		return &Error{Code: CodeLoginFailed, Message: res.secrets.String("login request failed: " + err.Error())}
-	}
-	defer hr.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(hr.Body, 1<<20))
-	if hr.StatusCode >= 400 {
-		return &Error{Code: CodeLoginFailed, Message: fmt.Sprintf("login to %s returned %s; check its credential in mcpDeck", api.Name, hr.Status)}
-	}
-	captured := ""
-	if field, ok := strings.CutPrefix(a.Capture, "json:"); ok {
-		// A token in the response body, sent as a bearer token (CRED-1).
-		var v any
-		_ = json.Unmarshal(body, &v)
-		for _, k := range strings.Split(field, ".") {
-			m, _ := v.(map[string]any)
-			v = m[k]
-		}
-		tok, _ := v.(string)
-		if tok == "" {
-			return &Error{Code: CodeLoginFailed, Message: fmt.Sprintf("the %s login response has no %q field; set Capture to the field that holds the token, like json:access_token", api.Name, field)}
-		}
-		captured = tok
-	} else if a.Capture != "" && a.Capture != "cookie" {
-		captured = hr.Header.Get(a.Capture)
-	}
-	p.mu.Lock()
-	if a.Capture != "" && a.Capture != "cookie" {
-		p.captured[api.ID] = captured
-	}
-	p.loggedIn[api.ID] = p.clock.Now()
-	p.mu.Unlock()
 	return nil
 }
 
@@ -844,4 +926,10 @@ func isCertErr(err error) bool {
 	var ci x509.CertificateInvalidError
 	var tv *tls.CertificateVerificationError
 	return errors.As(err, &ua) || errors.As(err, &hn) || errors.As(err, &ci) || errors.As(err, &tv)
+}
+
+func xmlEscape(s string) string {
+	var b strings.Builder
+	_ = xml.EscapeText(&b, []byte(s))
+	return b.String()
 }

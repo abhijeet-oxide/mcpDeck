@@ -1,0 +1,46 @@
+{
+  "encoding": "cl100k_base",
+  "method": "server instructions + tools/list + every tool result the agent reads; mock systems from e2e/mockenv",
+  "questions": [
+    {
+      "question": "Which critical OS vulnerabilities in nginx:1.27 have a fix?",
+      "endpoints": {
+        "tools": 9,
+        "listTokens": 888,
+        "calls": 2,
+        "callTokens": 9744,
+        "total": 10632
+      },
+      "tasks": {
+        "tools": 5,
+        "listTokens": 643,
+        "calls": 1,
+        "callTokens": 99,
+        "total": 742
+      },
+      "savingPct": 93
+    },
+    {
+      "question": "What is open in the OPS project?",
+      "endpoints": {
+        "tools": 9,
+        "listTokens": 888,
+        "calls": 1,
+        "callTokens": 8203,
+        "total": 9091
+      },
+      "tasks": {
+        "tools": 5,
+        "listTokens": 643,
+        "calls": 1,
+        "callTokens": 568,
+        "total": 1211
+      },
+      "savingPct": 87
+    }
+  ],
+  "builder": {
+    "tools": 8,
+    "listTokens": 910
+  }
+}

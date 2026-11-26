@@ -231,8 +231,8 @@ type ToolkitHealth struct {
 	Tools      int    `json:"tools"`
 	ListTokens int    `json:"listTokens"`
 	Score      int    `json:"score"`
-	Must       int    `json:"must"`
-	Avoid      int    `json:"avoid"`
+	Block      int    `json:"block"`
+	Warn       int    `json:"warn"`
 	Top        string `json:"top,omitempty"` // the worst finding's title
 	Agents     int    `json:"agents"`
 }
@@ -342,13 +342,13 @@ func (d *Deck) Home(ctx context.Context) (*Home, error) {
 		var firstAvoid string
 		for _, f := range r.Findings {
 			switch f.Level {
-			case "must":
-				th.Must++
+			case "block":
+				th.Block++
 				if th.Top == "" {
 					th.Top = f.Title
 				}
-			case "avoid":
-				th.Avoid++
+			case "warn":
+				th.Warn++
 				if firstAvoid == "" {
 					firstAvoid = f.Title
 				}

@@ -148,15 +148,39 @@ the user picks; or a secret (stored per CRED-2). Secret variables resolve only
 inside the proxy (CRED-7).
 *Accept:* changing the `.env` file is picked up on the next call.
 
-**AUTH-1 Auth inheritance.** Auth is set on the API, a folder or a
-request, with "Inherit from parent" as the default, like Postman. Types:
-none, API key (header or query), bearer, basic, OAuth 2.0 client credentials,
-digest, and **login request** (CRED-1).
+**AUTH-1 Auth types.** Auth is set on the API and applies to all of its
+requests. Types: none, API key (header or query), bearer, basic, OAuth 2.0
+(AUTH-3), HMAC signing (AUTH-4) and login requests (AUTH-2). Digest auth and
+per-folder or per-request auth are not built.
+
+**AUTH-2 Login chains.** Login is one or more saved requests run in order.
+Each step can capture values from the JSON body, a header or a cookie
+(`json:access_token`, `header:X-Auth`, `cookie:csrftoken`) as
+`{{login.<name>}}`, which later steps and the API's applied headers use. The
+result is reused across calls, renewed when it expires (from `expires_in` or
+a set lifetime), renewed with
+a refresh request when one is set, and re-run on a 401 or a redirect to a
+login page. Agents can't call login requests and never see captured values.
+*Accept:* scenarios for token login, refresh, expiry, CSRF form login and a
+login redirect.
+
+**AUTH-3 OAuth 2.0.** Client credentials and password grants; client
+authentication by basic header or body; scopes; tokens cached until shortly
+before expiry; refresh-token rotation. Imported from an OpenAPI `oauth2`
+security scheme with its token URL. The token request goes only to an http or
+https URL on the API's allowed hosts or the host of a saved token URL, so an
+unsaved draft or a variable can't send the client secret elsewhere.
+
+**AUTH-4 HMAC signing.** A string to sign built from `{{method}}`,
+`{{path}}`, `{{query}}`, `{{timestamp}}`, `{{nonce}}`, `{{bodySha256}}`,
+`{{bodyMd5}}` and variables; SHA-1, SHA-256 or SHA-512; hex or base64. The
+signature and timestamp are applied as headers through `{{sign.*}}`.
 
 **HTTP-1 Requests.** A request has method (any verb, including custom),
-URL, params, headers, body and auth. Bodies: none, JSON, XML, text,
-`x-www-form-urlencoded`, multipart, GraphQL, binary file. Cookies are kept in
-a per-API cookie jar that can be viewed and cleared.
+URL, params, headers and body. Bodies: none, JSON, XML, text,
+`x-www-form-urlencoded` and GraphQL. Cookies set by login steps are kept per
+API. Multipart and binary request bodies, and a cookie-jar view, are not
+built.
 
 **IMP-1 OpenAPI / Swagger.** Import OpenAPI 3.x and Swagger 2.0 from a file or
 URL. Each operation becomes a request named from its `operationId` (or method
@@ -202,6 +226,9 @@ per test.
 
 **RNR-6 Script trust.** Imported scripts don't run until the user trusts that
 API ("Run scripts in this collection"), like Bruno's safe mode.
+
+**API-10 Mutual TLS.** An application can send a client certificate and key
+(the key stored as a secret variable), alongside its extra CA certificates.
 
 **API-9 TLS per application.** Each application has TLS settings: verify
 certificates (default), trust extra CA certificates (PEM, on top of the
@@ -352,8 +379,14 @@ passes.
 size of each upstream response and of the tool's output, in bytes and tokens,
 so the saving is visible while editing.
 
-**TOOL-6 Limits.** Per tool: timeout (default 10 s), memory cap (default
-32 MB), max output size (default 64 KB), retries for idempotent reads.
+**TOOL-6 Limits.** Per tool: timeout (default 10 s, up to 300 s with
+`timeout` in the tool file), memory cap (256 MB), max output size (4 MB),
+retries for reads on 429 and 503.
+
+**USE-4 Output budget.** A tool result over 20,000 tokens is cut before it
+reaches an agent: the longest list keeps as many items as fit, and a
+`_mcpdeck` field gives the shown and total counts and asks for a narrower
+input. Claude Code otherwise cuts results over 25,000 tokens mid-JSON.
 
 **TOOL-7 Test run.** "Test" (`Ctrl+Enter`) runs the tool with an input form
 generated from `inputSchema`, against real APIs or against saved examples
@@ -664,24 +697,40 @@ entry; `mcpdeck audit verify` checks the chain.
 with sources, what makes a toolkit good for agents: few task-shaped tools
 rather than one per endpoint, clear names and descriptions, specific
 parameter names, small outputs, and no credentials in outputs. Rules are
-split into "Must fix" (breaks agents or clients) and "Avoid" (costs tokens
-or causes wrong picks), plus tips. Sources: docs/mcp-guidelines.md.
+shown with the severities and sources of LINT-1. Sources:
+docs/lint-rules.md.
 
 **GUIDE-2 Live checks while building.** The toolkit and the tool editor run
-the rules with no model: tool count (avoid > 15, must fix > 40), `tools/list`
-tokens (avoid > 4,000, must fix > 10,000), endpoint wrappers, overlapping
+the rules with no model: tool count (warn over 15), `tools/list` tokens
+(warn over 4,000), endpoint wrappers, overlapping
 tools, generic names, starter or missing descriptions, vague or undocumented
 parameters, write tools without "don't use when", returning a whole response.
 The editor shows what saving the draft would do to the toolkit.
 
 **GUIDE-3 Output analysis.** Every run of a request or tool can be analysed:
-tokens (avoid > 2,000, must fix > 25,000), field count, long lists, deep
+tokens (warn over 2,000), field count, long lists, deep
 nesting, always-empty fields, encoded blobs, long text, opaque IDs and
-credential-named fields (must fix), with the largest fields listed and a fix
+credential-named fields with values (block), with the largest fields listed and a fix
 for each finding.
 
-**GUIDE-4 Score.** A toolkit shows a 0–100 score from its findings, so
-improvement is visible.
+**GUIDE-4 Score.** A toolkit shows a 0–100 score from its findings (100,
+less 25 per block and 5 per warning), so improvement is visible.
+
+**LINT-1 Rules with severities and sources.** Every rule has a severity
+(block, warn, hint), a check, a fix and at least one source (the MCP
+specification, Anthropic's engineering posts, Cloudflare, CWE). Block is
+only for spec-invalid input schemas, credentials in a definition or as an
+input, credential values in output, and write tools that claim to be
+read-only or non-destructive. The rules run in the editor as you type, on
+every save (UI, CLI, admin MCP, builder MCP), with `mcpdeck lint`
+(`--json`, `--strict` exits 1 on warnings) and with the admin MCP `lint`
+tool. docs/lint-rules.md is generated from the catalog.
+*Accept:* each rule has a test that triggers it and one that doesn't; CI
+fails when the doc is stale.
+
+**LINT-2 Blocked saves.** A save with a blocking finding is refused with
+HTTP 422 `lint_blocked`, the findings and their fixes, for people and agents
+alike. Warnings and hints are returned with the saved version.
 
 ## Suggestions (M7)
 
@@ -890,6 +939,27 @@ works at 1024 px and down to tablet width.
 **UI-9 Offline.** The UI ships inside the binary and works with no network.
 Fonts are bundled.
 
+## Agents build everything
+
+**PAR-1 Parity.** Everything a person sets up in the UI (import, variables,
+secrets, auth, request access, toolkits, tools, tests, lint, connect) can
+also be done with the CLI (`--json` output) and the admin MCP server
+(`mcpdeck mcp`). docs/agents.md lists each action on each surface.
+*Accept:* scenarios onboard a login API and an OAuth API behind a company CA
+with only the admin MCP server.
+
+**PAR-2 Person-only decisions.** Approving write tools, widening an agent's
+access and reading secret values stay with a person. The admin MCP server
+records its actions under the agent's name; secrets come from its own
+environment (`secret_from_env`) or from the person (`ask_for_secret`).
+
+**SEC-4 Private files.** The database, its WAL and the key file are created
+readable only by the user (0600), and files an older version created are
+tightened at start.
+
+**SEC-5 Announced key fallback.** Without an OS keychain the data key is
+kept in a private file, and mcpDeck says so at start, with the path.
+
 ## Non-functional
 
 **NFR-1 Light.** Binary < 60 MB (the code editor is most of the UI);
@@ -925,12 +995,9 @@ versions, so `releases/latest/download/<name>` always points at the newest:
   without admin rights and put `mcpdeck` on the `PATH`. `MCPDECK_VERSION` pins
   a version and `MCPDECK_INSTALL_DIR` changes the folder.
 
-When their repositories and tokens exist, the same release also updates the
-Homebrew tap `abhijeet-oxide/homebrew-tap` (a cask, macOS) and the Scoop
-bucket `abhijeet-oxide/scoop-bucket` (Windows); without them those steps are
-skipped and the release still succeeds. winget follows once a release is
-accepted into `microsoft/winget-pkgs`, which Microsoft reviews. mcpDeck never
-updates itself.
+Package managers (Homebrew, Scoop, winget) and a Docker image are not
+published yet; each is added only together with a release check that
+installs from it (see docs/releasing.md). mcpDeck never updates itself.
 *Accept:* the installer tests run both scripts on Linux, macOS and Windows
 in CI against a local release, including a checksum mismatch that must abort.
 
@@ -945,8 +1012,23 @@ release workflow by hand, with an optional explicit version.
 *Accept:* table tests for the version rules; the release workflow reuses
 the CI workflow as its first job.
 
-**NFR-6 Test-first.** See [testing.md](testing.md). Coverage of `internal/`
-≥ 80%, and every MUST requirement has at least one test referencing its ID.
+**NFR-6 Test-first.** See [testing.md](testing.md). Unit coverage of
+`internal/` may not drop below a 45% floor (it is about 50%); behaviour is
+covered end to end by the scenario suite (NFR-9). `make req-check` lists
+requirements with no test referencing their ID.
+
+**NFR-9 Scenario suite.** Real-world scenarios run a real binary against
+mock systems that behave like JFrog, Anchore, Jira, GitHub, ServiceNow,
+Kubernetes, an OAuth server, a legacy CSRF portal, HMAC and mTLS services.
+They run on every PR, nightly with `-race` on Linux and macOS, and before
+every release, with a pass rate by category in the job summary. The token
+benchmark is one of them and fails when `bench/results.json` no longer
+reproduces within 2%.
+
+**NFR-10 Honest docs.** Every factual claim in the README carries a marker
+that docs/claims.md maps to tests; `tools/claimscheck` fails CI when a
+claim has no test or a test doesn't exist. No comparisons with other
+products and no numbers without committed raw output.
 
 ---
 

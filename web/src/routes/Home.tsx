@@ -377,8 +377,8 @@ export function Home() {
                       <td>
                         {t.top ? (
                           <span className="flex items-center gap-2">
-                            <Chip tone={t.must ? "bad" : "warn"}>
-                              {t.must ? `${t.must} must fix` : `${t.avoid} to avoid`}
+                            <Chip tone={t.block ? "bad" : "warn"}>
+                              {t.block ? `${t.block} blocking` : `${t.warn} ${t.warn === 1 ? "warning" : "warnings"}`}
                             </Chip>
                             <span className="text-2 truncate text-[12.5px]">{t.top}</span>
                           </span>

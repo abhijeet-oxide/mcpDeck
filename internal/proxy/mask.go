@@ -3,6 +3,7 @@ package proxy
 import (
 	"encoding/json"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -66,4 +67,8 @@ func (r redactor) Bytes(b []byte) []byte {
 		return b
 	}
 	return []byte(r.String(string(b)))
+}
+
+func (r redactor) sortLongestFirst() {
+	sort.Slice(r, func(i, j int) bool { return len(r[i]) > len(r[j]) })
 }

@@ -45,24 +45,52 @@ func OpenAPI(data []byte) (*Result, error) {
 	}
 	res.SuggestName = ClientName(strings.TrimPrefix(strings.TrimPrefix(res.Title, "Acme "), "acme "))
 	if len(doc.Servers) > 0 {
-		res.BaseURL = strings.TrimSuffix(doc.Servers[0].URL, "/")
+		sv := doc.Servers[0]
+		u := sv.URL
+		// Server variables take their defaults (OpenAPI 3.1 4.8.6).
+		for name, v := range sv.Variables {
+			if v != nil {
+				u = strings.ReplaceAll(u, "{"+name+"}", v.Default)
+			}
+		}
+		res.BaseURL = strings.TrimSuffix(u, "/")
 	}
 	res.Vars = append(res.Vars, Var{Name: "baseUrl", Value: res.BaseURL, Preview: res.BaseURL})
 
-	// Auth from the first security scheme used globally.
+	// Auth from the scheme the document requires globally, else the first
+	// one declared (OpenAPI 3.1 4.8.30).
 	if doc.Components != nil {
 		names := make([]string, 0, len(doc.Components.SecuritySchemes))
 		for n := range doc.Components.SecuritySchemes {
 			names = append(names, n)
 		}
 		sort.Strings(names)
+		var global []string
+		for _, req := range doc.Security {
+			for n := range req {
+				global = append(global, n)
+			}
+		}
+		sort.Strings(global)
+		names = append(global, names...)
 		for _, n := range names {
-			ss := doc.Components.SecuritySchemes[n].Value
-			if ss == nil {
+			ref := doc.Components.SecuritySchemes[n]
+			if ref == nil || ref.Value == nil {
 				continue
 			}
+			ss := ref.Value
 			switch {
-			case ss.Type == "http" && strings.EqualFold(ss.Scheme, "bearer"), ss.Type == "oauth2":
+			case ss.Type == "oauth2" && ss.Flows != nil && ss.Flows.ClientCredentials != nil:
+				f := ss.Flows.ClientCredentials
+				res.Auth = store.Auth{Type: "oauth2", Grant: "client_credentials", TokenURL: f.TokenURL, ClientID: "{{clientId}}", ClientSecret: "{{clientSecret}}", Scope: scopes(f.Scopes)}
+				res.Vars = append(res.Vars, Var{Name: "clientId"}, Var{Name: "clientSecret", Secret: true})
+			case ss.Type == "oauth2" && ss.Flows != nil && ss.Flows.Password != nil:
+				f := ss.Flows.Password
+				res.Auth = store.Auth{Type: "oauth2", Grant: "password", TokenURL: f.TokenURL, ClientID: "{{clientId}}", ClientSecret: "{{clientSecret}}",
+					Username: "{{username}}", Password: "{{password}}", Scope: scopes(f.Scopes)}
+				res.Vars = append(res.Vars, Var{Name: "clientId"}, Var{Name: "clientSecret", Secret: true}, Var{Name: "username"}, Var{Name: "password", Secret: true})
+			case ss.Type == "http" && strings.EqualFold(ss.Scheme, "bearer"), ss.Type == "oauth2", ss.Type == "openIdConnect":
+				// Authorization-code flows need a browser; a token you paste works.
 				res.Auth = store.Auth{Type: "bearer", Token: "{{token}}"}
 				res.Vars = append(res.Vars, Var{Name: "token", Secret: true})
 			case ss.Type == "http" && strings.EqualFold(ss.Scheme, "basic"):
@@ -124,18 +152,7 @@ func OpenAPI(data []byte) (*Result, error) {
 				}
 			}
 			if op.RequestBody != nil && op.RequestBody.Value != nil {
-				for ct, mt := range op.RequestBody.Value.Content {
-					if !strings.Contains(ct, "json") {
-						continue
-					}
-					r.BodyType = "json"
-					if ex := exampleOf(mt); ex != nil {
-						b, _ := json.MarshalIndent(ex, "", "  ")
-						r.Body = string(b)
-					} else {
-						r.Body = "{}"
-					}
-				}
+				requestBody(&r, op.RequestBody.Value.Content)
 			}
 			if op.Responses != nil {
 				for _, code := range []string{"200", "201", "default"} {
@@ -240,4 +257,81 @@ func sampleFromSchema(s *openapi3.Schema, depth int) any {
 		return "string"
 	}
 	return nil
+}
+
+func scopes(m map[string]string) string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return strings.Join(out, " ")
+}
+
+// requestBody picks the body an operation takes: JSON first, then form,
+// XML or text, keeping the exact content type (merge-patch, AQL text).
+func requestBody(r *store.Request, content openapi3.Content) {
+	cts := make([]string, 0, len(content))
+	for ct := range content {
+		cts = append(cts, ct)
+	}
+	rank := func(ct string) int {
+		switch {
+		case ct == "application/json":
+			return 0
+		case strings.Contains(ct, "json"):
+			return 1
+		case strings.Contains(ct, "x-www-form-urlencoded"):
+			return 2
+		case strings.Contains(ct, "xml"):
+			return 3
+		case strings.HasPrefix(ct, "text/"):
+			return 4
+		}
+		return 9
+	}
+	sort.Slice(cts, func(i, j int) bool {
+		return rank(cts[i]) < rank(cts[j]) || (rank(cts[i]) == rank(cts[j]) && cts[i] < cts[j])
+	})
+	if len(cts) == 0 || rank(cts[0]) == 9 {
+		return
+	}
+	ct, mt := cts[0], content[cts[0]]
+	ex := exampleOf(mt)
+	switch {
+	case strings.Contains(ct, "json"):
+		r.BodyType = "json"
+		r.Body = "{}"
+		if ex != nil {
+			b, _ := json.MarshalIndent(ex, "", "  ")
+			r.Body = string(b)
+		}
+	case strings.Contains(ct, "x-www-form-urlencoded"):
+		r.BodyType = "form"
+		if m, ok := ex.(map[string]any); ok {
+			keys := make([]string, 0, len(m))
+			for k := range m {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			var parts []string
+			for _, k := range keys {
+				parts = append(parts, k+"="+fmt.Sprint(m[k]))
+			}
+			r.Body = strings.Join(parts, "&")
+		}
+	case strings.Contains(ct, "xml"):
+		r.BodyType = "xml"
+		if s, ok := ex.(string); ok {
+			r.Body = s
+		}
+	default:
+		r.BodyType = "text"
+		if s, ok := ex.(string); ok {
+			r.Body = s
+		}
+	}
+	if ct != "application/json" && ct != "application/x-www-form-urlencoded" {
+		r.Headers = append(r.Headers, store.KV{Key: "Content-Type", Value: ct})
+	}
 }

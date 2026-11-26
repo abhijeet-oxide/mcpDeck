@@ -76,6 +76,39 @@ The VS Code `vscode:mcp/install` link format is used by many vendors but
 isn't in VS Code's reference docs; we always show the `.vscode/mcp.json`
 snippet next to it.
 
+## Building blocks
+
+New UI is made from the components that already exist. Don't add a widget
+when one of these fits; if none does, use the established pattern named in
+the table above and add it to `web/src/components/ui.tsx` with a test.
+
+| Need | Use | Pattern |
+|---|---|---|
+| Primary and secondary actions | `Button` (primary on the right of a row or dialog footer) | macOS and GitHub dialogs |
+| Page title, subtitle and page actions | `PageHead` | Vercel, Linear |
+| Grouped content | `Panel` | GitHub settings boxes |
+| Switch between views of one thing | `Tabs` (Radix Tabs) | Postman request tabs |
+| Two to four exclusive options | `Seg` | macOS segmented control |
+| Pick one of many | `Select` (Radix Select) | native select |
+| Row or page actions that don't fit | `Menu` (Radix Dropdown Menu) | GitHub "..." menu |
+| Decide or confirm | `Dialog`, `useConfirm` | macOS sheets |
+| Edit beside a list | `Drawer` | Linear side panel |
+| Nothing here yet | `EmptyState` with one action | GitHub empty repositories |
+| Form row | `Field`, `Toggle`, `KVEditor` for headers and variables | Postman key-value tables |
+| Unsaved changes | `SaveBar` | macOS System Settings |
+| Status, method, access | `StatusChip`, `MethodChip`, `AccessChip` | Postman method colours |
+| Lint and checks | `Findings` (block, warn, hint, with Why links) | VS Code Problems panel |
+| Feedback after an action | `useToast` | GitHub flash messages |
+| Copy a value | `CopyButton`, `CopyField` | GitHub clone box |
+| Code | Monaco (`web/src/lib/monaco.ts`) | VS Code |
+| Search everything | `Palette` (`Ctrl+K`) | VS Code, Linear |
+| Hints on hover | `Tip` (Radix Tooltip) | native tooltips |
+
+Rules: primary actions sit on the right; one primary action per view;
+destructive actions ask with `useConfirm` and name what they delete; every
+control works (UI-4); keyboard focus is visible; layouts hold from 1280x720
+to 1440x900 and wider without horizontal scrolling.
+
 ## Built for working with agents
 
 Most people will drive mcpDeck through an agent. The UI makes that the short
@@ -279,6 +312,12 @@ Star on GitHub, Report a bug, Docs, Releases, Contribute, License (UI-13).
 - Placeholders are real example values (`https://petstore3.swagger.io/`,
   `overdue_invoices`), never instructions.
 - No words from the UI-5 list, no emoji, no "coming soon".
+
+## Mockup and product
+
+The screenshots above come from the mockup, the layout reference. The product
+follows it; where they differ, the product and its tests are the truth, and
+the README shows only what the product does.
 
 ## What the mockup fakes
 

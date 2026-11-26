@@ -10,7 +10,23 @@ export type Auth = {
   password?: string;
   loginRequestId?: string;
   capture?: string;
+  steps?: LoginStep[];
+  refreshRequestId?: string;
+  expiresFrom?: string;
+  apply?: KV[];
+  grant?: string;
+  tokenUrl?: string;
+  clientId?: string;
+  clientSecret?: string;
+  clientAuth?: string;
+  scope?: string;
+  audience?: string;
+  algorithm?: string;
+  secret?: string;
+  stringToSign?: string;
+  encoding?: string;
 };
+export type LoginStep = { requestId: string; captures?: { name: string; from: string }[] };
 export type API = {
   id: string;
   name: string;
@@ -23,7 +39,7 @@ export type API = {
   tls?: TLS;
   createdAt: string;
 };
-export type TLS = { insecure: boolean; caCerts?: string };
+export type TLS = { insecure: boolean; caCerts?: string; clientCert?: string; clientKey?: string };
 export type SavedResponse = { id: string; name: string; status: number; body: unknown; savedAt: string };
 export type APISummary = API & {
   requests: number;
@@ -338,8 +354,8 @@ export type ToolkitHealth = {
   tools: number;
   listTokens: number;
   score: number;
-  must: number;
-  avoid: number;
+  block: number;
+  warn: number;
   top?: string;
   agents: number;
 };
@@ -387,7 +403,8 @@ export type Info = {
 };
 export type Finding = {
   rule: string;
-  level: "must" | "avoid" | "tip";
+  level: "block" | "warn" | "hint";
+  source?: string;
   title: string;
   detail: string;
   fix: string;
@@ -452,4 +469,20 @@ export type AgentView = {
   instructions: string;
   tools: { name: string; description: string; inputSchema: unknown }[];
   tokens: number;
+};
+
+export type LintRule = {
+  id: string;
+  severity: "block" | "warn" | "hint";
+  section: string;
+  title: string;
+  why: string;
+  check: string;
+  fix: string;
+  sources: string[];
+};
+export type LintRules = {
+  rules: LintRule[];
+  sources: { key: string; title: string; url: string }[];
+  sections: string[];
 };

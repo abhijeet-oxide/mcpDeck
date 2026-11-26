@@ -965,9 +965,17 @@ function GuidePanel({ toolkit, src, run }: { toolkit: string; src: string; run: 
       )}
       {l?.draftError && <div className="banner warn m-3 text-[12.5px]">{l.draftError}</div>}
       <div className="flex gap-1.5 px-3 pt-3">
-        {c.must > 0 && <Chip tone="bad">{c.must} must fix</Chip>}
-        {c.avoid > 0 && <Chip tone="warn">{c.avoid} to avoid</Chip>}
-        {c.tip > 0 && <Chip tone="info">{c.tip} tips</Chip>}
+        {c.block > 0 && <Chip tone="bad">{c.block} blocking</Chip>}
+        {c.warn > 0 && (
+          <Chip tone="warn">
+            {c.warn} {c.warn === 1 ? "warning" : "warnings"}
+          </Chip>
+        )}
+        {c.hint > 0 && (
+          <Chip tone="info">
+            {c.hint} {c.hint === 1 ? "hint" : "hints"}
+          </Chip>
+        )}
         {findings.length === 0 && l && <Chip tone="ok">Nothing to fix</Chip>}
       </div>
       <div style={{ maxHeight: 420, overflow: "auto" }}>

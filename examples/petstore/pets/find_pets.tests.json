@@ -1,0 +1,7 @@
+[
+  {
+    "name": "available pets come back trimmed",
+    "input": { "status": "available", "limit": 3 },
+    "script": "pm.test(\"at most 3, with names\", () => { pm.expect(output.pets.length).to.be.at.most(3); output.pets.forEach((p) => pm.expect(p).to.have.property(\"name\")); })"
+  }
+]

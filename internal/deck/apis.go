@@ -182,7 +182,7 @@ var tmplVar = regexp.MustCompile(`\{\{\s*([A-Za-z0-9_.\-]+)\s*\}\}`)
 
 func secretVarsOf(a store.Auth) []string {
 	var out []string
-	for _, s := range []string{a.Token, a.Value, a.Password} {
+	for _, s := range []string{a.Token, a.Value, a.Password, a.ClientSecret, a.Secret} {
 		for _, m := range tmplVar.FindAllStringSubmatch(s, -1) {
 			out = append(out, m[1])
 		}
@@ -225,6 +225,9 @@ func (d *Deck) UpdateAPI(ctx context.Context, id string, in UpdateAPIInput) (*st
 		changed = append(changed, "allowed hosts")
 	}
 	if in.Auth != nil {
+		if err := d.checkAuth(ctx, a, *in.Auth); err != nil {
+			return nil, err
+		}
 		a.Auth = *in.Auth
 		changed = append(changed, "auth")
 		// Make sure the auth's secret variables exist in the active environment.
@@ -254,6 +257,20 @@ func (d *Deck) UpdateAPI(ctx context.Context, id string, in UpdateAPIInput) (*st
 	if in.TLS != nil {
 		t := *in.TLS
 		t.CACerts = strings.TrimSpace(t.CACerts)
+		t.ClientCert = strings.TrimSpace(t.ClientCert)
+		if k := strings.TrimSpace(t.ClientKey); strings.HasPrefix(k, "-----BEGIN") {
+			// A pasted private key goes into the vault, never the API row (API-10).
+			if err := d.putSecret(ctx, a, "tlsClientKey", k); err != nil {
+				return nil, err
+			}
+			t.ClientKey = "{{tlsClientKey}}"
+		}
+		if (t.ClientCert == "") != (strings.TrimSpace(t.ClientKey) == "") {
+			return nil, badRequest("mutual TLS needs both a client certificate and its key")
+		}
+		if t.ClientCert != "" && !strings.Contains(t.ClientCert, "BEGIN CERTIFICATE") {
+			return nil, badRequest("the client certificate isn't PEM; paste one that starts with -----BEGIN CERTIFICATE-----")
+		}
 		if t.CACerts != "" {
 			if _, err := proxy.TLSConfig(t); err != nil {
 				return nil, badRequest("%s", err.(*proxy.Error).Message)
@@ -309,32 +326,48 @@ type ImportSource struct {
 	// Insecure fetches the URL without checking its certificate, and turns
 	// verification off on the new API (API-9).
 	Insecure bool `json:"insecure"`
+	// CACerts are PEM certificates to trust when fetching, kept on a new
+	// API's TLS settings (API-9).
+	CACerts string `json:"caCerts"`
 }
 
 func (d *Deck) parseSource(ctx context.Context, src ImportSource) (*importer.Result, error) {
 	data := []byte(src.Text)
+	ts := store.TLS{Insecure: src.Insecure, CACerts: src.CACerts}
 	if strings.TrimSpace(src.URL) != "" {
-		b, ct, err := d.Proxy.Fetch(ctx, strings.TrimSpace(src.URL), src.Insecure)
+		specURL := strings.TrimSpace(src.URL)
+		b, ct, err := d.Proxy.FetchTLS(ctx, specURL, ts)
 		if err != nil {
 			return nil, badRequest("%s", err.Error())
 		}
 		if importer.IsHTML(ct, b) {
 			spec, script := importer.FindSpecURL(src.URL, b)
 			if spec == "" && script != "" {
-				if js, _, err := d.Proxy.Fetch(ctx, script, src.Insecure); err == nil {
+				if js, _, err := d.Proxy.FetchTLS(ctx, script, ts); err == nil {
 					spec, _ = importer.FindSpecURL(script, js)
 				}
 			}
 			if spec == "" {
 				return nil, badRequest(importer.NoSpecFound)
 			}
-			b, _, err = d.Proxy.Fetch(ctx, spec, src.Insecure)
+			b, _, err = d.Proxy.FetchTLS(ctx, spec, ts)
 			if err != nil {
 				return nil, badRequest("found the spec at %s but couldn't fetch it: %s", spec, err.Error())
 			}
+			specURL = spec
 		}
 		data = b
+		res, err := d.detect(data, src)
+		if err != nil {
+			return nil, err
+		}
+		res.ResolveBase(specURL)
+		return res, nil
 	}
+	return d.detect(data, src)
+}
+
+func (d *Deck) detect(data []byte, src ImportSource) (*importer.Result, error) {
 	var res *importer.Result
 	var err error
 	if strings.TrimSpace(src.Environment) != "" {
@@ -372,6 +405,19 @@ type ImportReport struct {
 }
 
 func (d *Deck) Import(ctx context.Context, in ImportInput) (*ImportReport, error) {
+	// Re-importing into an API fetches with that API's TLS settings.
+	if in.CACerts == "" && !in.Insecure {
+		var a store.API
+		var err error
+		if in.APIID != "" {
+			a, err = d.Store.API(ctx, in.APIID)
+		} else {
+			a, err = d.Store.APIByName(ctx, in.Name)
+		}
+		if err == nil {
+			in.CACerts, in.Insecure = a.TLS.CACerts, a.TLS.Insecure
+		}
+	}
 	res, err := d.parseSource(ctx, in.ImportSource)
 	if err != nil {
 		return nil, err
@@ -399,6 +445,7 @@ func (d *Deck) Import(ctx context.Context, in ImportInput) (*ImportReport, error
 				a.Auth.Type = "none"
 			}
 			a.TLS.Insecure = in.Insecure
+			a.TLS.CACerts = in.CACerts
 			env := store.Environment{ID: d.IDs.New(), APIID: a.ID, Name: "Default"}
 			if len(res.Environments) > 0 {
 				env.Name = res.Environments[0]
@@ -1010,4 +1057,84 @@ func (d *Deck) notifyToolkitsUsingAPI(ctx context.Context, apiName string) {
 	}
 	_ = apiName
 	d.toolsChanged(ids)
+}
+
+// putSecret seals a value into a secret variable in the API's active
+// environment, creating the variable when needed.
+func (d *Deck) putSecret(ctx context.Context, a store.API, name, value string) error {
+	ct, err := d.Vault.Seal(value)
+	if err != nil {
+		return err
+	}
+	vars, _ := d.Store.Variables(ctx, a.ID)
+	v := store.Variable{ID: d.IDs.New(), APIID: a.ID, EnvID: a.ActiveEnvID, Name: name}
+	for _, old := range vars {
+		if old.Name == name && old.EnvID == a.ActiveEnvID {
+			v = old
+		}
+	}
+	v.Source, v.Value, v.Ciphertext, v.UpdatedAt = "secret", "", ct, d.Clock.Now()
+	return d.Store.PutVariable(ctx, v)
+}
+
+// checkAuth rejects auth settings that can't work, with the fix (AUTH-1).
+func (d *Deck) checkAuth(ctx context.Context, a store.API, au store.Auth) error {
+	reqs, _ := d.Store.Requests(ctx, a.ID)
+	known := map[string]bool{}
+	for _, r := range reqs {
+		known[r.ID] = true
+	}
+	switch au.Type {
+	case "", "none", "bearer", "basic", "apikey":
+	case "login":
+		if au.LoginRequestID == "" && len(au.Steps) == 0 {
+			return badRequest("a login needs at least one step: the request that signs in")
+		}
+		for i, st := range au.Steps {
+			if !known[st.RequestID] {
+				return badRequest("login step %d uses a request that isn't in %s", i+1, a.Name)
+			}
+			for _, c := range st.Captures {
+				if c.Name == "" || !validCapture(c.From) {
+					return badRequest("login step %d: capture %q needs a name and a source like json:access_token, header:X-Token, cookie:csrftoken or regex:...", i+1, c.Name)
+				}
+			}
+		}
+		if id := au.RefreshRequestID; id != "" && !known[id] {
+			return badRequest("the refresh request isn't in %s", a.Name)
+		}
+		if id := au.LoginRequestID; id != "" && !known[id] {
+			return badRequest("the login request isn't in %s", a.Name)
+		}
+	case "oauth2":
+		switch au.Grant {
+		case "client_credentials", "password":
+		default:
+			return badRequest("OAuth 2.0 grant %q isn't supported; use client_credentials or password", au.Grant)
+		}
+		if au.TokenURL == "" {
+			return badRequest("OAuth 2.0 needs the token URL")
+		}
+	case "hmac":
+		switch strings.ToLower(au.Algorithm) {
+		case "", "sha256", "sha1", "sha512":
+		default:
+			return badRequest("HMAC algorithm %q isn't supported; use sha256, sha1 or sha512", au.Algorithm)
+		}
+		if au.Secret == "" || au.StringToSign == "" || len(au.Apply) == 0 {
+			return badRequest("HMAC needs a secret, the string to sign and where to put the signature")
+		}
+	default:
+		return badRequest("auth type %q isn't one of none, bearer, basic, apikey, login, oauth2, hmac", au.Type)
+	}
+	return nil
+}
+
+func validCapture(from string) bool {
+	for _, p := range []string{"json:", "header:", "cookie:", "regex:"} {
+		if strings.HasPrefix(from, p) && len(from) > len(p) {
+			return true
+		}
+	}
+	return false
 }

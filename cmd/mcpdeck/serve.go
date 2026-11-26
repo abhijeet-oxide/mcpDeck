@@ -38,6 +38,7 @@ type serveOpts struct {
 	mockPort   int
 	launchFile string
 	returnURL  string
+	fixedToken bool
 }
 
 const defaultPort = 47800
@@ -80,9 +81,13 @@ func serve(o serveOpts) error {
 	if o.data == "" {
 		o.data = dataDir()
 	}
+	// Everything mcpDeck writes (database, WAL, key file) is private to
+	// this user (SEC-4).
+	privateFiles()
 	if err := os.MkdirAll(o.data, 0o700); err != nil {
 		return fmt.Errorf("can't create the data folder %s: %w", o.data, err)
 	}
+	chmodPrivate(o.data)
 	if !o.dev && alreadyRunning(o.data, !o.noOpen) {
 		return nil
 	}
@@ -103,19 +108,25 @@ func serve(o serveOpts) error {
 		return fmt.Errorf("port %d is in use by another program. Start mcpDeck with --port <number>, then reconnect your agents", o.port)
 	}
 	var kc vault.Keychain = vault.OSKeychain{}
-	if o.dev {
+	if o.dev || os.Getenv("MCPDECK_NO_KEYCHAIN") == "1" {
 		kc = vault.NoKeychain{}
 	}
 	v, err := vault.Open(kc, o.data)
 	if err != nil {
 		return err
 	}
+	if v.Backend != "os keychain" && !o.dev {
+		// Say so: the key protecting stored secrets is a file, not the OS keychain (SEC-5).
+		fmt.Fprintf(os.Stderr, "Note: no OS keychain available, so the data key is in %s (readable only by you). Anyone who can read that file and the database can read your stored secrets.\n", v.KeyFile)
+	}
+	chmodPrivate(o.data)
 	c := clock.Real{}
 	ids := clock.ULIDs{Clock: c}
 	d := deck.New(st, v, proxy.New(st, v, c, ids, nil), audit.New(st, c, ids), c, ids, o.data, o.port)
 	d.Demo = o.dev
 
 	var world *mock.World
+	devToken := mock.DevTokenFor(o.fixedToken)
 	if o.dev {
 		world, err = mock.Start(o.mockPort)
 		if err != nil {
@@ -124,7 +135,7 @@ func serve(o serveOpts) error {
 		defer world.Close()
 		d.Practice = &deck.Practice{SpecURL: world.URL("scanner") + "/openapi.json", Username: mock.ScannerUser, Password: mock.ScannerPass}
 		if apis, _ := st.APIs(ctx); len(apis) == 0 {
-			if err := mock.Seed(ctx, d, world, true); err != nil {
+			if err := mock.SeedWithToken(ctx, d, world, true, devToken); err != nil {
 				return err
 			}
 		}
@@ -172,6 +183,12 @@ func serve(o serveOpts) error {
 		defer os.Remove(instancePath(o.data))
 	} else {
 		_ = writeInstance(o.data, instance{Port: o.port, PID: os.Getpid(), CLIToken: g.CLIToken})
+		// Let `mcpdeck stop` find this dev instance from the normal data folder.
+		if home := dataDir(); home != o.data && os.MkdirAll(home, 0o700) == nil {
+			ptr := filepath.Join(home, "dev-data.txt")
+			_ = os.WriteFile(ptr, []byte(o.data), 0o600)
+			defer os.Remove(ptr)
+		}
 	}
 	go func() {
 		if err := httpSrv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -198,7 +215,7 @@ func serve(o serveOpts) error {
 	if o.dev {
 		fmt.Printf("mcpDeck dev mode · temporary data in %s\n\n", o.data)
 		fmt.Printf("  UI          %s\n", launch)
-		fmt.Printf("  dev toolkit %s/mcp/dev   (Authorization: Bearer %s)\n", base, mock.DevToken)
+		fmt.Printf("  dev toolkit %s/mcp/dev   (Authorization: Bearer %s)\n", base, devToken)
 		fmt.Printf("  builder     %s/mcp/dev/build\n\n", base)
 		for _, n := range []string{"crm", "billing", "support", "legacy", "scanner"} {
 			fmt.Printf("  mock %-8s %s\n", n, world.URL(n))

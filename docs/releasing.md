@@ -5,8 +5,9 @@ Nobody cuts releases by hand. Every push to `main` runs
 
 ```
 push to main
-  └─ ci        the full CI suite (ci.yml): Go on Linux/macOS/Windows, web,
-  │            skills, installers, govulncheck, actionlint, release dry run
+  └─ ci        the full CI suite (ci.yml): Go on Linux/macOS/Windows, the
+  │            scenario suite and token benchmark, claims check, web, skills,
+  │            installers, govulncheck, actionlint, release dry run
   └─ plan      tools/nextversion: next version from conventional commits
   └─ publish   tag, GoReleaser, provenance attestation   (only if plan says so)
   └─ verify    install the published release on Linux, macOS and Windows
@@ -26,7 +27,7 @@ So the commit type is a release decision. A change users can see is `feat`
 or `fix`; a change they can't is one of the others. Dependabot's Go and web
 bumps are `fix(deps)` (they end up in the binary) and its workflow bumps are
 `ci(deps)`. With squash merges the PR title becomes the commit, so PR titles
-must be conventional too.
+must be conventional too; the `pr-title` CI job checks them.
 
 The release notes are the `feat`, `fix` and `perf` commit subjects, grouped,
 under install instructions for that exact version. Write subjects for users.
@@ -71,24 +72,16 @@ version with `releases/download/v0.2.0/<name>` or `MCPDECK_VERSION=v0.2.0`.
   `fix:` commit; the next patch release supersedes it. Mark the broken one as
   a pre-release so `latest` moves back.
 
-## Optional channels
-
-These run only when their token secret is set; otherwise they're skipped and
-the release still succeeds.
-
-| Channel | Users run | Setup |
-|---|---|---|
-| Homebrew tap (macOS) | `brew install --cask abhijeet-oxide/tap/mcpdeck` | public repo `abhijeet-oxide/homebrew-tap`, secret `HOMEBREW_TAP_TOKEN` |
-| Scoop bucket (Windows) | `scoop bucket add mcpdeck https://github.com/abhijeet-oxide/scoop-bucket` then `scoop install mcpdeck` | public repo `abhijeet-oxide/scoop-bucket`, secret `SCOOP_BUCKET_TOKEN` |
-
-Neither Homebrew nor Scoop has to approve anything: a tap and a bucket are
-ordinary public repositories that GoReleaser commits to. The token is a
-fine-grained personal access token with **Contents: read and write** on those
-repositories only. Add the channel to the README once its first update has
-landed.
-
 ## Not set up yet
 
+- **Homebrew and Scoop.** No tap or bucket repository exists, so the release
+  doesn't publish to them and the README doesn't offer them. To add one:
+  create the public repository, add a fine-grained token with Contents
+  read/write on it as a secret, add GoReleaser's `homebrew_casks:` or
+  `scoops:` section, and add an install check for it to `verify` in
+  `release.yml`. Only then list it in the README.
+- **Docker image.** Not built. mcpDeck keeps secrets in the OS keychain and
+  opens a browser, which a container doesn't have.
 - **winget.** A pull request to `microsoft/winget-pkgs` per release, which
   Microsoft validates. GoReleaser's `winget:` section can open it from a fork
   with a token. Worth adding once releases settle; until then `install.ps1`
@@ -97,6 +90,5 @@ landed.
   - Windows: SmartScreen warns when a downloaded `.exe` is run. Signing
     needs a code-signing certificate or Azure Trusted Signing.
   - macOS: Gatekeeper blocks unsigned binaries downloaded from a browser.
-    `install.sh` and `curl` downloads aren't quarantined; the Homebrew cask
-    removes the flag. Signing and notarisation need an Apple Developer
+    `install.sh` and `curl` downloads aren't quarantined. Signing and notarisation need an Apple Developer
     Program membership; GoReleaser's `notarize:` section can do it from CI.

@@ -39,7 +39,9 @@ func root() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE:          func(*cobra.Command, []string) error { return serve(o) },
+		Version:       version.Version,
 	}
+	r.SetVersionTemplate("{{.Name}} {{.Version}}\n")
 	r.PersistentFlags().StringVar(&data, "data", "", "data folder (default: the per-user folder)")
 	r.Flags().IntVar(&o.port, "port", 0, "port on 127.0.0.1 (default 47800, kept after the first run)")
 	r.Flags().BoolVar(&o.noOpen, "no-open", false, "don't open the browser")
@@ -52,7 +54,7 @@ func root() *cobra.Command {
 	serveCmd.Flags().BoolVar(&so.noOpen, "no-open", false, "don't open the browser")
 
 	var do serveOpts
-	devCmd := &cobra.Command{Use: "dev", Short: "Start with the demo, a dev toolkit and a fixed-token agent, in temporary data",
+	devCmd := &cobra.Command{Use: "dev", Short: "Start with the demo, a dev toolkit and an agent token, in temporary data",
 		Example: "  mcpdeck dev\n  mcpdeck dev --port 47900 --mock-port 9101",
 		RunE: func(*cobra.Command, []string) error {
 			do.dev, do.data = true, data
@@ -69,6 +71,7 @@ func root() *cobra.Command {
 	devCmd.Flags().IntVar(&do.port, "port", defaultPort, "port on 127.0.0.1")
 	devCmd.Flags().IntVar(&do.mockPort, "mock-port", 9001, "first port of the five demo APIs (0 picks free ports)")
 	devCmd.Flags().BoolVar(&do.noOpen, "no-open", false, "don't open the browser")
+	devCmd.Flags().BoolVar(&do.fixedToken, "fixed-token", false, "use the well-known token mcpdeck-dev, for the editor configs in this repo")
 	devCmd.Flags().StringVar(&do.launchFile, "launch-file", "", "write the launch URL to this file")
 	devCmd.Flags().StringVar(&do.returnURL, "return-url", "", "where Leave demo goes")
 	_ = devCmd.Flags().MarkHidden("launch-file")
@@ -76,12 +79,29 @@ func root() *cobra.Command {
 
 	stopCmd := &cobra.Command{Use: "stop", Short: "Stop the running mcpDeck", Example: "  mcpdeck stop",
 		RunE: func(*cobra.Command, []string) error {
-			c, err := localClient(data)
-			if err != nil {
-				return err
+			// Stops the instance in the data folder and any `mcpdeck dev` (RUN-7).
+			stopped := 0
+			dir := data
+			if dir == "" {
+				dir = dataDir()
 			}
-			if err := c.do("POST", "/api/shutdown", nil, nil); err != nil {
-				return err
+			for _, d := range []string{dir, devPointerDir(dir)} {
+				if d == "" {
+					continue
+				}
+				c, err := localClient(d)
+				if err != nil {
+					continue
+				}
+				if err := c.do("POST", "/api/shutdown", nil, nil); err == nil {
+					stopped++
+				}
+				if d != dir {
+					_ = os.Remove(instancePath(d))
+				}
+			}
+			if stopped == 0 {
+				return fmt.Errorf("mcpDeck isn't running")
 			}
 			fmt.Println("mcpDeck stopped.")
 			return nil
@@ -114,13 +134,15 @@ func root() *cobra.Command {
 			return nil
 		}})
 
-	r.AddCommand(serveCmd, devCmd, stopCmd, versionCmd, auditCmd, connectCmd(&data), agentsCmd(&data), importCmd(&data), stdioCmd(), pullCmd(&data), pushCmd(&data))
+	r.AddCommand(serveCmd, devCmd, stopCmd, versionCmd, auditCmd, connectCmd(&data), agentsCmd(&data), importCmd(&data), stdioCmd(), pullCmd(&data), pushCmd(&data),
+		varCmd(&data), secretCmd(&data), requestCmd(&data), authCmd(&data), toolkitCmd(&data), toolCmd(&data), lintCmd(&data), mcpCmd(&data), apiCmd(&data))
+	r.SetHelpCommand(helpCmd(r))
 	return r
 }
 
 func connectCmd(data *string) *cobra.Command {
 	var toolkit, access, scope, project string
-	var build, noSkills, write, asJSON bool
+	var build, noSkills, write, asJSON, printOnly bool
 	c := &cobra.Command{Use: "connect <claude|vscode|cursor|claude-desktop>", Short: "Add a toolkit to an agent's client",
 		Example: "  mcpdeck connect claude --toolkit support --build --write\n  mcpdeck connect vscode --toolkit support --scope project --project .",
 		Args:    cobra.ExactArgs(1),
@@ -166,8 +188,10 @@ func connectCmd(data *string) *cobra.Command {
 					return err
 				}
 			}
-			if asJSON {
-				printJSON(map[string]any{"agent": out.Result.Agent.Name, "command": out.Plan.Command, "link": out.Plan.Link, "snippet": out.Plan.Snippet, "written": written.Written})
+			if asJSON || printOnly {
+				// --print gives the URL and token for any MCP client; the token is shown once.
+				printJSON(map[string]any{"agent": out.Result.Agent.Name, "url": cl.base + "/mcp/" + toolkit, "token": out.Result.Token,
+					"command": out.Plan.Command, "link": out.Plan.Link, "snippet": out.Plan.Snippet, "written": written.Written})
 				return nil
 			}
 			fmt.Printf("Connected %s to %s. The token is shown once.\n\n", out.Result.Agent.Name, toolkit)
@@ -201,6 +225,7 @@ func connectCmd(data *string) *cobra.Command {
 	c.Flags().StringVar(&project, "project", "", "project folder for project scope")
 	c.Flags().BoolVar(&noSkills, "no-skills", false, "don't install the mcpDeck skills")
 	c.Flags().BoolVar(&write, "write", false, "write the config files (a backup is kept)")
+	c.Flags().BoolVar(&printOnly, "print", false, "print the MCP URL and token as JSON instead of client setup")
 	c.Flags().BoolVar(&asJSON, "json", false, "print JSON")
 	return c
 }
@@ -269,7 +294,8 @@ func agentsCmd(data *string) *cobra.Command {
 }
 
 func importCmd(data *string) *cobra.Command {
-	var apiName, envFile string
+	var apiName, envFile, caFile string
+	var insecure bool
 	var asJSON bool
 	c := &cobra.Command{Use: "import <url-or-file> --api <name>", Short: "Import a Swagger page, OpenAPI, Postman collection or curl file into an API",
 		Example: "  mcpdeck import https://petstore3.swagger.io/ --api petstore\n  mcpdeck import support.postman_collection.json --api support --env demo.postman_environment.json",
@@ -291,6 +317,16 @@ func importCmd(data *string) *cobra.Command {
 					return err
 				}
 				body["text"] = string(b)
+			}
+			if caFile != "" {
+				b, err := os.ReadFile(caFile)
+				if err != nil {
+					return err
+				}
+				body["caCerts"] = string(b)
+			}
+			if insecure {
+				body["insecure"] = true
 			}
 			if envFile != "" {
 				b, err := os.ReadFile(envFile)
@@ -334,6 +370,8 @@ func importCmd(data *string) *cobra.Command {
 		}}
 	c.Flags().StringVar(&apiName, "api", "", "API name, as tools call it (crm, billing…)")
 	c.Flags().StringVar(&envFile, "env", "", "Postman environment file")
+	c.Flags().StringVar(&caFile, "ca-file", "", "PEM file of a company CA to trust for this API (kept on the API)")
+	c.Flags().BoolVar(&insecure, "insecure", false, "skip certificate checks for this API (self-signed dev servers)")
 	c.Flags().BoolVar(&asJSON, "json", false, "print JSON")
 	return c
 }

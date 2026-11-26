@@ -98,34 +98,3 @@ release:
     Verify any file with `gh attestation verify <file> --repo abhijeet-oxide/mcpDeck`.
   footer: |
     {{ if .PreviousTag }}**Full changelog**: https://github.com/abhijeet-oxide/mcpDeck/compare/{{ .PreviousTag }}...{{ .Tag }}{{ end }}
-
-# The tap and bucket are updated only when their token is set (NFR-7).
-homebrew_casks:
-  - name: mcpdeck
-    ids: [default]
-    repository:
-      owner: abhijeet-oxide
-      name: homebrew-tap
-      token: '{{ index .Env "HOMEBREW_TAP_TOKEN" }}'
-    homepage: https://github.com/abhijeet-oxide/mcpDeck
-    description: Build MCP tools from the APIs you already have, and control what every agent can do.
-    skip_upload: '{{ if index .Env "HOMEBREW_TAP_TOKEN" }}auto{{ else }}true{{ end }}'
-    hooks:
-      post:
-        # Unsigned builds are quarantined by macOS. Remove once releases are notarised (NFR-5).
-        install: |
-          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/mcpdeck"]
-          end
-
-scoops:
-  - name: mcpdeck
-    ids: [default]
-    repository:
-      owner: abhijeet-oxide
-      name: scoop-bucket
-      token: '{{ index .Env "SCOOP_BUCKET_TOKEN" }}'
-    homepage: https://github.com/abhijeet-oxide/mcpDeck
-    description: Build MCP tools from the APIs you already have, and control what every agent can do.
-    license: Apache-2.0
-    skip_upload: '{{ if index .Env "SCOOP_BUCKET_TOKEN" }}auto{{ else }}true{{ end }}'

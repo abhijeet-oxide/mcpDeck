@@ -15,8 +15,11 @@ first. The essentials:
 - Read grants can't send write requests (blocked at the proxy).
   Connection tokens can't change access, approve or read secrets. Tool
   versions are immutable. The local server checks `Host` and `Origin`.
-- UI must match the mockup in `docs/mockups/` (see `docs/ui.md`) and the tokens in `docs/design.md#ui`.
-- Before finishing: `make test && make lint`. For proxy/MCP/UI changes also
-  `make dev-up` and exercise the `mcpdeck-dev` MCP server from `.vscode/mcp.json`.
+- UI uses the established patterns in `docs/ui.md`; no invented widgets.
+- Every user-visible behaviour gets a scenario in `e2e/scenarios`; every
+  README claim names its tests in `docs/claims.md`.
+- Before finishing: `make test && make lint && make claims`. For proxy/MCP/UI
+  changes also `make dev-up` and exercise the `mcpdeck-dev` MCP server from
+  `.vscode/mcp.json`.
 - Commit and PR titles are conventional commits. `feat`, `fix` and `perf`
   release automatically on merge to main (see `docs/releasing.md`).
