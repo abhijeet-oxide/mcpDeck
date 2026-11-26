@@ -781,8 +781,22 @@ type SendResult struct {
 
 func (d *Deck) Send(ctx context.Context, in SendInput) (*SendResult, error) {
 	c := proxy.Call{APIID: in.APIID, RequestID: in.RequestID, Draft: in.Draft, EnvID: in.EnvID, Actor: proxy.Actor{Kind: "you", Name: "You"}}
-	if in.Draft != nil {
+	r := in.Draft
+	if r != nil {
 		c.RequestID = ""
+	} else if saved, err := d.Store.Request(ctx, in.RequestID); err == nil {
+		r = &saved
+	}
+	// The path values set on the request's Params tab, like Postman's path variables.
+	if r != nil {
+		for _, kv := range r.PathParams {
+			if kv.Key != "" && !kv.Disabled {
+				if c.Args.Path == nil {
+					c.Args.Path = map[string]any{}
+				}
+				c.Args.Path[kv.Key] = kv.Value
+			}
+		}
 	}
 	res, err := d.Proxy.Do(ctx, c)
 	if err != nil {

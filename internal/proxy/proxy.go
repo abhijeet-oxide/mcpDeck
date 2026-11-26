@@ -42,6 +42,8 @@ const (
 	CodeNotFound       = "not_found"
 	CodeNoExample      = "no_example"
 	CodeBadTLS         = "bad_tls"
+	CodeTimeout        = "timeout"
+	CodeCanceled       = "canceled"
 )
 
 // Error is an actionable proxy error.
@@ -133,6 +135,7 @@ type Proxy struct {
 	sessions  map[string]*session     // apiID → sign-in values (AUTH-2)
 	sessLocks map[string]*sync.Mutex  // one sign-in at a time per API
 	tls       map[string]tlsTransport // apiID → transport for its TLS settings
+	net       Network                 // proxy settings (NET-1)
 }
 
 type tlsTransport struct {
@@ -144,11 +147,12 @@ type tlsTransport struct {
 
 // New returns a proxy. tr may be nil for the default transport.
 func New(s *store.Store, v *vault.Vault, c clock.Clock, ids clock.IDs, tr http.RoundTripper) *Proxy {
-	if tr == nil {
-		tr = &http.Transport{Proxy: http.ProxyFromEnvironment, MaxIdleConnsPerHost: 16, IdleConnTimeout: 60 * time.Second}
-	}
-	return &Proxy{store: s, vault: v, clock: c, ids: ids, tr: tr,
+	p := &Proxy{store: s, vault: v, clock: c, ids: ids, tr: tr,
 		jars: map[string]*cookiejar.Jar{}, sessions: map[string]*session{}, sessLocks: map[string]*sync.Mutex{}, tls: map[string]tlsTransport{}}
+	if tr == nil {
+		p.tr = &http.Transport{Proxy: p.proxyFor, MaxIdleConnsPerHost: 16, IdleConnTimeout: 60 * time.Second}
+	}
+	return p
 }
 
 func (p *Proxy) client(api store.API, timeout time.Duration, res resolved) (*http.Client, error) {
@@ -670,7 +674,7 @@ func unresolvedErr(api store.API, missing map[string]bool) error {
 	sort.Strings(params)
 	var parts []string
 	if len(params) > 0 {
-		parts = append(parts, "missing path values: "+strings.Join(params, ", ")+"; pass them as arguments")
+		parts = append(parts, "missing path values: "+strings.Join(params, ", ")+"; pass them as arguments (in mcpDeck, under Params → Path variables)")
 	}
 	if len(vars) > 0 {
 		parts = append(parts, "unresolved variables "+strings.Join(vars, ", ")+"; set them with mcpdeck var set (or secret set) "+api.Name+" <name>, or on the "+api.Name+" application's Environments tab in mcpDeck")
@@ -754,7 +758,8 @@ func (p *Proxy) Do(ctx context.Context, c Call) (*Response, error) {
 	}
 
 	auth := effectiveAuth(api, r)
-	cl, err := p.client(api, 30*time.Second, res)
+	timeout := p.timeoutFor(ctx, r)
+	cl, err := p.client(api, timeout, res)
 	if err != nil {
 		return fail("error", err)
 	}
@@ -804,6 +809,9 @@ func (p *Proxy) Do(ctx context.Context, c Call) (*Response, error) {
 		var pe *Error
 		if errors.As(err, &pe) {
 			return fail("error", pe)
+		}
+		if se := sendErr(ctx, err, b.name, timeout); se != nil {
+			return fail("error", se)
 		}
 		if isCertErr(err) {
 			return fail("error", &Error{Code: CodeBadTLS, Message: res.secrets.String(fmt.Sprintf("%s: the server's certificate isn't trusted (%v). In mcpDeck, open the %s application's Settings → TLS and add its CA certificate, or turn off verification for this application.", b.name, err, api.Name))})

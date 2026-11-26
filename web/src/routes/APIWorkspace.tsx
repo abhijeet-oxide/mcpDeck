@@ -4,6 +4,7 @@ import {
   BookmarkPlus,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   Code2,
   Cookie,
   Copy,
@@ -20,11 +21,13 @@ import {
   ShieldAlert,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AskAgentButton } from "../components/AskAgent";
 import { counts, FindingList } from "../components/Findings";
 import { KVEditor } from "../components/KVEditor";
+import { Elapsed, seconds } from "../components/RequestTray";
 import {
   AccessChip,
   Avatar,
@@ -50,8 +53,10 @@ import {
   useToast,
 } from "../components/ui";
 import { del, patch, post, put } from "../lib/api";
+import { getDraft, setDraft, useDrafts } from "../lib/drafts";
 import { ago, bytes, mod, num, pretty } from "../lib/format";
 import { useAction, useAPI, useHistory, useToolkits } from "../lib/hooks";
+import { cancel, flightKey, markSeen, send as sendRequest, useFlight } from "../lib/inflight";
 import { Link, navigate, useLocation } from "../lib/router";
 import type { APIDetail, Auth, EnvImport, LoginStep, OutputReport, Request, SendResult, Variable } from "../lib/types";
 
@@ -269,11 +274,28 @@ function toolCallOf(api: string, r: Request): string {
   return `await ${api}.${r.name}(${args ? `{ ${args} }` : ""})`;
 }
 
-function Requests({ a, onTab }: { a: APIDetail; onTab: (t: Tab) => void }) {
-  const [sel, setSel] = useState<string>(a.requests[0]?.id ?? "");
+export function Requests({ a, onTab }: { a: APIDetail; onTab: (t: Tab) => void }) {
+  const { search } = useLocation();
+  const asked = search.get("req");
+  const [sel, setSel] = useState<string>(asked ?? a.requests[0]?.id ?? "");
+  // The request tray links here with ?req= to reopen a request.
+  useEffect(() => {
+    if (asked) setSel(asked);
+  }, [asked]);
   const [side, setSide] = useState<"requests" | "history">("requests");
   const [filter, setFilter] = useState("");
   const [draft, setDraft] = useState<Request | null>(null);
+  const [resp, setResp] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggle = (id: string, open: boolean) => {
+    const next = new Set(expanded);
+    if (open) next.delete(id);
+    else next.add(id);
+    setExpanded(next);
+    if (open && sel === id) setSel("");
+  };
+  const removeResp = useAction((x: { req: string; id: string }) => del(`/api/requests/${x.req}/responses/${x.id}`));
+  const drafts = useDrafts();
   const hist = useHistory(a.id);
   useEffect(() => {
     const r = a.requests.find((x) => x.id === sel);
@@ -326,24 +348,80 @@ function Requests({ a, onTab }: { a: APIDetail; onTab: (t: Tab) => void }) {
             {folders.map(([f, rs]) => (
               <div key={f} className="mb-1">
                 {f && <div className="muted px-2 py-1 text-[11.5px] font-semibold uppercase tracking-wide">{f}</div>}
-                {rs.map((r) => (
-                  <button
-                    key={r.id}
-                    type="button"
-                    className="tree-row"
-                    aria-current={sel === r.id || (!sel && r === a.requests[0]) ? "true" : undefined}
-                    onClick={() => setSel(r.id)}
-                  >
-                    <MethodChip method={r.method} />
-                    <span className="min-w-0 flex-1 truncate">{r.name}</span>
-                    {(r.responses?.length ?? 0) > 0 && (
-                      <span className="faint text-[11px]" title={`${r.responses!.length} saved responses`}>
-                        {r.responses!.map((x) => x.status).join(" ")}
-                      </span>
-                    )}
-                    {r.accessFlag && <span className="dot warn" title="Check access" />}
-                  </button>
-                ))}
+                {rs.map((r) => {
+                  const n = r.responses?.length ?? 0;
+                  const open = n > 0 && (expanded.has(r.id) || sel === r.id);
+                  return (
+                    <div key={r.id}>
+                      <div className="tree-line">
+                        {n > 0 ? (
+                          <button
+                            type="button"
+                            className="tree-twisty"
+                            aria-expanded={open}
+                            aria-label={`${open ? "Hide" : "Show"} saved responses of ${r.name}`}
+                            onClick={() => toggle(r.id, open)}
+                          >
+                            <ChevronRight size={12} />
+                          </button>
+                        ) : (
+                          <span className="tree-twisty" />
+                        )}
+                        <button
+                          type="button"
+                          className="tree-row"
+                          aria-current={sel === r.id || (!sel && r === a.requests[0]) ? "true" : undefined}
+                          onClick={() => {
+                            setSel(r.id);
+                            setResp("");
+                          }}
+                        >
+                          <MethodChip method={r.method} />
+                          <span className="min-w-0 flex-1 truncate">{r.name}</span>
+                          {n > 0 && (
+                            <span
+                              className="faint text-[11px]"
+                              title={`${n} saved ${n === 1 ? "response" : "responses"}`}
+                            >
+                              {n}
+                            </span>
+                          )}
+                          {r.accessFlag && <span className="dot warn" title="Check access" />}
+                          {drafts.has(flightKey(a.id, r.id)) && (
+                            <span className="dot on" title="Unsaved changes" role="img" aria-label="Unsaved changes" />
+                          )}
+                        </button>
+                      </div>
+                      {open &&
+                        r.responses!.map((x) => (
+                          <div key={x.id} className="tree-line tree-child">
+                            <button
+                              type="button"
+                              className="tree-row"
+                              aria-current={sel === r.id && resp === x.id ? "true" : undefined}
+                              title={`Saved response: ${x.name}`}
+                              onClick={() => {
+                                setSel(r.id);
+                                setResp(x.id);
+                              }}
+                            >
+                              <span className={`dot ${x.status < 300 ? "on" : x.status < 500 ? "warn" : "bad"}`} />
+                              <span className="mono text-[11.5px]">{x.status}</span>
+                              <span className="min-w-0 flex-1 truncate">{x.name}</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-btn tree-del"
+                              aria-label={`Delete saved response ${x.name}`}
+                              onClick={() => removeResp.mutate({ req: r.id, id: x.id })}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        ))}
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </>
@@ -378,7 +456,15 @@ function Requests({ a, onTab }: { a: APIDetail; onTab: (t: Tab) => void }) {
         )}
       </Panel>
       {draft ? (
-        <Editor key={draft.id || "new"} api={a} initial={draft} onSaved={(id) => setSel(id)} onTab={onTab} />
+        <Editor
+          key={draft.id || "new"}
+          api={a}
+          initial={draft}
+          onSaved={(id) => setSel(id)}
+          onTab={onTab}
+          openResponse={resp}
+          onOpenResponse={setResp}
+        />
       ) : (
         <Panel>
           <EmptyState
@@ -409,23 +495,39 @@ function Editor({
   initial,
   onSaved,
   onTab,
+  openResponse = "",
+  onOpenResponse,
 }: {
   api: APIDetail;
   initial: Request;
   onSaved: (id: string) => void;
   onTab?: (t: Tab) => void;
+  /** A saved response picked in the sidebar. */
+  openResponse?: string;
+  onOpenResponse?: (id: string) => void;
 }) {
-  const [r, setR] = useState<Request>(initial);
-  const [sub, setSub] = useState<"params" | "headers" | "body" | "docs">(initial.body ? "body" : "params");
-  const [res, setRes] = useState<SendResult | null>(null);
+  const key = flightKey(api.id, initial.id);
+  // Unsaved edits survive opening another request or page.
+  const [r, setR] = useState<Request>(() => getDraft(key) ?? initial);
+  const [sub, setSub] = useState<"params" | "headers" | "body" | "docs" | "settings">(initial.body ? "body" : "params");
+  const flight = useFlight(key);
+  // The last response stays with the request while you look elsewhere (NET-3).
+  const [res, setRes] = useState<SendResult | null>(flight?.result ?? null);
   const [view, setView] = useState<"pretty" | "raw" | "headers">("pretty");
-  const [sending, setSending] = useState(false);
+  const sending = !!flight && !flight.finishedAt;
+  useEffect(() => {
+    if (flight?.finishedAt && flight.result) {
+      setRes(flight.result);
+      markSeen(key);
+    }
+  }, [flight?.finishedAt, flight?.result, key]);
   const copy = useCopy();
   const toast = useToast();
   const confirm = useConfirm();
   const tks = useToolkits();
   const strip = ({ example: _e, responses: _r, ...x }: Request) => JSON.stringify(x);
   const dirty = strip(r) !== strip(initial);
+  useEffect(() => setDraft(key, dirty ? r : undefined), [key, dirty, r]);
   const save = useAction(
     () => {
       // A request added manually gets a name from its method and path, like getAccount.
@@ -434,6 +536,7 @@ function Editor({
     },
     {
       onSuccess: (x) => {
+        setDraft(key, undefined);
         toast(`Saved ${api.name}.${x.name}`);
         onSaved(x.id);
       },
@@ -448,18 +551,16 @@ function Editor({
   const setAccess = useAction((acc: string) => post<Request>(`/api/requests/${r.id}/access`, { access: acc }), {
     onSuccess: (x) => setR((cur) => ({ ...cur, access: x.access, accessFlag: false, accessReason: x.accessReason })),
   });
-  const send = async () => {
-    setSending(true);
-    try {
-      setRes(await post<SendResult>("/api/send", { apiId: api.id, draft: r }));
-    } catch (e) {
-      setRes({ body: "", tokens: 0, error: (e as Error).message });
-    } finally {
-      setSending(false);
-    }
+  const send = () => {
+    if (sending) return;
+    sendRequest(
+      { apiId: api.id, reqId: initial.id, label: `${api.name}.${r.name}`, method: r.method },
+      { apiId: api.id, draft: r },
+    );
   };
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && sending) cancel(key);
       if (!(e.ctrlKey || e.metaKey)) return;
       if (e.key === "Enter") {
         e.preventDefault();
@@ -499,16 +600,15 @@ function Editor({
             value={r.url}
             onChange={(e) => setR({ ...r, url: e.target.value })}
           />
-          <Button
-            kind="blue"
-            icon={<Send size={13} />}
-            loading={sending}
-            onClick={send}
-            title={`${mod()}+Enter`}
-            data-tour="send"
-          >
-            Send
-          </Button>
+          {sending ? (
+            <Button kind="bad" icon={<X size={13} />} onClick={() => cancel(key)} title="Cancel (Esc)">
+              Cancel · <Elapsed since={flight!.startedAt} />
+            </Button>
+          ) : (
+            <Button kind="blue" icon={<Send size={13} />} onClick={send} title={`${mod()}+Enter`} data-tour="send">
+              Send
+            </Button>
+          )}
           <Button
             icon={<Save size={13} />}
             disabled={!dirty && !!r.id}
@@ -517,6 +617,11 @@ function Editor({
           >
             Save
           </Button>
+          {dirty && r.id && (
+            <Button kind="ghost" onClick={() => setR(initial)} title="Drop unsaved changes">
+              Revert
+            </Button>
+          )}
         </div>
         {unresolved.length > 0 && (
           <div className="banner bad mx-3 mb-2">
@@ -550,12 +655,16 @@ function Editor({
               { id: "headers", label: "Headers", n: r.headers.length },
               { id: "body", label: "Body" },
               { id: "docs", label: "Name and docs" },
+              { id: "settings", label: "Settings" },
             ]}
           />
         </div>
         <div className="px-3 pb-3">
           {sub === "params" && (
-            <KVEditor rows={r.query} onChange={(q) => setR({ ...r, query: q })} keyLabel="Query param" />
+            <>
+              <KVEditor rows={r.query} onChange={(q) => setR({ ...r, query: q })} keyLabel="Query param" />
+              <PathVariables r={r} onChange={(pathParams) => setR({ ...r, pathParams })} />
+            </>
           )}
           {sub === "headers" && (
             <>
@@ -582,6 +691,27 @@ function Editor({
                   onChange={(e) => setR({ ...r, body: e.target.value })}
                 />
               )}
+            </div>
+          )}
+          {sub === "settings" && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field
+                label="Timeout"
+                hint="Seconds to wait for a response. Empty uses the default in Settings → Requests and proxy."
+              >
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  step="any"
+                  aria-label="Timeout in seconds"
+                  placeholder="Default"
+                  value={r.timeoutSeconds ?? ""}
+                  onChange={(e) =>
+                    setR({ ...r, timeoutSeconds: e.target.value === "" ? undefined : Number(e.target.value) })
+                  }
+                />
+              </Field>
             </div>
           )}
           {sub === "docs" && (
@@ -642,7 +772,7 @@ function Editor({
               <span className="flex items-center gap-3">
                 <Chip tone={res.status! < 400 ? "ok" : "bad"}>{res.statusText}</Chip>
                 <span className="muted text-[12.5px] font-normal">
-                  {res.durationMs} ms · {bytes(res.size)} · {num(res.tokens)} tokens
+                  {seconds(res.durationMs ?? 0)} · {bytes(res.size)} · {num(res.tokens)} tokens
                 </span>
               </span>
             )
@@ -710,7 +840,12 @@ function Editor({
         )}
         {res && !res.error && isJSON && <OutputCheck body={res.body} />}
         {(r.responses?.length ?? 0) > 0 && (
-          <SavedResponses req={r} onChange={(x) => setR((cur) => ({ ...cur, responses: x.responses }))} />
+          <SavedResponses
+            req={r}
+            open={openResponse}
+            setOpen={(id) => onOpenResponse?.(id)}
+            onChange={(x) => setR((cur) => ({ ...cur, responses: x.responses }))}
+          />
         )}
         <div className="flex flex-wrap justify-end gap-2 p-3" style={{ borderTop: "1px solid var(--line)" }}>
           <Button
@@ -858,15 +993,70 @@ function SaveResponseCard({
   );
 }
 
+/** pathNames are the {id} and :id parts of a URL, in order. */
+export function pathNames(url: string): string[] {
+  const out: string[] = [];
+  for (const m of url.replace(/\{\{[^}]*\}\}/g, "").matchAll(/\{([A-Za-z0-9_]+)\}|\/:([A-Za-z_][A-Za-z0-9_]*)/g)) {
+    const n = m[1] ?? m[2];
+    if (!out.includes(n)) out.push(n);
+  }
+  return out;
+}
+
+/** PathVariables sets values for the URL's path parts when you send it,
+ *  like Postman's Path Variables. Tools and agents pass their own. */
+function PathVariables({ r, onChange }: { r: Request; onChange: (kv: Request["query"]) => void }) {
+  const names = pathNames(r.url);
+  if (names.length === 0) return null;
+  const value = (n: string) => r.pathParams?.find((x) => x.key === n)?.value ?? "";
+  const set = (n: string, v: string) =>
+    onChange(names.map((k) => ({ key: k, value: k === n ? v : value(k) })).filter((x) => x.value !== ""));
+  return (
+    <div className="mt-3">
+      <div className="mb-1.5 flex items-baseline gap-2">
+        <span className="text-[12.5px] font-semibold">Path variables</span>
+        <span className="muted text-[12px]">Used when you send it here. Tools and agents pass their own.</span>
+      </div>
+      <div className="kv-grid">
+        {names.map((n) => (
+          <div key={n} className="flex items-center gap-2">
+            <code className="mono kv-key">{n}</code>
+            <input
+              className="input mono"
+              aria-label={`Path variable ${n}`}
+              placeholder="Value"
+              value={value(n)}
+              onChange={(e) => set(n, e.target.value)}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** SavedResponses lists the kept responses of a request; click to view. */
-function SavedResponses({ req, onChange }: { req: Request; onChange: (r: Request) => void }) {
-  const [open, setOpen] = useState<string>("");
+function SavedResponses({
+  req,
+  onChange,
+  open,
+  setOpen,
+}: {
+  req: Request;
+  onChange: (r: Request) => void;
+  open: string;
+  setOpen: (id: string) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open) ref.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  }, [open]);
   const remove = useAction((rid: string) => del<Request>(`/api/requests/${req.id}/responses/${rid}`), {
     onSuccess: (x) => onChange(x),
   });
   const shown = req.responses?.find((x) => x.id === open);
   return (
-    <div style={{ borderTop: "1px solid var(--line)" }}>
+    <div ref={ref} style={{ borderTop: "1px solid var(--line)" }}>
       <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
         <span className="muted text-[12.5px] font-medium">Saved responses</span>
         {req.responses!.map((x) => (

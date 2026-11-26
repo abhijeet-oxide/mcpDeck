@@ -1,7 +1,29 @@
-import { Check, Compass, Database, FolderOpen, Palette, ShieldCheck, SlidersHorizontal, Timer } from "lucide-react";
+import {
+  Check,
+  Compass,
+  Database,
+  FolderOpen,
+  Globe,
+  Palette,
+  ShieldCheck,
+  SlidersHorizontal,
+  Timer,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { ACCENTS, useTheme } from "../components/Sidebar";
-import { Button, Chip, ErrorBox, Loading, Panel, SaveBar, Seg, Toggle, useToast } from "../components/ui";
+import {
+  Button,
+  Chip,
+  ErrorBox,
+  Loading,
+  Panel,
+  SaveBar,
+  SecretField,
+  Seg,
+  secretChange,
+  Toggle,
+  useToast,
+} from "../components/ui";
 import { post, put } from "../lib/api";
 import { useAction, useInfo, useSettings } from "../lib/hooks";
 import { Link } from "../lib/router";
@@ -17,9 +39,24 @@ export const SECURITY_LIMITS = [
   "Agent tokens are stored in plain text in each client's config, as MCP clients require. Revoke a token if it leaks.",
 ];
 
+// Editable settings saved by the Save bar.
+const keys = [
+  "toolTimeoutSeconds",
+  "retentionBodiesDays",
+  "retentionCallsDays",
+  "requestTimeoutSeconds",
+  "requestTimeoutMaxSeconds",
+  "proxyMode",
+  "proxyHttp",
+  "proxyHttps",
+  "noProxy",
+  "proxyUser",
+];
+
 const sections = [
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "general", label: "General", icon: SlidersHorizontal },
+  { id: "network", label: "Requests and proxy", icon: Globe },
   { id: "calls", label: "Call history", icon: Timer },
   { id: "guide", label: "Getting started", icon: Compass },
   { id: "security", label: "Security", icon: ShieldCheck },
@@ -53,10 +90,20 @@ export function Settings({ section = "general" }: { section?: string }) {
   const toast = useToast();
   const { theme, set, accent, setAccent } = useTheme();
   const [vals, setVals] = useState<Record<string, string>>({});
+  const [pw, setPw] = useState<string | null | undefined>(undefined);
   useEffect(() => {
     if (q.data) setVals(q.data.values);
+    setPw(undefined);
   }, [q.data]);
-  const save = useAction(() => put("/api/settings", vals), { onSuccess: () => toast("Settings saved") });
+  // Only what changed is sent; the proxy password only when replaced or removed.
+  const changes = () => {
+    const out: Record<string, string> = {};
+    for (const k of keys) if ((vals[k] ?? "") !== (q.data?.values[k] ?? "")) out[k] = vals[k] ?? "";
+    const p = secretChange(pw);
+    if (p !== undefined) out.proxyPassword = p;
+    return out;
+  };
+  const save = useAction(() => put("/api/settings", changes()), { onSuccess: () => toast("Settings saved") });
   const guide = useAction((hide: boolean) => put("/api/settings", { hideOnboarding: hide ? "true" : "false" }), {
     onSuccess: (_, hide) => toast(hide ? "Setup guide hidden" : "Setup guide shown in the sidebar"),
   });
@@ -96,20 +143,29 @@ export function Settings({ section = "general" }: { section?: string }) {
       </div>
     );
   const s = q.data!;
-  const keys = ["toolTimeoutSeconds", "retentionBodiesDays", "retentionCallsDays"];
-  const dirty = keys.some((k) => (vals[k] ?? "") !== (s.values[k] ?? ""));
-  const num = (k: string, unit: string) => (
+  const dirty = Object.keys(changes()).length > 0;
+  const num = (k: string, unit: string, label?: string) => (
     <div className="flex items-center gap-2">
       <input
         className="input"
         style={{ maxWidth: 120 }}
         type="number"
         min={1}
+        aria-label={label}
         value={vals[k] ?? ""}
         onChange={(e) => setVals({ ...vals, [k]: e.target.value })}
       />
       <span className="muted">{unit}</span>
     </div>
+  );
+  const text = (k: string, label: string, placeholder: string) => (
+    <input
+      className="input mono"
+      aria-label={label}
+      placeholder={placeholder}
+      value={vals[k] ?? ""}
+      onChange={(e) => setVals({ ...vals, [k]: e.target.value })}
+    />
   );
   const address = info.data?.baseUrl ?? `http://127.0.0.1:${s.port}`;
   return (
@@ -184,6 +240,72 @@ export function Settings({ section = "general" }: { section?: string }) {
               </Panel>
             </>
           )}
+          {current.id === "network" && (
+            <>
+              <SectionHead
+                title="Requests and proxy"
+                sub="How long a request may take, and how mcpDeck reaches your APIs. Applies to Send, tools and agents."
+              />
+              <Panel>
+                <Row
+                  title="Default timeout"
+                  sub="How long a request may wait for a response. A request can set its own on its Settings tab."
+                >
+                  {num("requestTimeoutSeconds", "seconds", "Default timeout")}
+                </Row>
+                <Row title="Maximum timeout" sub="No request waits longer than this, whatever it sets.">
+                  {num("requestTimeoutMaxSeconds", "seconds", "Maximum timeout")}
+                </Row>
+              </Panel>
+              <Panel className="mt-6">
+                <Row
+                  title="Proxy"
+                  sub="System uses HTTP_PROXY, HTTPS_PROXY and NO_PROXY from the environment mcpDeck started in. Requests to localhost never use a proxy."
+                >
+                  <Seg
+                    label="Proxy"
+                    value={(vals.proxyMode || "system") as "system" | "none" | "manual"}
+                    onChange={(m) => setVals({ ...vals, proxyMode: m })}
+                    options={[
+                      { id: "system", label: "System" },
+                      { id: "none", label: "No proxy" },
+                      { id: "manual", label: "Manual" },
+                    ]}
+                  />
+                </Row>
+                {vals.proxyMode === "manual" && (
+                  <>
+                    <Row title="HTTP proxy" sub="For http:// URLs, like proxy.corp.example:3128.">
+                      {text("proxyHttp", "HTTP proxy", "host:port")}
+                    </Row>
+                    <Row title="HTTPS proxy" sub="For https:// URLs. Leave empty to use the HTTP proxy.">
+                      {text("proxyHttps", "HTTPS proxy", "Same as HTTP")}
+                    </Row>
+                    <Row title="Bypass" sub="Comma-separated hosts, domains or CIDR ranges that connect directly.">
+                      {text("noProxy", "Bypass", "internal.example, .corp, 10.0.0.0/8")}
+                    </Row>
+                    <Row title="Proxy username" sub="Only if the proxy asks you to sign in.">
+                      {text("proxyUser", "Proxy username", "")}
+                    </Row>
+                    <Row title="Proxy password" sub="Stored encrypted, like API keys, and never shown again.">
+                      <SecretField
+                        label="Proxy password"
+                        isSet={s.values.proxyPasswordSet === "true"}
+                        value={pw}
+                        onChange={setPw}
+                      />
+                    </Row>
+                  </>
+                )}
+                <Row
+                  title="Certificate checks"
+                  sub="Set per application, on its Settings tab under TLS: trusted CA certificates, a client certificate, or verification off for a test server."
+                >
+                  <Link to="/apps">Applications</Link>
+                </Row>
+              </Panel>
+            </>
+          )}
           {current.id === "calls" && (
             <>
               <SectionHead title="Call history" sub="What mcpDeck keeps about each call, and for how long." />
@@ -215,8 +337,22 @@ export function Settings({ section = "general" }: { section?: string }) {
             <>
               <SectionHead title="Security" sub="How credentials are kept, and what that does and doesn't protect." />
               <Panel>
-                <Row title="Key storage" sub="Where the key that encrypts your credentials is kept.">
-                  <Chip tone={s.keychain === "os keychain" ? "ok" : "warn"}>{s.keychain}</Chip>
+                <Row title="Secrets" sub="API keys, passwords and tokens you enter in mcpDeck.">
+                  <span className="secret-set">Encrypted (AES-256-GCM)</span>
+                  <div className="muted mt-2 text-[12.5px]">
+                    Stored in <code className="inline-code">{s.database}</code>. Agents never receive them, and they are
+                    masked in the call history.
+                  </div>
+                </Row>
+                <Row title="Key storage" sub="Where the key that encrypts your secrets is kept.">
+                  <Chip tone={s.keychain === "os keychain" ? "ok" : "warn"}>
+                    {s.keychain === "os keychain" ? "OS keychain" : "Key file"}
+                  </Chip>
+                  {s.keyItem && (
+                    <div className="muted mt-2 text-[12.5px]">
+                      Keychain entry <code className="inline-code">{s.keyItem}</code>
+                    </div>
+                  )}
                   {s.keychain !== "os keychain" && (
                     <div className="banner warn mt-3">
                       No OS keychain was available, so the encryption key is in a file readable only by you:{" "}

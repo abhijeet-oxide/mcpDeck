@@ -99,7 +99,9 @@ type Practice struct {
 
 // New wires a Deck.
 func New(s *store.Store, v *vault.Vault, p *proxy.Proxy, a *audit.Log, c clock.Clock, ids clock.IDs, dataDir string, port int) *Deck {
-	return &Deck{Store: s, Vault: v, Proxy: p, Audit: a, Clock: c, IDs: ids, DataDir: dataDir, Port: port}
+	d := &Deck{Store: s, Vault: v, Proxy: p, Audit: a, Clock: c, IDs: ids, DataDir: dataDir, Port: port}
+	d.ApplyNetwork(context.Background())
+	return d
 }
 
 // Listen registers a listener (the MCP manager).

@@ -61,6 +61,8 @@ type Vault struct {
 	// Backend says where the key is: "os keychain" or "key file".
 	Backend string
 	KeyFile string
+	// Item names the keychain entry holding the key, like "mcpDeck / data-key:/home/me/.mcpdeck".
+	Item string
 }
 
 // Open gets or creates the data key for the data folder dir.
@@ -104,6 +106,8 @@ func Open(kc Keychain, dir string) (*Vault, error) {
 	v := &Vault{aead: aead, Backend: backend}
 	if backend == "key file" {
 		v.KeyFile = keyFile
+	} else {
+		v.Item = service + " / " + user
 	}
 	return v, nil
 }

@@ -2,6 +2,7 @@ package deck
 
 import (
 	"context"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"time"
@@ -409,7 +410,9 @@ func (d *Deck) Home(ctx context.Context) (*Home, error) {
 }
 
 // Settings are the editable settings (RUN-7).
-var settingKeys = map[string]bool{"theme": true, "toolTimeoutSeconds": true, "retentionBodiesDays": true, "retentionCallsDays": true, "hideOnboarding": true, "welcomeSeen": true}
+var settingKeys = map[string]bool{"theme": true, "toolTimeoutSeconds": true, "retentionBodiesDays": true, "retentionCallsDays": true, "hideOnboarding": true, "welcomeSeen": true,
+	"requestTimeoutSeconds": true, "requestTimeoutMaxSeconds": true,
+	"proxyMode": true, "proxyHttp": true, "proxyHttps": true, "noProxy": true, "proxyUser": true, "proxyPassword": true}
 
 // SettingsView is Settings with read-only facts.
 type SettingsView struct {
@@ -418,6 +421,8 @@ type SettingsView struct {
 	DataDir  string            `json:"dataDir"`
 	Keychain string            `json:"keychain"`
 	KeyFile  string            `json:"keyFile,omitempty"`
+	KeyItem  string            `json:"keyItem,omitempty"` // the keychain entry, when the key is in the keychain
+	Database string            `json:"database"`          // where encrypted secrets are stored
 	Demo     bool              `json:"demo"`
 	Version  string            `json:"version"`
 }
@@ -427,13 +432,17 @@ func (d *Deck) Settings(ctx context.Context, version string) (*SettingsView, err
 	if err != nil {
 		return nil, err
 	}
-	vals := map[string]string{"theme": "system", "toolTimeoutSeconds": "10", "retentionBodiesDays": "30", "retentionCallsDays": "365", "hideOnboarding": "false", "welcomeSeen": "false"}
+	vals := map[string]string{"theme": "system", "toolTimeoutSeconds": "10", "retentionBodiesDays": "30", "retentionCallsDays": "365", "hideOnboarding": "false", "welcomeSeen": "false",
+		"requestTimeoutSeconds": "30", "requestTimeoutMaxSeconds": "300", "proxyMode": "system", "proxyHttp": "", "proxyHttps": "", "noProxy": "", "proxyUser": ""}
 	for k, v := range all {
-		if settingKeys[k] {
+		if settingKeys[k] && k != "proxyPassword" {
 			vals[k] = v
 		}
 	}
-	return &SettingsView{Values: vals, Port: d.Port, DataDir: d.DataDir, Keychain: d.Vault.Backend, KeyFile: d.Vault.KeyFile, Demo: d.Demo, Version: version}, nil
+	// The proxy password is write-only: say whether it is set, never what it is.
+	vals["proxyPasswordSet"] = strconv.FormatBool(all[proxyPasswordKey] != "")
+	return &SettingsView{Values: vals, Port: d.Port, DataDir: d.DataDir, Keychain: d.Vault.Backend, KeyFile: d.Vault.KeyFile, KeyItem: d.Vault.Item,
+		Database: filepath.Join(d.DataDir, "mcpdeck.db"), Demo: d.Demo, Version: version}, nil
 }
 
 func (d *Deck) SetSettings(ctx context.Context, in map[string]string) error {
@@ -447,10 +456,29 @@ func (d *Deck) SetSettings(ctx context.Context, in map[string]string) error {
 				return badRequest("%s must be a positive number", k)
 			}
 		}
+		if err := checkNetSetting(k, v); err != nil {
+			return err
+		}
+	}
+	for k, v := range in {
+		if k == "proxyPassword" {
+			sealed := ""
+			if v != "" {
+				var err error
+				if sealed, err = d.Vault.Seal(v); err != nil {
+					return err
+				}
+			}
+			if err := d.Store.SetSetting(ctx, proxyPasswordKey, sealed); err != nil {
+				return err
+			}
+			continue
+		}
 		if err := d.Store.SetSetting(ctx, k, v); err != nil {
 			return err
 		}
 	}
+	d.ApplyNetwork(ctx)
 	d.audit(ctx, audit.You, "settings.update", "", "")
 	return nil
 }

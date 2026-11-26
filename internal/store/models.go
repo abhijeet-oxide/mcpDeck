@@ -141,6 +141,7 @@ type Request struct {
 	URL            string          `json:"url"`
 	Headers        []KV            `json:"headers"`
 	Query          []KV            `json:"query"`
+	PathParams     []KV            `json:"pathParams,omitempty"` // values for {id} or :id when you send it; agents pass their own
 	BodyType       string          `json:"bodyType"` // none | json | text | xml | form
 	Body           string          `json:"body"`
 	Auth           *Auth           `json:"auth,omitempty"`
@@ -150,6 +151,7 @@ type Request struct {
 	ResponseSchema json.RawMessage `json:"responseSchema,omitempty"`
 	Example        json.RawMessage `json:"example,omitempty"` // masked response body (EX-1)
 	Responses      []SavedResponse `json:"responses,omitempty"`
+	TimeoutSeconds float64         `json:"timeoutSeconds,omitempty"` // 0: the default in Settings (NET-2)
 	CreatedAt      time.Time       `json:"createdAt"`
 	UpdatedAt      time.Time       `json:"updatedAt"`
 }

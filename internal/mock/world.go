@@ -137,7 +137,7 @@ func Start(basePort int) (*World, error) {
 			port = ln.Addr().(*net.TCPAddr).Port
 		}
 		w.Ports[x.name] = port
-		srv := &http.Server{Handler: x.h, ReadHeaderTimeout: 5 * time.Second}
+		srv := &http.Server{Handler: slow(x.h), ReadHeaderTimeout: 5 * time.Second}
 		w.servers = append(w.servers, srv)
 		if x.name == "scanner" {
 			srv.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
@@ -147,6 +147,21 @@ func Start(basePort int) (*World, error) {
 		go func() { _ = srv.Serve(ln) }()
 	}
 	return w, nil
+}
+
+// slow lets any demo request take its time: ?_delay=5s waits five seconds
+// (up to a minute) before answering, to try timeouts and the request tray.
+func slow(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if d, err := time.ParseDuration(r.URL.Query().Get("_delay")); err == nil && d > 0 {
+			select {
+			case <-time.After(min(d, time.Minute)):
+			case <-r.Context().Done():
+				return
+			}
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 // URL of one demo API.

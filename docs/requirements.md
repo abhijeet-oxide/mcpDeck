@@ -107,6 +107,29 @@ default timeouts, retention, keychain status, and a "Reveal data folder"
 button. Every setting is stored in SQLite and takes effect without a restart,
 except the port.
 
+**NET-1 Proxy.** Settings → Requests and proxy chooses how requests reach
+APIs: the system proxy (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`), no proxy,
+or a manual HTTP and HTTPS proxy with a bypass list (hosts, domains, CIDR
+ranges) and an optional sign-in. The proxy password is a secret: stored
+encrypted and never returned. Requests to localhost and loopback addresses
+never use a proxy. It applies to Send, tools and agents. Certificate checks
+stay per application (API-9).
+
+**NET-2 Timeouts.** A request waits 30 seconds by default. Settings sets the
+default and a maximum (300 seconds unless changed); a request can set its
+own on its Settings tab, capped by the maximum. A timeout error says which
+request, how long it waited and where to raise it. Send shows the time
+elapsed while waiting and the duration when done.
+
+**NET-3 Sends survive navigation.** A send keeps going when you open another
+request or page. A tray at the bottom lists running sends with their elapsed
+time and ones that finished while you were away; clicking one opens its
+request with the response, and Cancel (or Esc in the editor) stops it,
+which also stops the upstream call. Unsaved edits to a request also stay
+until saved or reverted, marked with a dot in the request list. The Params
+tab sets values for the URL's path variables (`{id}`, `:id`) used when you
+send it.
+
 ## APIs (M2)
 
 APIs behave like Postman or Bruno collections. Someone who has used
@@ -252,8 +275,9 @@ before storage, and the user can mask more by clicking a field.
 
 **EX-3 Saved responses.** After a send, the response pane offers to save the
 response under its status (200 "Success", 401 "Not allowed", 404 "Not
-found"…), one per status, masked like EX-1. Saved responses are listed on the
-request and can be opened or deleted. A 2xx one also becomes the request's
+found"…), one per status, masked like EX-1. Saved responses are listed under
+their request in the sidebar, like Postman examples, and on the request, and
+can be opened or deleted from either. A 2xx one also becomes the request's
 example, so output fields are known when building tools (EX-2, FLOW-2).
 
 **EX-2 Captured schema.** mcpDeck infers a JSON schema from saved examples,

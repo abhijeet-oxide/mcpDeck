@@ -2,7 +2,18 @@ import * as RMenu from "@radix-ui/react-dropdown-menu";
 import * as RSelect from "@radix-ui/react-select";
 import * as RTabs from "@radix-ui/react-tabs";
 import * as RTooltip from "@radix-ui/react-tooltip";
-import { Check, CheckCircle2, ChevronDown, CircleAlert, Copy, Info, Loader2, MoreHorizontal, X } from "lucide-react";
+import {
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  CircleAlert,
+  Copy,
+  Info,
+  Loader2,
+  Lock,
+  MoreHorizontal,
+  X,
+} from "lucide-react";
 import {
   type ButtonHTMLAttributes,
   createContext,
@@ -768,3 +779,66 @@ export function Hint({ id, children }: { id: string; children: ReactNode }) {
     </div>
   );
 }
+
+/** SecretField edits a write-only secret (CRED-2): when one is stored it
+ *  shows "Set · Encrypted" with Replace and Remove, never the value.
+ *  value: undefined keeps the stored secret, null removes it, a string
+ *  replaces it (an empty string while editing also keeps it). */
+export function SecretField({
+  label,
+  isSet,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  isSet: boolean;
+  value: string | null | undefined;
+  onChange: (v: string | null | undefined) => void;
+  placeholder?: string;
+}) {
+  if (isSet && value === null)
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="muted text-[12.5px]">Removed when you save.</span>
+        <Button size="sm" kind="ghost" onClick={() => onChange(undefined)}>
+          Undo
+        </Button>
+      </div>
+    );
+  if (isSet && value === undefined)
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="secret-set" title="Stored encrypted. It is never shown again.">
+          <Lock size={12} /> Set · Encrypted
+        </span>
+        <Button size="sm" onClick={() => onChange("")} aria-label={`Replace ${label}`}>
+          Replace
+        </Button>
+        <Button size="sm" kind="ghost" onClick={() => onChange(null)} aria-label={`Remove ${label}`}>
+          Remove
+        </Button>
+      </div>
+    );
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        className="input mono"
+        type="password"
+        autoComplete="new-password"
+        aria-label={label}
+        placeholder={placeholder ?? (isSet ? "New value" : "Not set")}
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {isSet && (
+        <Button size="sm" kind="ghost" onClick={() => onChange(undefined)}>
+          Keep current
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/** secretChange is what to send for a SecretField value, or undefined to send nothing. */
+export const secretChange = (v: string | null | undefined): string | undefined => (v === null ? "" : v ? v : undefined);
