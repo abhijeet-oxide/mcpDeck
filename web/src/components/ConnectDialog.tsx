@@ -21,8 +21,8 @@ import {
 } from "./ui";
 
 const clients = [
-  { id: "claude-code", label: "Claude Code", sub: "claude mcp add + builder subagent" },
   { id: "vscode", label: "VS Code", sub: "Install link or mcp.json + custom agent" },
+  { id: "claude-code", label: "Claude Code", sub: "claude mcp add + builder subagent" },
   { id: "cursor", label: "Cursor", sub: "Install link or mcp.json" },
   { id: "claude-desktop", label: "Claude Desktop", sub: "Through the stdio bridge" },
   { id: "other", label: "Other client", sub: "URL and header" },
@@ -41,7 +41,7 @@ export function ConnectDialog({
   const tks = useToolkits();
   const agents = useAgents();
   const existing = agents.data?.find((a) => a.id === agentId);
-  const [client, setClient] = useState(existing?.client ?? "claude-code");
+  const [client, setClient] = useState(existing?.client ?? "vscode");
   const [tk, setTk] = useState(toolkitId ?? "");
   const [name, setName] = useState("");
   const [access, setAccess] = useState<"read" | "read_write">("read");
@@ -114,7 +114,7 @@ export function ConnectDialog({
             </Button>
           }
         >
-          An agent connects to a toolkit and gets its tools. Create one, then connect Claude Code, VS Code or Cursor to
+          An agent connects to a toolkit and gets its tools. Create one, then connect VS Code, Claude Code or Cursor to
           it.
         </EmptyState>
       </Dialog>

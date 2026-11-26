@@ -59,11 +59,11 @@ export function Agents() {
               )
             }
           >
-            Add a toolkit to Claude Code, VS Code or Cursor with one command or one click. You choose whether the agent
+            Add a toolkit to VS Code, Claude Code or Cursor with one command or one click. You choose whether the agent
             may only read, or read and write.
           </EmptyState>
           <div className="flex justify-center gap-6 pb-8">
-            {["claude-code", "vscode", "cursor", "claude-desktop"].map((c) => (
+            {["vscode", "claude-code", "cursor", "claude-desktop"].map((c) => (
               <span key={c} className="muted flex items-center gap-2 text-[12.5px]">
                 <ClientIcon client={c} size={18} /> {clientLabels[c]}
               </span>

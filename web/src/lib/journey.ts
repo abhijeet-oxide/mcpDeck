@@ -37,7 +37,7 @@ export const steps: Record<StepKey, { title: string; why: string; action: string
   },
   agent: {
     title: "Connect an agent",
-    why: "Add the toolkit to Claude Code, VS Code or Cursor. You choose whether it may read only, or read and write.",
+    why: "Add the toolkit to VS Code, Claude Code or Cursor. You choose whether it may read only, or read and write.",
     action: "Connect agent",
   },
 };

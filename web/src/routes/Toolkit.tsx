@@ -571,7 +571,7 @@ function SettingsTab({ t }: { t: ToolkitDetail }) {
 function AgentPreview({ name, onClose }: { name: string; onClose: () => void }) {
   const [access, setAccess] = useState<"read" | "read_write">("read");
   const [build, setBuild] = useState(false);
-  const [client, setClient] = useState("claude-code");
+  const [client, setClient] = useState("vscode");
   const [open, setOpen] = useState<string | null>(null);
   const q = useQuery({
     queryKey: ["agent-view", name, access, build, client],
@@ -606,7 +606,7 @@ function AgentPreview({ name, onClose }: { name: string; onClose: () => void }) 
             size="sm"
             value={client}
             onChange={setClient}
-            options={["claude-code", "vscode", "cursor", "claude-desktop", "other"].map((c) => ({
+            options={["vscode", "claude-code", "cursor", "claude-desktop", "other"].map((c) => ({
               value: c,
               label: clientLabels[c],
             }))}
@@ -700,7 +700,7 @@ function ConnectCard({ t, onPreview, onConnect }: { t: ToolkitDetail; onPreview:
         <div className="connect-side">
           <div className="muted mb-2 text-[12px] font-medium">Add to a client</div>
           <div className="flex flex-wrap gap-2">
-            {(["claude-code", "vscode", "cursor"] as const).map((c) => (
+            {(["vscode", "claude-code", "cursor"] as const).map((c) => (
               <Button key={c} onClick={onConnect} icon={<ClientIcon client={c} size={15} />}>
                 {clientLabels[c]}
               </Button>

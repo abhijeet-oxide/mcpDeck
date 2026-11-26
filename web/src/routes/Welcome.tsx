@@ -43,7 +43,7 @@ export function Welcome() {
             Turn the APIs you already have into tools your AI agents can use safely
           </h1>
           <p className="text-2 mx-auto mb-7 max-w-[560px] text-[14.5px] leading-relaxed">
-            Import an API, write a small tool that returns only what's needed, and add it to Claude Code, VS Code or
+            Import an API, write a small tool that returns only what's needed, and add it to VS Code, Claude Code or
             Cursor. Your keys stay on this computer.
           </p>
           <div className="flex flex-wrap justify-center gap-3">

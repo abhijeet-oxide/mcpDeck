@@ -1,5 +1,5 @@
 // Package connect writes MCP client configs, the builder subagent and the
-// skills for Claude Code, VS Code, Cursor and Claude Desktop (AGT-3, SKL-2).
+// skills for VS Code, Claude Code, Cursor and Claude Desktop (AGT-3, SKL-2).
 //
 // Build makes a Plan: the client's own command, a one-click link where the
 // client has one, a JSON snippet, and the exact files mcpDeck would write.
@@ -467,7 +467,7 @@ func claudeDesktop(in Input, sys OS, p *Plan) {
 	} else {
 		p.Files = append(p.Files, File{Path: cfg, Kind: "config", Content: content, Summary: "adds " + keys(servers) + " under mcpServers; other entries are kept"})
 	}
-	p.Notes = append(p.Notes, "Claude Desktop has no subagents, so building is left to Claude Code, VS Code or Cursor.")
+	p.Notes = append(p.Notes, "Claude Desktop has no subagents, so building is left to VS Code, Claude Code or Cursor.")
 }
 
 // addSkills installs the bundled skills for the client (SKL-2).

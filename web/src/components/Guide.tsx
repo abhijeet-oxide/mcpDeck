@@ -179,7 +179,7 @@ const tour: TourStep[] = [
     path: "/toolkits",
     spot: "nav-toolkits",
     title: "Toolkits are what agents get",
-    body: "A toolkit is a set of tools for one job, like support. Each one is its own MCP server with a single URL you add to Claude Code, VS Code or Cursor.",
+    body: "A toolkit is a set of tools for one job, like support. Each one is its own MCP server with a single URL you add to VS Code, Claude Code or Cursor.",
   },
   {
     path: "/toolkits/support",
