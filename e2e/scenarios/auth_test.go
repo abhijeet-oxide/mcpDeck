@@ -51,6 +51,16 @@ func init() {
 		a.ok(name, map[string]any{})
 	})
 
+	add("auth", "OAuth2 token URL that is not http or https is refused", func(t *testing.T) {
+		h.importURL(t, "billingFile", h.env.URLs["billing"]+"/openapi.json")
+		a := h.apiByName(t, "billingFile")
+		h.patchAPI(t, a.ID, map[string]any{"tls": map[string]any{"caCerts": string(h.env.CACert)}})
+		h.setAuth(t, a.ID, map[string]any{"type": "oauth2", "grant": "client_credentials", "tokenUrl": "file:///etc/passwd",
+			"clientId": mockenv.OAuthClientID, "clientSecret": "x"})
+		ag, name := one(t, "read", []string{"billingFile"}, "One customer.", "", nil, `  return await billingFile.getCustomer({ id: "cus_003" });`)
+		ag.fails(name, map[string]any{}, "absolute http or https URL")
+	})
+
 	add("auth", "OAuth2 client secret sent in the body instead of basic", func(t *testing.T) {
 		h.importURL(t, "billingBody", h.env.URLs["billing"]+"/openapi.json")
 		a := h.apiByName(t, "billingBody")

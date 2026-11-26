@@ -226,7 +226,8 @@ func TestRules_DocIsCurrent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(b) != Markdown() {
+	// Windows checkouts may convert line endings.
+	if strings.ReplaceAll(string(b), "\r\n", "\n") != Markdown() {
 		t.Fatal("docs/lint-rules.md is out of date; run: go run ./tools/lintdoc > docs/lint-rules.md")
 	}
 }

@@ -319,6 +319,9 @@ func (p *Proxy) oauthToken(ctx context.Context, api store.API, a store.Auth, res
 	if tokenURL == "" {
 		return nil, &Error{Code: CodeLoginFailed, Message: "the " + api.Name + " API uses OAuth 2.0 but has no token URL; set it on its Auth tab"}
 	}
+	if u, err := url.Parse(tokenURL); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+		return nil, &Error{Code: CodeLoginFailed, Message: "the " + api.Name + " API's OAuth 2.0 token URL must be an absolute http or https URL; fix it on its Auth tab"}
+	}
 	grant := a.Grant
 	if grant == "" {
 		grant = "client_credentials"
@@ -420,7 +423,7 @@ func sign(a store.Auth, req *http.Request, body []byte, res resolved, now time.T
 		"nonce": nonce, "body": string(body), "bodySha256": hex.EncodeToString(bs[:]), "bodyMd5": hex.EncodeToString(bm[:]),
 	}
 	r := res
-	vars := make(map[string]string, len(res.vars)+len(parts))
+	vars := map[string]string{}
 	for k, v := range res.vars {
 		vars[k] = v
 	}

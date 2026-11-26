@@ -904,7 +904,7 @@ func (p *Proxy) applyAuth(ctx context.Context, api store.API, a store.Auth, req 
 			return err
 		}
 		r := res
-		r.vars = make(map[string]string, len(res.vars)+3)
+		r.vars = map[string]string{}
 		for k, v := range res.vars {
 			r.vars[k] = v
 		}
