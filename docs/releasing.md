@@ -5,8 +5,9 @@ Nobody cuts releases by hand. Every push to `main` runs
 
 ```
 push to main
-  └─ ci        the full CI suite (ci.yml): Go on Linux/macOS/Windows, web,
-  │            skills, installers, govulncheck, actionlint, release dry run
+  └─ ci        the full CI suite (ci.yml): Go on Linux/macOS/Windows, the
+  │            scenario suite and token benchmark, claims check, web, skills,
+  │            installers, govulncheck, actionlint, release dry run
   └─ plan      tools/nextversion: next version from conventional commits
   └─ publish   tag, GoReleaser, provenance attestation   (only if plan says so)
   └─ verify    install the published release on Linux, macOS and Windows
@@ -26,7 +27,7 @@ So the commit type is a release decision. A change users can see is `feat`
 or `fix`; a change they can't is one of the others. Dependabot's Go and web
 bumps are `fix(deps)` (they end up in the binary) and its workflow bumps are
 `ci(deps)`. With squash merges the PR title becomes the commit, so PR titles
-must be conventional too.
+must be conventional too; the `pr-title` CI job checks them.
 
 The release notes are the `feat`, `fix` and `perf` commit subjects, grouped,
 under install instructions for that exact version. Write subjects for users.
