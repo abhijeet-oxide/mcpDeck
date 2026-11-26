@@ -101,7 +101,10 @@ func TestShippedToolsFixtureIsCurrent(t *testing.T) {
 		return
 	}
 	cur, err := os.ReadFile(shippedFixture)
-	if err != nil || string(cur) != string(b) {
+	// Windows checkouts may turn line endings into CRLF, in the file and in
+	// the tool sources it embeds; compare without them.
+	lf := func(s string) string { return strings.NewReplacer("\r\n", "\n", `\r\n`, `\n`).Replace(s) }
+	if err != nil || lf(string(cur)) != lf(string(b)) {
 		t.Fatal("web/src/test/fixtures/shipped-tools.json is out of date; run: UPDATE_FIXTURES=1 go test ./internal/mock -run TestShippedToolsFixtureIsCurrent")
 	}
 }

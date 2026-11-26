@@ -511,11 +511,23 @@ export function parseFlow(src: string): ParseResult {
     for (let n = 2; taken().includes(id); n++) id = `${base}${n}`;
     return id;
   };
-  // The last statement is the output when it's a `return`.
+  // The last statement is the output when it's a `return`. Leading comments
+  // are skipped with a loop, not a regex, which could backtrack badly.
+  const skipComments = (t: string) => {
+    let s = t.trimStart();
+    for (;;) {
+      if (s.startsWith("//")) {
+        const nl = s.indexOf("\n");
+        s = nl < 0 ? "" : s.slice(nl + 1).trimStart();
+      } else if (s.startsWith("/*")) {
+        const end = s.indexOf("*/", 2);
+        s = end < 0 ? "" : s.slice(end + 2).trimStart();
+      } else return s;
+    }
+  };
   let lastIdx = -1;
   stmts.forEach((st, i) => {
-    if (/^\s*(\/\/[^\n]*\n?\s*|\/\*[\s\S]*?\*\/\s*)*return\b/.test(st.text) && st.text.replace(/\/\/.*$/gm, "").trim())
-      lastIdx = i;
+    if (/^return\b/.test(skipComments(st.text)) && st.text.replace(/\/\/.*$/gm, "").trim()) lastIdx = i;
     else if (
       st.text
         .replace(/\/\/.*$/gm, "")
