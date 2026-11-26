@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AskAgentButton } from "../components/AskAgent";
+import { byLogin, CaptureRows, loginScore } from "../components/CapturePicker";
 import { counts, FindingList } from "../components/Findings";
 import { KVEditor } from "../components/KVEditor";
 import { Elapsed, seconds } from "../components/RequestTray";
@@ -1577,8 +1578,11 @@ function ImportEnvDialog({ a, onClose, onDone }: { a: APIDetail; onClose: () => 
 export function AuthTab({ a }: { a: APIDetail }) {
   const [auth, setAuth] = useState<Auth>(a.auth ?? { type: "none" });
   const toast = useToast();
-  const save = useAction(() => patch(`/api/apis/${a.id}`, { auth }), {
-    onSuccess: () => toast("Authentication saved"),
+  const save = useAction(() => patch<APIDetail>(`/api/apis/${a.id}`, { auth: cleanAuth(auth) }), {
+    onSuccess: (saved) => {
+      if (saved?.auth) setAuth(saved.auth);
+      toast("Authentication saved");
+    },
   });
   const secrets = a.variables.filter((v) => v.source === "secret");
   const set = (p: Partial<Auth>) => setAuth({ ...auth, ...p });
@@ -1680,9 +1684,7 @@ export function AuthTab({ a }: { a: APIDetail }) {
         {auth.type === "login" && <LoginFields a={a} auth={auth} set={set} />}
         {auth.type === "oauth2" && <OAuthFields auth={auth} set={set} />}
         {auth.type === "hmac" && <HMACFields auth={auth} set={set} />}
-        {(auth.type === "oauth2" ||
-          auth.type === "hmac" ||
-          (auth.type === "login" && (auth.steps?.length ?? 0) > 0)) && (
+        {(auth.type === "oauth2" || auth.type === "hmac" || (auth.type === "login" && !auth.loginRequestId)) && (
           <Field
             label="Headers on every call"
             hint={
@@ -1720,51 +1722,88 @@ export function AuthTab({ a }: { a: APIDetail }) {
 
 type SetAuth = (p: Partial<Auth>) => void;
 
+const authKeys: Record<string, (keyof Auth)[]> = {
+  bearer: ["token"],
+  apikey: ["key", "value", "in"],
+  basic: ["username", "password"],
+  login: ["loginRequestId", "capture", "steps", "refreshRequestId", "expiresFrom", "apply"],
+  oauth2: [
+    "grant",
+    "tokenUrl",
+    "clientId",
+    "clientSecret",
+    "clientAuth",
+    "scope",
+    "audience",
+    "username",
+    "password",
+    "apply",
+  ],
+  hmac: ["algorithm", "secret", "stringToSign", "encoding", "apply"],
+};
+
+/** cleanAuth keeps only the fields the auth type uses (a token left from
+ * an earlier type would ask for a credential nothing uses) and drops
+ * capture rows left blank. */
+export function cleanAuth(au: Auth): Auth {
+  const keys = authKeys[au.type];
+  const out: Auth = keys ? { type: au.type } : { ...au };
+  if (keys) for (const k of keys) if (au[k] !== undefined) (out as Record<string, unknown>)[k] = au[k];
+  if (out.steps)
+    out.steps = out.steps.map((st) => ({
+      ...st,
+      captures: (st.captures ?? []).filter((c) => c.name.trim() || !/^((json|header|cookie):?)?$/.test(c.from.trim())),
+    }));
+  return out;
+}
+
 function RequestSelect({
   a,
   label,
   value,
   onChange,
   placeholder = "Choose a request",
+  suggest,
 }: {
   a: APIDetail;
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  /** Put requests that look like a sign-in first. */
+  suggest?: boolean;
 }) {
+  const rs = suggest ? byLogin(a.requests) : a.requests;
   return (
     <Select
       label={label}
       placeholder={placeholder}
       value={value}
       onChange={onChange}
-      options={a.requests.map((r) => ({
+      options={rs.map((r) => ({
         value: r.id,
         label: (
           <span className="flex items-center gap-2">
             <MethodChip method={r.method} /> {r.name}
           </span>
         ),
+        hint: suggest && loginScore(r) >= 3 ? "Looks like a sign-in request" : undefined,
       }))}
     />
   );
 }
 
-// Captures are written one per line as name = from, e.g. csrf = cookie:csrftoken.
-function capturesText(c: LoginStep["captures"]) {
-  return (c ?? []).map((x) => `${x.name} = ${x.from}`).join("\n");
-}
-function parseCaptures(text: string) {
-  return text
-    .split("\n")
-    .map((l) => l.split("="))
-    .filter((p) => p.length >= 2 && p[0].trim())
-    .map((p) => ({ name: p[0].trim(), from: p.slice(1).join("=").trim() }));
-}
-
 function LoginFields({ a, auth, set }: { a: APIDetail; auth: Auth; set: SetAuth }) {
-  const steps = auth.steps ?? [];
+  // A new login starts with one step; the single-request shorthand stays
+  // for logins saved that way.
+  const steps = auth.steps?.length ? auth.steps : auth.loginRequestId ? [] : [{ requestId: "", captures: [] }];
+  const bearer = (name: string) =>
+    set({
+      apply: [
+        ...(auth.apply ?? []).filter((h) => h.key.toLowerCase() !== "authorization"),
+        { key: "Authorization", value: `Bearer {{login.${name}}}` },
+      ],
+    });
   if (steps.length === 0) {
     return (
       <>
@@ -1773,6 +1812,7 @@ function LoginFields({ a, auth, set }: { a: APIDetail; auth: Auth; set: SetAuth 
             <RequestSelect
               a={a}
               label="Login request"
+              suggest
               value={auth.loginRequestId ?? ""}
               onChange={(v) => set({ loginRequestId: v })}
             />
@@ -1810,25 +1850,24 @@ function LoginFields({ a, auth, set }: { a: APIDetail; auth: Auth; set: SetAuth 
   return (
     <>
       {steps.map((st, i) => (
-        <div key={i} className="grid grid-cols-2 gap-2">
+        <div key={i} className="login-step">
           <Field label={`Step ${i + 1}`} hint={i === 0 ? "Runs first" : "Can use {{login.<name>}} from earlier steps"}>
             <RequestSelect
               a={a}
               label={`Step ${i + 1} request`}
+              suggest={i === 0}
               value={st.requestId}
               onChange={(v) => setStep(i, { ...st, requestId: v })}
             />
           </Field>
-          <Field label="Keep from the response" hint="One per line: name = json:path, header:Name or cookie:name">
-            <textarea
-              className="textarea mono"
-              rows={2}
-              aria-label={`Step ${i + 1} captures`}
-              placeholder="access_token = json:access_token"
-              value={capturesText(st.captures)}
-              onChange={(e) => setStep(i, { ...st, captures: parseCaptures(e.target.value) })}
-            />
-          </Field>
+          <CaptureRows
+            apiId={a.id}
+            step={st}
+            index={i}
+            request={a.requests.find((r) => r.id === st.requestId)}
+            onChange={(captures) => setStep(i, { ...st, captures })}
+            onBearer={bearer}
+          />
         </div>
       ))}
       <div className="flex gap-2">

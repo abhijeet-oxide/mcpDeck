@@ -1531,3 +1531,32 @@
   font-size: 12.5px;
   color: var(--text-2);
 }
+
+/* Login steps and their captures (AUTH-2) */
+.login-step {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.captures {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.captures-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.capture-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px minmax(0, 1.4fr) auto;
+  gap: 6px;
+  align-items: center;
+}

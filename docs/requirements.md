@@ -174,7 +174,10 @@ inside the proxy (CRED-7).
 **AUTH-1 Auth types.** Auth is set on the API and applies to all of its
 requests. Types: none, API key (header or query), bearer, basic, OAuth 2.0
 (AUTH-3), HMAC signing (AUTH-4) and login requests (AUTH-2). Digest auth and
-per-folder or per-request auth are not built.
+per-folder or per-request auth are not built. Only the fields of the chosen
+type are saved, so switching type never asks for a credential the new type
+doesn't use, and empty secret variables the old type created are removed
+when nothing refers to them.
 
 **AUTH-2 Login chains.** Login is one or more saved requests run in order.
 Each step can capture values from the JSON body, a header or a cookie
@@ -184,6 +187,10 @@ result is reused across calls, renewed when it expires (from `expires_in` or
 a set lifetime), renewed with
 a refresh request when one is set, and re-run on a 401 or a redirect to a
 login page. Agents can't call login requests and never see captured values.
+In the Auth tab, requests that look like a sign-in are listed first, and each
+capture is picked as From (body, header, cookie or a custom expression) and a
+Field listed from the request's last response with sample values; "Use as
+bearer" adds `Authorization: Bearer {{login.<name>}}`.
 *Accept:* scenarios for token login, refresh, expiry, CSRF form login and a
 login redirect.
 
