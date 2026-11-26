@@ -6,6 +6,7 @@ import {
   Handle,
   type Node,
   type NodeProps,
+  Panel,
   Position,
   ReactFlow,
   ReactFlowProvider,
@@ -13,26 +14,51 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   ArrowDown,
   ArrowUp,
+  Braces,
   CircleAlert,
+  CircleHelp,
+  Columns3,
   CornerDownRight,
   FileOutput,
   GripVertical,
   KeyRound,
+  LayoutGrid,
   LogIn,
+  Maximize2,
+  Minimize2,
+  Pencil,
   Plus,
   Search,
   Trash2,
 } from "lucide-react";
-import { createContext, type DragEvent, memo, useContext, useMemo, useState } from "react";
+import { createContext, type DragEvent, memo, useContext, useEffect, useMemo, useState } from "react";
 import {
   type Arg,
   argsOf,
   autoWire,
+  codeDefines,
   type FieldInfo,
   type Flow,
   fieldsOf,
+  moveStep,
   type ReqInfo,
   type Source,
   type Step,
@@ -44,13 +70,14 @@ import {
 } from "../lib/flow";
 import { num } from "../lib/format";
 import type { APIDetail, Request, RunResult } from "../lib/types";
-import { Button, Chip, Field, MethodChip, Select, Toggle } from "./ui";
+import { Button, Chip, Field, MethodChip, Select, Toggle, useToast } from "./ui";
 
 type Ctx = {
   flow: Flow;
   reqOf: (s: Step) => { api: APIDetail; r: Request } | null;
   run?: RunResult | null;
   selected: string;
+  select: (id: string) => void;
 };
 const FlowCtx = createContext<Ctx>(null!);
 
@@ -110,25 +137,82 @@ function describeSource(s: Source): string {
 // ───────── Nodes ─────────
 
 function InputNode({ id }: NodeProps) {
-  const { flow, selected } = useContext(FlowCtx);
+  const { flow, selected, select } = useContext(FlowCtx);
   return (
     <div className={`fnode fnode-input${selected === id ? " sel" : ""}`}>
       <div className="fnode-head">
         <LogIn size={14} />
         <span className="font-semibold">Agent input</span>
-        <span className="mono faint ml-auto truncate text-[11px]">{flow.meta.name}</span>
+        <button
+          type="button"
+          className="fnode-edit nodrag"
+          title="Edit the inputs agents fill in"
+          aria-label="Edit agent inputs"
+          onClick={() => select("input")}
+        >
+          <Pencil size={12} /> Edit
+        </button>
       </div>
-      {flow.inputs.length === 0 && <div className="fnode-empty">No inputs. Click to add one.</div>}
+      <div className="fnode-sub">What the agent passes when it calls the tool.</div>
+      {flow.inputs.length === 0 && (
+        <button type="button" className="fnode-more nodrag" onClick={() => select("input")}>
+          + Add an input
+        </button>
+      )}
       {flow.inputs.map((i) => (
-        <div key={i.name} className="fport out">
+        <div key={i.name} className="fport out" title={i.description || `${i.name} (${i.type || "any"})`}>
           <span className="mono">{i.name}</span>
           <span className="faint">
-            {i.type}
-            {i.required ? "" : "?"}
+            {i.type || "any"}
+            {i.required ? "" : " · optional"}
           </span>
-          <Handle type="source" position={Position.Right} id={`in:${i.name}`} />
+          <Handle
+            type="source"
+            position={Position.Right}
+            id={`in:${i.name}`}
+            title="Drag to a parameter of a step to pass this input"
+          />
         </div>
       ))}
+    </div>
+  );
+}
+
+function CodeNode({ id, s, idx }: { id: string; s: Step; idx: number }) {
+  const { selected } = useContext(FlowCtx);
+  const lines = (s.code ?? "").split("\n");
+  const defs = codeDefines(s.code ?? "");
+  return (
+    <div className={`fnode fnode-code${selected === id ? " sel" : ""}`}>
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="seq"
+        className="seq"
+        title="Run order: runs after the step on its left"
+      />
+      <div className="fnode-head">
+        <span className="fnode-n">{idx + 1}</span>
+        <Braces size={14} />
+        <span className="font-semibold">Custom code</span>
+      </div>
+      {s.comment && <div className="fnode-sub">{s.comment}</div>}
+      <pre className="fnode-code-body">
+        {lines.slice(0, 8).join("\n")}
+        {lines.length > 8 ? `\n… ${lines.length - 8} more lines` : ""}
+      </pre>
+      {defs.length > 0 && (
+        <div className="fnode-sub">
+          Defines <span className="mono">{defs.join(", ")}</span>
+        </div>
+      )}
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="all"
+        className="seq"
+        title="Run order: the next step runs after this one"
+      />
     </div>
   );
 }
@@ -139,6 +223,7 @@ function StepNode({ id, data }: NodeProps) {
   const idx = (data as { index: number }).index;
   const s = flow.steps[idx];
   if (!s) return null;
+  if (s.kind === "code") return <CodeNode id={id} s={s} idx={idx} />;
   const found = reqOf(s);
   const info = found ? requestInfo(found.api, found.r) : null;
   const params = info ? argsOf(info) : [];
@@ -151,7 +236,13 @@ function StepNode({ id, data }: NodeProps) {
   const missing = params.filter((p) => p.where === "path" && !wired.has(p.name));
   return (
     <div className={`fnode${selected === id ? " sel" : ""}${!found ? " bad" : ""}`}>
-      <Handle type="target" position={Position.Left} id="seq" className="seq" />
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="seq"
+        className="seq"
+        title="Run order: runs after the step on its left"
+      />
       <div className="fnode-head">
         <span className="fnode-n">{idx + 1}</span>
         {found && <MethodChip method={found.r.method} />}
@@ -162,17 +253,32 @@ function StepNode({ id, data }: NodeProps) {
           <Chip tone={call.error || call.status >= 400 ? "bad" : "ok"}>{call.error ? "error" : call.status}</Chip>
         )}
       </div>
-      <div className="fnode-sub mono">const {s.id}</div>
+      <div className="fnode-sub mono">
+        {s.discard ? "result not kept" : `const ${s.id}`}
+        {s.group !== undefined && (
+          <span className="fnode-par" title="Runs at the same time as the other steps in this column (Promise.all)">
+            <Columns3 size={11} /> parallel
+          </span>
+        )}
+      </div>
+      {s.comment && <div className="fnode-sub">{s.comment}</div>}
       {!found && (
         <div className="fnode-warn">
           No request {s.api}.{s.req} in your applications.
         </div>
       )}
-      <div className="fnode-sec">Inputs</div>
+      <div className="fnode-sec" title="What this request needs. Connect an agent input or a field of an earlier step.">
+        Parameters
+      </div>
       {s.args.length === 0 && params.length === 0 && <div className="fnode-empty">No parameters</div>}
       {s.args.map((a) => (
         <div key={(a.header ? "h:" : "") + a.name} className="fport in">
-          <Handle type="target" position={Position.Left} id={`${a.header ? "hdr" : "arg"}:${a.name}`} />
+          <Handle
+            type="target"
+            position={Position.Left}
+            id={`${a.header ? "hdr" : "arg"}:${a.name}`}
+            title="Connect an agent input or an earlier step's field here"
+          />
           {a.header && <KeyRound size={11} className="muted flex-none" />}
           <span className="mono">{a.name}</span>
           <span className="faint min-w-0 truncate">← {describeSource(a.source)}</span>
@@ -180,14 +286,22 @@ function StepNode({ id, data }: NodeProps) {
       ))}
       {missing.map((p) => (
         <div key={p.name} className="fport in miss">
-          <Handle type="target" position={Position.Left} id={`arg:${p.name}`} />
+          <Handle
+            type="target"
+            position={Position.Left}
+            id={`arg:${p.name}`}
+            title="This parameter needs a value: connect an input or a field here"
+          />
           <CircleAlert size={11} className="flex-none" />
           <span className="mono">{p.name}</span>
           <span className="min-w-0 truncate">needs a value</span>
         </div>
       ))}
-      <div className="fnode-sec">
-        Output fields
+      <div
+        className="fnode-sec"
+        title="Fields of this request's saved response. Drag one to a parameter of a later step to pass it on."
+      >
+        Response fields
         {call && !call.error && <span className="faint ml-auto font-normal">{num(call.tokens ?? 0)} tok</span>}
       </div>
       {fields.length === 0 && (
@@ -201,7 +315,13 @@ function StepNode({ id, data }: NodeProps) {
           {more ? "Fewer fields" : `${fields.length - 6} more fields`}
         </button>
       )}
-      <Handle type="source" position={Position.Right} id="all" className="seq" />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="all"
+        className="seq"
+        title="Run order: the next step runs after this one. Drag to “Returns to the agent” to return this step."
+      />
     </div>
   );
 }
@@ -211,7 +331,12 @@ const FieldPort = memo(function FieldPort({ f }: { f: FieldInfo }) {
     <div className="fport out" title={f.sample ? `e.g. ${f.sample}` : f.type}>
       <span className="mono min-w-0 truncate">{f.path}</span>
       <span className="faint">{f.type}</span>
-      <Handle type="source" position={Position.Right} id={`out:${f.path}`} />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id={`out:${f.path}`}
+        title="Drag to a parameter of a later step to pass this field"
+      />
     </div>
   );
 });
@@ -227,7 +352,13 @@ function OutputNode({ id }: NodeProps) {
   const full = ex !== undefined ? tokensOf(ex) : null;
   return (
     <div className={`fnode fnode-output${selected === id ? " sel" : ""}`}>
-      <Handle type="target" position={Position.Left} id="ret" className="seq" />
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="ret"
+        className="seq"
+        title="Connect a step here to return it"
+      />
       <div className="fnode-head">
         <FileOutput size={14} />
         <span className="font-semibold">Returns to the agent</span>
@@ -282,70 +413,142 @@ export function FlowBuilder(props: Props) {
   );
 }
 
+const COL = 320;
+
+/** layout places the tool's input, its steps left to right in run order
+ *  (parallel steps share a column) and the output, using measured heights. */
+export function layout(flow: Flow, height: (id: string) => number): Record<string, { x: number; y: number }> {
+  const pos: Record<string, { x: number; y: number }> = { input: { x: 0, y: 40 } };
+  let col = 0;
+  for (let i = 0; i < flow.steps.length; i++) {
+    const s = flow.steps[i];
+    col++;
+    let y = 20;
+    const members = [s];
+    while (s.group !== undefined && flow.steps[i + 1]?.group === s.group) members.push(flow.steps[++i]);
+    for (const m of members) {
+      pos[`s:${m.id}`] = { x: col * COL - 40, y };
+      y += height(`s:${m.id}`) + 28;
+    }
+  }
+  pos.output = { x: (col + 1) * COL - 40, y: 40 };
+  return pos;
+}
+
 function Builder({ flow, onChange, apis, run }: Props) {
   const [selected, setSelected] = useState<string>("input");
+  // Positions someone dragged a node to; everything else follows the layout.
   const [pos, setPos] = useState<Record<string, { x: number; y: number }>>({});
   const [filter, setFilter] = useState("");
+  const [left, setLeft] = useState<"steps" | "add">(flow.steps.length ? "steps" : "add");
+  const [full, setFull] = useState(false);
+  const [legend, setLegend] = useState(false);
+  const [animate, setAnimate] = useState(false);
+  const [sizes, setSizes] = useState<Record<string, { width: number; height: number }>>({});
+  const toast = useToast();
   const rf = useReactFlow();
   const reqOf = (s: Step) => {
     const api = apis.find((a) => a.name === s.api);
     const r = api?.requests.find((x) => x.name === s.req);
     return api && r ? { api, r } : null;
   };
-  const ctx: Ctx = { flow, reqOf, run, selected };
+  const ctx: Ctx = { flow, reqOf, run, selected, select: setSelected };
 
-  const addStep = (apiName: string, reqName: string, at?: { x: number; y: number }) => {
+  useEffect(() => {
+    if (!full) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setFull(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [full]);
+  useEffect(() => {
+    const t = setTimeout(() => rf.fitView({ padding: 0.15, duration: 250, maxZoom: 1 }), 60);
+    return () => clearTimeout(t);
+  }, [full, rf]);
+
+  /** tidy snaps every node back to the layout, with a short animation. */
+  const tidy = (fit = false) => {
+    setAnimate(true);
+    setPos({});
+    setTimeout(() => setAnimate(false), 320);
+    if (fit) setTimeout(() => rf.fitView({ padding: 0.15, duration: 250, maxZoom: 1 }), 40);
+  };
+
+  const reorder = (from: number, to: number) => {
+    const r = moveStep(flow, from, to);
+    if ("error" in r) {
+      toast(r.error, true);
+      tidy();
+      return false;
+    }
+    onChange(r.flow);
+    tidy();
+    return true;
+  };
+
+  const addStep = (apiName: string, reqName: string, at?: number) => {
     const api = apis.find((a) => a.name === apiName);
     const r = api?.requests.find((x) => x.name === reqName);
     if (!api || !r) return;
-    const id = stepId(reqName, [...flow.steps.map((s) => s.id), ...flow.inputs.map((i) => i.name)]);
+    const taken = [
+      ...flow.steps.flatMap((s) => [s.id, ...(s.kind === "code" ? codeDefines(s.code ?? "") : [])]),
+      ...flow.inputs.map((i) => i.name),
+    ];
+    const id = stepId(reqName, taken);
     const step: Step = { id, api: apiName, req: reqName, args: [] };
-    const before = flow.steps.map((s) => {
-      const f = reqOf(s);
-      return { step: s, fields: f ? fieldsOf(exampleOf(f.r), "wire", 200) : [] };
-    });
+    const idx = at === undefined ? flow.steps.length : at;
+    const before = flow.steps
+      .slice(0, idx)
+      .filter((s) => s.kind !== "code")
+      .map((s) => {
+        const f = reqOf(s);
+        return { step: s, fields: f ? fieldsOf(exampleOf(f.r), "wire", 200) : [] };
+      });
     const w = autoWire(step, requestInfo(api, r), before, flow.inputs, api.auth?.type ?? "none");
     step.args = w.args;
+    const steps = [...flow.steps];
+    steps.splice(idx, 0, step);
+    const last = idx === flow.steps.length;
     const next: Flow = {
       ...flow,
       inputs: [...flow.inputs, ...w.newInputs],
-      steps: [...flow.steps, step],
-      output: { step: id, fields: [] },
+      steps,
+      output: last && (!flow.output || "step" in flow.output) ? { step: id, fields: [] } : flow.output,
     };
     if (!next.meta.name) next.meta = { ...next.meta, name: reqName.replace(/([A-Z])/g, "_$1").toLowerCase() };
-    if (at) setPos((p) => ({ ...p, [`s:${id}`]: at }));
     onChange(next);
     setSelected(`s:${id}`);
+    setLeft("steps");
+    tidy();
   };
 
+  const auto = useMemo(() => layout(flow, (id) => sizes[id]?.height ?? 240), [flow, sizes]);
+  // Fit once every card has been measured, so nothing starts cut off.
+  const allMeasured = Object.keys(sizes).length >= flow.steps.length + 2;
+  useEffect(() => {
+    if (allMeasured) rf.fitView({ padding: 0.12, maxZoom: 1 });
+  }, [allMeasured, rf]);
+
   const nodes: Node[] = useMemo(() => {
-    const out: Node[] = [{ id: "input", type: "toolInput", position: pos.input ?? { x: 0, y: 40 }, data: {} }];
+    const out: Node[] = [{ id: "input", type: "toolInput", position: pos.input ?? auto.input, data: {} }];
     flow.steps.forEach((s, i) => {
       const nid = `s:${s.id}`;
-      out.push({
-        id: nid,
-        type: "step",
-        position: pos[nid] ?? { x: 280 + i * 300, y: 20 + (i % 2) * 36 },
-        data: { index: i },
-      });
+      out.push({ id: nid, type: "step", position: pos[nid] ?? auto[nid], data: { index: i } });
     });
-    out.push({
-      id: "output",
-      type: "toolOutput",
-      position: pos.output ?? { x: 280 + flow.steps.length * 300, y: 40 },
-      data: {},
-    });
+    out.push({ id: "output", type: "toolOutput", position: pos.output ?? auto.output, data: {} });
+    // Controlled nodes have to carry their measured size, or xyflow keeps them hidden.
+    for (const n of out) if (sizes[n.id]) n.measured = sizes[n.id];
     return out;
-  }, [flow, pos]);
+  }, [flow, pos, auto, sizes]);
 
   const edges: Edge[] = useMemo(() => {
     const out: Edge[] = [];
     const ids = flow.steps.map((s) => s.id);
     flow.steps.forEach((s, i) => {
-      if (i > 0)
+      const prev = flow.steps[i - 1];
+      if (i > 0 && !(s.group !== undefined && prev.group === s.group))
         out.push({
           id: `seq:${i}`,
-          source: `s:${flow.steps[i - 1].id}`,
+          source: `s:${prev.id}`,
           sourceHandle: "all",
           target: `s:${s.id}`,
           targetHandle: "seq",
@@ -360,7 +563,7 @@ function Builder({ flow, onChange, apis, run }: Props) {
             sourceHandle: `in:${f}`,
             target: `s:${s.id}`,
             targetHandle: th,
-            animated: false,
+            className: a.source.kind === "input" ? "wire-edge" : "wire-edge tmpl",
           });
         for (const r of sourceSteps(a.source)) {
           if (!ids.includes(r.step)) continue;
@@ -376,10 +579,20 @@ function Builder({ flow, onChange, apis, run }: Props) {
       }
     });
     const o = flow.output;
+    const last = flow.steps[flow.steps.length - 1];
     if (o && "step" in o && ids.includes(o.step))
       out.push({
         id: "ret",
         source: `s:${o.step}`,
+        sourceHandle: "all",
+        target: "output",
+        targetHandle: "ret",
+        className: "ret-edge",
+      });
+    else if (o && "code" in o && last)
+      out.push({
+        id: "ret",
+        source: `s:${last.id}`,
         sourceHandle: "all",
         target: "output",
         targetHandle: "ret",
@@ -402,7 +615,10 @@ function Builder({ flow, onChange, apis, run }: Props) {
       src = { kind: "input", field: c.sourceHandle.slice(3) };
     if (c.source?.startsWith("s:") && c.sourceHandle.startsWith("out:")) {
       const sid = c.source.slice(2);
-      if (flow.steps.findIndex((s) => s.id === sid) >= ti) return; // only earlier steps
+      if (flow.steps.findIndex((s) => s.id === sid) >= ti) {
+        toast("Connect a field to a step that runs later.", true);
+        return;
+      }
       src = { kind: "step", step: sid, path: c.sourceHandle.slice(4) };
     }
     if (!src) return;
@@ -423,12 +639,22 @@ function Builder({ flow, onChange, apis, run }: Props) {
     onChange({ ...flow, steps });
   };
 
+  /** Where a node dropped at x lands in the run order. */
+  const indexAt = (x: number, skip?: string) => {
+    const xs = flow.steps
+      .map((s, i) => ({ i, id: `s:${s.id}`, x: (pos[`s:${s.id}`] ?? auto[`s:${s.id}`]).x }))
+      .filter((n) => n.id !== skip);
+    let k = 0;
+    for (const n of xs) if (x > n.x) k++;
+    return k;
+  };
+
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     const v = e.dataTransfer.getData("application/x-mcpdeck-request");
     if (!v) return;
     const [api, req] = v.split(".");
-    addStep(api, req, rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }));
+    addStep(api, req, indexAt(rf.screenToFlowPosition({ x: e.clientX, y: e.clientY }).x));
   };
 
   const shown = apis
@@ -442,68 +668,93 @@ function Builder({ flow, onChange, apis, run }: Props) {
 
   return (
     <FlowCtx.Provider value={ctx}>
-      <div className="flow-shell">
+      <div className={`flow-shell${full ? " full" : ""}`}>
         <aside className="flow-palette">
-          <div className="flow-palette-head">
-            <div className="font-semibold">Requests</div>
-            <div className="muted text-[12px]">Drag onto the canvas, or click + to add as the next step.</div>
-            <div className="relative mt-2">
-              <Search size={13} className="muted absolute top-1/2 left-2.5 -translate-y-1/2" />
-              <input
-                className="input"
-                style={{ height: 30, paddingLeft: 28 }}
-                placeholder="Filter"
-                aria-label="Filter requests"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-              />
-            </div>
+          <div className="flow-palette-tabs" role="tablist" aria-label="Left panel">
+            <button type="button" role="tab" aria-selected={left === "steps"} onClick={() => setLeft("steps")}>
+              Steps <span className="faint">{flow.steps.length}</span>
+            </button>
+            <button type="button" role="tab" aria-selected={left === "add"} onClick={() => setLeft("add")}>
+              <Plus size={12} /> Add request
+            </button>
           </div>
-          <div className="flow-palette-list">
-            {apis.length === 0 && <div className="muted p-3 text-[12.5px]">Add an application first.</div>}
-            {shown.map(({ a, reqs }) => (
-              <div key={a.id} className="mb-2">
-                <div className="px-2 py-1 text-[11.5px] font-semibold uppercase tracking-wide muted">
-                  {a.title || a.name}
+          {left === "steps" ? (
+            <StepList
+              flow={flow}
+              selected={selected}
+              onSelect={setSelected}
+              onMove={reorder}
+              onAdd={() => setLeft("add")}
+            />
+          ) : (
+            <>
+              <div className="flow-palette-head">
+                <div className="muted text-[12px]">
+                  Drag onto the canvas where it should run, or click + to add it last.
                 </div>
-                {reqs.map((r) => {
-                  const saved = (r.responses?.length ?? 0) > 0 || !!r.example;
-                  return (
-                    <div
-                      key={r.id}
-                      className="flow-req"
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData("application/x-mcpdeck-request", `${a.name}.${r.name}`);
-                        e.dataTransfer.effectAllowed = "copy";
-                      }}
-                      title={
-                        saved
-                          ? `${a.name}.${r.name}`
-                          : `${a.name}.${r.name}: no saved response yet, so its fields are unknown`
-                      }
-                    >
-                      <GripVertical size={12} className="faint flex-none" />
-                      <MethodChip method={r.method} />
-                      <span className="mono min-w-0 flex-1 truncate">{r.name}</span>
-                      {!saved && <span className="dot warn" />}
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        style={{ width: 24, height: 24 }}
-                        aria-label={`Add ${a.name}.${r.name} as a step`}
-                        onClick={() => addStep(a.name, r.name)}
-                      >
-                        <Plus size={13} />
-                      </button>
-                    </div>
-                  );
-                })}
+                <div className="relative mt-2">
+                  <Search size={13} className="muted absolute top-1/2 left-2.5 -translate-y-1/2" />
+                  <input
+                    className="input"
+                    style={{ height: 30, paddingLeft: 28 }}
+                    placeholder="Filter"
+                    aria-label="Filter requests"
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                  />
+                </div>
               </div>
-            ))}
-          </div>
+              <div className="flow-palette-list">
+                {apis.length === 0 && <div className="muted p-3 text-[12.5px]">Add an application first.</div>}
+                {shown.map(({ a, reqs }) => (
+                  <div key={a.id} className="mb-2">
+                    <div className="px-2 py-1 text-[11.5px] font-semibold uppercase tracking-wide muted">
+                      {a.title || a.name}
+                    </div>
+                    {reqs.map((r) => {
+                      const saved = (r.responses?.length ?? 0) > 0 || !!r.example;
+                      return (
+                        <div
+                          key={r.id}
+                          className="flow-req"
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData("application/x-mcpdeck-request", `${a.name}.${r.name}`);
+                            e.dataTransfer.effectAllowed = "copy";
+                          }}
+                          title={
+                            saved
+                              ? `${a.name}.${r.name}`
+                              : `${a.name}.${r.name}: no saved response yet, so its fields are unknown`
+                          }
+                        >
+                          <GripVertical size={12} className="faint flex-none" />
+                          <MethodChip method={r.method} />
+                          <span className="mono min-w-0 flex-1 truncate">{r.name}</span>
+                          {!saved && <span className="dot warn" />}
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            style={{ width: 24, height: 24 }}
+                            aria-label={`Add ${a.name}.${r.name} as a step`}
+                            onClick={() => addStep(a.name, r.name)}
+                          >
+                            <Plus size={13} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </aside>
-        <div className="flow-canvas" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+        <div
+          className={`flow-canvas${animate ? " flow-animate" : ""}`}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={onDrop}
+        >
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -512,7 +763,21 @@ function Builder({ flow, onChange, apis, run }: Props) {
               for (const c of ch) {
                 if (c.type === "position" && c.position) setPos((p) => ({ ...p, [c.id]: c.position! }));
                 if (c.type === "select" && c.selected) setSelected(c.id);
+                if (c.type === "dimensions" && c.dimensions) {
+                  const d = c.dimensions;
+                  setSizes((m) =>
+                    m[c.id]?.width === d.width && m[c.id]?.height === d.height ? m : { ...m, [c.id]: d },
+                  );
+                }
               }
+            }}
+            onNodeDragStop={(_, n) => {
+              // Dragging a step past another changes the run order.
+              if (!n.id.startsWith("s:")) return;
+              const from = flow.steps.findIndex((s) => `s:${s.id}` === n.id);
+              const to = indexAt(n.position.x, n.id);
+              if (from >= 0 && to !== from) reorder(from, to);
+              else tidy();
             }}
             onConnect={onConnect}
             onNodeClick={(_, n) => setSelected(n.id)}
@@ -524,6 +789,58 @@ function Builder({ flow, onChange, apis, run }: Props) {
           >
             <Background gap={18} size={1} />
             <Controls showInteractive={false} />
+            <Panel position="top-right" className="flow-tools">
+              <Button
+                size="sm"
+                icon={<LayoutGrid size={13} />}
+                onClick={() => tidy(true)}
+                title="Line steps up in run order"
+              >
+                Arrange
+              </Button>
+              <Button
+                size="sm"
+                icon={<CircleHelp size={13} />}
+                aria-pressed={legend}
+                onClick={() => setLegend(!legend)}
+              >
+                Legend
+              </Button>
+              <Button
+                size="sm"
+                icon={full ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                onClick={() => setFull(!full)}
+                title={full ? "Exit full screen (Esc)" : "Full screen"}
+              >
+                {full ? "Exit full screen" : "Full screen"}
+              </Button>
+            </Panel>
+            {legend && (
+              <Panel position="bottom-right" className="flow-legend" aria-label="Legend">
+                <div className="font-semibold">Reading the canvas</div>
+                <div>
+                  <span className="lg-dot seq" /> Gray dots on a card's top corners: run order. Steps run left to right.
+                </div>
+                <div>
+                  <span className="lg-dot port" /> Blue rings: fields. Left of a card, what it needs; right, what it
+                  returns.
+                </div>
+                <div>
+                  <span className="lg-line solid" /> Solid line: passes a value as it is.
+                </div>
+                <div>
+                  <span className="lg-line dashed" /> Dashed line: used inside text, like{" "}
+                  <code>Bearer ${"{token}"}</code>.
+                </div>
+                <div>
+                  <span className="lg-line dotted" /> Dotted gray line: the next step in run order.
+                </div>
+                <div>
+                  <span className="lg-line ret" /> Green line: what the tool returns.
+                </div>
+                <div className="muted">Drag a card left or right to change when it runs.</div>
+              </Panel>
+            )}
           </ReactFlow>
           {flow.steps.length === 0 && (
             <div className="flow-hint">
@@ -541,10 +858,92 @@ function Builder({ flow, onChange, apis, run }: Props) {
             reqOf={reqOf}
             setArg={setArg}
             onSelect={setSelected}
+            onMove={reorder}
           />
         </aside>
       </div>
     </FlowCtx.Provider>
+  );
+}
+
+function SortableStep({ s, i, selected, onSelect }: { s: Step; i: number; selected: boolean; onSelect: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: s.id });
+  return (
+    <li
+      ref={setNodeRef}
+      className={`step-row${selected ? " sel" : ""}${isDragging ? " dragging" : ""}`}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+    >
+      <button type="button" className="step-grip" aria-label={`Move ${s.id}`} {...attributes} {...listeners}>
+        <GripVertical size={13} />
+      </button>
+      <button type="button" className="step-main" onClick={onSelect}>
+        <span className="fnode-n">{i + 1}</span>
+        {s.kind === "code" ? (
+          <>
+            <Braces size={13} className="muted flex-none" />
+            <span className="min-w-0 flex-1 truncate">Custom code</span>
+          </>
+        ) : (
+          <>
+            <span className="mono min-w-0 flex-1 truncate">
+              {s.api}.{s.req}
+            </span>
+            {s.group !== undefined && <Columns3 size={12} className="muted flex-none" aria-label="parallel" />}
+          </>
+        )}
+      </button>
+    </li>
+  );
+}
+
+/** StepList is the run order as a list you can drag (or move with the keyboard: Space, arrows, Space). */
+function StepList({
+  flow,
+  selected,
+  onSelect,
+  onMove,
+  onAdd,
+}: {
+  flow: Flow;
+  selected: string;
+  onSelect: (id: string) => void;
+  onMove: (from: number, to: number) => boolean;
+  onAdd: () => void;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const onDragEnd = (e: DragEndEvent) => {
+    if (!e.over || e.active.id === e.over.id) return;
+    const from = flow.steps.findIndex((s) => s.id === e.active.id);
+    const to = flow.steps.findIndex((s) => s.id === e.over!.id);
+    if (from >= 0 && to >= 0) onMove(from, to);
+  };
+  return (
+    <div className="flow-palette-list">
+      <div className="muted px-2 pb-2 text-[12px]">Run order, top to bottom. Drag the handle to change it.</div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={flow.steps.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+          <ol className="step-list">
+            {flow.steps.map((s, i) => (
+              <SortableStep
+                key={s.id}
+                s={s}
+                i={i}
+                selected={selected === `s:${s.id}`}
+                onSelect={() => onSelect(`s:${s.id}`)}
+              />
+            ))}
+          </ol>
+        </SortableContext>
+      </DndContext>
+      {flow.steps.length === 0 && <div className="muted px-2 text-[12.5px]">No steps yet.</div>}
+      <Button size="sm" kind="ghost" className="mt-2" icon={<Plus size={13} />} onClick={onAdd}>
+        Add a request
+      </Button>
+    </div>
   );
 }
 
@@ -557,6 +956,7 @@ function Inspector({
   reqOf,
   setArg,
   onSelect,
+  onMove,
 }: {
   selected: string;
   flow: Flow;
@@ -564,12 +964,102 @@ function Inspector({
   reqOf: Ctx["reqOf"];
   setArg: (ti: number, a: Arg) => void;
   onSelect: (id: string) => void;
+  onMove: (from: number, to: number) => boolean;
 }) {
   if (selected === "input" || !selected) return <ToolInspector flow={flow} onChange={onChange} />;
   if (selected === "output") return <OutputInspector flow={flow} onChange={onChange} reqOf={reqOf} />;
   const idx = flow.steps.findIndex((s) => `s:${s.id}` === selected);
   if (idx < 0) return <ToolInspector flow={flow} onChange={onChange} />;
-  return <StepInspector idx={idx} flow={flow} onChange={onChange} reqOf={reqOf} setArg={setArg} onSelect={onSelect} />;
+  if (flow.steps[idx].kind === "code")
+    return <CodeInspector idx={idx} flow={flow} onChange={onChange} onSelect={onSelect} onMove={onMove} />;
+  return (
+    <StepInspector
+      idx={idx}
+      flow={flow}
+      onChange={onChange}
+      reqOf={reqOf}
+      setArg={setArg}
+      onSelect={onSelect}
+      onMove={onMove}
+    />
+  );
+}
+
+function CodeInspector({
+  idx,
+  flow,
+  onChange,
+  onSelect,
+  onMove,
+}: {
+  idx: number;
+  flow: Flow;
+  onChange: (f: Flow) => void;
+  onSelect: (id: string) => void;
+  onMove: (from: number, to: number) => boolean;
+}) {
+  const s = flow.steps[idx];
+  const update = (p: Partial<Step>) =>
+    onChange({ ...flow, steps: flow.steps.map((x, i) => (i === idx ? { ...x, ...p } : x)) });
+  return (
+    <div className="flex flex-col gap-4 p-4">
+      <div className="flex items-start gap-2">
+        <span className="fnode-n">{idx + 1}</span>
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold">Custom code</div>
+          <div className="muted text-[12px]">
+            Logic the canvas has no card for, like an if, a loop or a calculation. It runs in order with the steps.
+          </div>
+        </div>
+        <Button
+          size="sm"
+          kind="ghost"
+          aria-label="Move earlier"
+          icon={<ArrowUp size={13} />}
+          disabled={idx === 0}
+          onClick={() => onMove(idx, idx - 1)}
+        />
+        <Button
+          size="sm"
+          kind="ghost"
+          aria-label="Move later"
+          icon={<ArrowDown size={13} />}
+          disabled={idx === flow.steps.length - 1}
+          onClick={() => onMove(idx, idx + 1)}
+        />
+      </div>
+      <Field label="Code" hint="TypeScript, as in the Code view">
+        <textarea
+          className="textarea mono"
+          rows={Math.min(18, Math.max(4, (s.code ?? "").split("\n").length + 1))}
+          spellCheck={false}
+          value={s.code ?? ""}
+          onChange={(e) => update({ code: e.target.value })}
+        />
+      </Field>
+      <Field label="Note" hint="Shown above the code as a comment">
+        <input
+          className="input"
+          value={s.comment ?? ""}
+          onChange={(e) => update({ comment: e.target.value || undefined })}
+        />
+      </Field>
+      <div className="flex pt-1">
+        <Button
+          size="sm"
+          kind="bad"
+          className="ml-auto"
+          icon={<Trash2 size={13} />}
+          onClick={() => {
+            onChange({ ...flow, steps: flow.steps.filter((_, i) => i !== idx) });
+            onSelect("input");
+          }}
+        >
+          Remove code
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function ToolInspector({ flow, onChange }: { flow: Flow; onChange: (f: Flow) => void }) {
@@ -594,7 +1084,77 @@ function ToolInspector({ flow, onChange }: { flow: Flow; onChange: (f: Flow) => 
   return (
     <div className="flex flex-col gap-4 p-4">
       <div>
-        <div className="insp-title">The tool</div>
+        <div className="mb-2 flex items-center">
+          <div>
+            <div className="insp-title">Agent inputs</div>
+            <div className="muted text-[12px]">What an agent passes when it calls this tool.</div>
+          </div>
+          <Button
+            size="sm"
+            kind="ghost"
+            className="ml-auto"
+            icon={<Plus size={13} />}
+            onClick={() =>
+              onChange({
+                ...flow,
+                inputs: [
+                  ...flow.inputs,
+                  { name: `input_${flow.inputs.length + 1}`, type: "string", description: "", required: true },
+                ],
+              })
+            }
+          >
+            Add
+          </Button>
+        </div>
+        {flow.inputs.length === 0 && (
+          <div className="muted text-[12.5px]">
+            None yet. Add one for each value the agent should choose, like an id.
+          </div>
+        )}
+        {flow.inputs.map((i, n) => (
+          <div key={n} className="insp-card">
+            <div className="flex gap-2">
+              <input
+                className="input mono"
+                aria-label="Input name"
+                value={i.name}
+                onChange={(e) => setInput(n, { name: e.target.value.replace(/[^\w$]/g, "_") })}
+              />
+              <Select
+                label="Type"
+                size="sm"
+                value={i.type}
+                onChange={(v) => setInput(n, { type: v })}
+                options={["string", "integer", "number", "boolean", "array", "object"].map((t) => ({
+                  value: t,
+                  label: t,
+                }))}
+              />
+            </div>
+            <input
+              className="input mt-2"
+              aria-label="Input description"
+              placeholder="Description, with an example"
+              value={i.description}
+              onChange={(e) => setInput(n, { description: e.target.value })}
+            />
+            <div className="mt-2 flex items-center gap-2 text-[12.5px]">
+              <Toggle label="Required" checked={i.required} onChange={(v) => setInput(n, { required: v })} /> Required
+              <Button
+                size="sm"
+                kind="ghost"
+                className="ml-auto"
+                aria-label={`Remove input ${i.name}`}
+                icon={<Trash2 size={13} />}
+                onClick={() => onChange({ ...flow, inputs: flow.inputs.filter((_, j) => j !== n) })}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div>
+        <div className="insp-title">About the tool</div>
         <div className="muted text-[12px]">What agents see in tools/list.</div>
       </div>
       <Field label="Name" hint="Verb and object, like find_vulnerabilities">
@@ -620,66 +1180,6 @@ function ToolInspector({ flow, onChange }: { flow: Flow; onChange: (f: Flow) => 
       <Field label="Don't use when">
         <input className="input" value={m.dontUseWhen} onChange={(e) => setMeta({ dontUseWhen: e.target.value })} />
       </Field>
-      <div>
-        <div className="mb-2 flex items-center">
-          <div className="insp-title">Inputs the agent fills</div>
-          <Button
-            size="sm"
-            kind="ghost"
-            className="ml-auto"
-            icon={<Plus size={13} />}
-            onClick={() =>
-              onChange({
-                ...flow,
-                inputs: [
-                  ...flow.inputs,
-                  { name: `input_${flow.inputs.length + 1}`, type: "string", description: "", required: true },
-                ],
-              })
-            }
-          >
-            Add
-          </Button>
-        </div>
-        {flow.inputs.length === 0 && <div className="muted text-[12.5px]">None. Steps then use fixed values only.</div>}
-        {flow.inputs.map((i, n) => (
-          <div key={n} className="insp-card">
-            <div className="flex gap-2">
-              <input
-                className="input mono"
-                aria-label="Input name"
-                value={i.name}
-                onChange={(e) => setInput(n, { name: e.target.value.replace(/[^\w$]/g, "_") })}
-              />
-              <Select
-                label="Type"
-                size="sm"
-                value={i.type}
-                onChange={(v) => setInput(n, { type: v })}
-                options={["string", "number", "boolean"].map((t) => ({ value: t, label: t }))}
-              />
-            </div>
-            <input
-              className="input mt-2"
-              aria-label="Input description"
-              placeholder="Description, with an example"
-              value={i.description}
-              onChange={(e) => setInput(n, { description: e.target.value })}
-            />
-            <div className="mt-2 flex items-center gap-2 text-[12.5px]">
-              <Toggle label="Required" checked={i.required} onChange={(v) => setInput(n, { required: v })} /> Required
-              <Button
-                size="sm"
-                kind="ghost"
-                className="ml-auto"
-                aria-label={`Remove input ${i.name}`}
-                icon={<Trash2 size={13} />}
-                onClick={() => onChange({ ...flow, inputs: flow.inputs.filter((_, j) => j !== n) })}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -792,6 +1292,7 @@ function StepInspector({
   reqOf,
   setArg,
   onSelect,
+  onMove,
 }: {
   idx: number;
   flow: Flow;
@@ -799,6 +1300,7 @@ function StepInspector({
   reqOf: Ctx["reqOf"];
   setArg: (ti: number, a: Arg) => void;
   onSelect: (id: string) => void;
+  onMove: (from: number, to: number) => boolean;
 }) {
   const s = flow.steps[idx];
   const found = reqOf(s);
@@ -809,10 +1311,7 @@ function StepInspector({
   const update = (st: Step) => onChange({ ...flow, steps: flow.steps.map((x, i) => (i === idx ? st : x)) });
   const move = (d: -1 | 1) => {
     const j = idx + d;
-    if (j < 0 || j >= flow.steps.length) return;
-    const steps = [...flow.steps];
-    [steps[idx], steps[j]] = [steps[j], steps[idx]];
-    onChange({ ...flow, steps });
+    if (j >= 0 && j < flow.steps.length) onMove(idx, j);
   };
   const usedLater = flow.steps
     .slice(idx + 1)
@@ -845,6 +1344,20 @@ function StepInspector({
           onClick={() => move(1)}
         />
       </div>
+      <div className="flex items-center gap-2 text-[12.5px]">
+        <Toggle
+          label="Keep the result"
+          checked={!s.discard}
+          onChange={(v) => update(v ? { ...s, discard: undefined } : { ...s, discard: true })}
+        />
+        Keep the result for later steps
+      </div>
+      {s.group !== undefined && (
+        <div className="flex items-center gap-2 text-[12.5px]">
+          <Toggle label="Run in parallel" checked onChange={() => update({ ...s, group: undefined })} />
+          Runs at the same time as the steps next to it
+        </div>
+      )}
       <Field label="Step name" hint="The variable later steps read from">
         <input
           className="input mono"

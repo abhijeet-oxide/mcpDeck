@@ -444,8 +444,25 @@ params.
 are dragged in from a side panel (or added with a button), an earlier step's
 output fields, known from its saved response (EX-3), are connected to a later
 step's inputs. Both views edit the same TypeScript: a change in one shows in
-the other. Code the visual view can't represent (loops, conditions) stays
-editable as code and the visual view says why it can't show it.
+the other. Code the visual view has no card for (loops, conditions,
+calculations) shows as a custom code step, so every tool opens in Visual.
+
+**FLOW-4 Every shipped tool round-trips.** Every demo, example and generated
+tool parses into the visual builder and generates back to the same tool
+definition and the same code, ignoring formatting.
+
+**FLOW-5 Reorder steps.** Steps can be reordered by dragging them in the
+Steps list (mouse or keyboard) or left and right on the canvas, and with
+Move earlier / Move later in the inspector. The order is the code order. A
+move that would run a step before a step it reads from is refused with a
+message naming both.
+
+**FLOW-6 Canvas controls.** The canvas lays steps out in run order with
+parallel steps in one column, has Arrange (back to that layout), Full screen
+(Esc leaves) and a Legend explaining the dots and lines.
+
+**FLOW-7 Agent inputs.** The tool's inputs (name, type, description,
+required) are edited first in the inspector and from the Input card.
 
 **FLOW-3 Choose output fields.** The flow's Output step lists the last
 step's fields as a tree with sizes; unticked fields are left out with

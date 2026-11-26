@@ -87,7 +87,7 @@ func shippedTools(t *testing.T) []shippedTool {
 	return out
 }
 
-// REQ: FLOW-1
+// REQ: FLOW-1, FLOW-4
 func TestShippedToolsFixtureIsCurrent(t *testing.T) {
 	b, err := json.MarshalIndent(shippedTools(t), "", "  ")
 	if err != nil {

@@ -1,5 +1,5 @@
 // Every tool mcpDeck ships or writes opens in Visual and comes back as the
-// same code (FLOW-1). The fixture is written by
+// same code (FLOW-4). The fixture is written by
 // internal/mock/shipped_test.go from the demo, the examples, the skill's
 // sample tools and the generator's starter for every demo request.
 import { describe, expect, it } from "vitest";
@@ -27,6 +27,7 @@ const same = (s: string) =>
     .replace(/;/g, "")
     .replace(/,([)\]}])/g, "$1");
 
+// REQ: FLOW-4
 describe("visual ⇄ code round trip", () => {
   it("covers the demo, examples, skill samples and generated tools", () => {
     expect(tools.filter((t) => t.origin.startsWith("demo/")).length).toBeGreaterThanOrEqual(4);
