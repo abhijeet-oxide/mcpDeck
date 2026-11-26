@@ -53,7 +53,7 @@ import { del, patch, post, put } from "../lib/api";
 import { ago, bytes, mod, num, pretty } from "../lib/format";
 import { useAction, useAPI, useHistory, useToolkits } from "../lib/hooks";
 import { Link, navigate, useLocation } from "../lib/router";
-import type { APIDetail, Auth, EnvImport, OutputReport, Request, SendResult, Variable } from "../lib/types";
+import type { APIDetail, Auth, EnvImport, LoginStep, OutputReport, Request, SendResult, Variable } from "../lib/types";
 
 type Tab = "requests" | "environments" | "auth" | "settings";
 
@@ -1384,7 +1384,7 @@ function ImportEnvDialog({ a, onClose, onDone }: { a: APIDetail; onClose: () => 
   );
 }
 
-function AuthTab({ a }: { a: APIDetail }) {
+export function AuthTab({ a }: { a: APIDetail }) {
   const [auth, setAuth] = useState<Auth>(a.auth ?? { type: "none" });
   const toast = useToast();
   const save = useAction(() => patch(`/api/apis/${a.id}`, { auth }), {
@@ -1422,6 +1422,8 @@ function AuthTab({ a }: { a: APIDetail }) {
               { value: "apikey", label: "API key" },
               { value: "basic", label: "Username and password" },
               { value: "login", label: "Login request", hint: "Log in first; keep the cookie, a header or a token" },
+              { value: "oauth2", label: "OAuth 2.0", hint: "Client credentials or password grant" },
+              { value: "hmac", label: "Signed requests (HMAC)", hint: "Sign each request with a shared secret" },
             ]}
           />
         </Field>
@@ -1485,35 +1487,24 @@ function AuthTab({ a }: { a: APIDetail }) {
             </Field>
           </div>
         )}
-        {auth.type === "login" && (
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Login request" hint="Run when needed; tools never handle the login">
-              <Select
-                label="Login request"
-                placeholder="Choose a request"
-                value={auth.loginRequestId ?? ""}
-                onChange={(v) => set({ loginRequestId: v })}
-                options={a.requests.map((r) => ({
-                  value: r.id,
-                  label: (
-                    <span className="flex items-center gap-2">
-                      <MethodChip method={r.method} /> {r.name}
-                    </span>
-                  ),
-                }))}
-              />
-            </Field>
-            <Field
-              label="Capture"
-              hint="cookie, a response header name, or json:access_token to send a body field as a bearer token"
-            >
-              <input
-                className="input mono"
-                value={auth.capture ?? "cookie"}
-                onChange={(e) => set({ capture: e.target.value })}
-              />
-            </Field>
-          </div>
+        {auth.type === "login" && <LoginFields a={a} auth={auth} set={set} />}
+        {auth.type === "oauth2" && <OAuthFields auth={auth} set={set} />}
+        {auth.type === "hmac" && <HMACFields auth={auth} set={set} />}
+        {(auth.type === "oauth2" ||
+          auth.type === "hmac" ||
+          (auth.type === "login" && (auth.steps?.length ?? 0) > 0)) && (
+          <Field
+            label="Headers on every call"
+            hint={
+              auth.type === "hmac"
+                ? "Use {{sign.signature}}, {{sign.timestamp}} and {{sign.nonce}}"
+                : auth.type === "login"
+                  ? "Use captures, e.g. Authorization: Bearer {{login.access_token}}"
+                  : "Optional; the token is sent as a bearer token"
+            }
+          >
+            <KVEditor rows={auth.apply ?? []} onChange={(apply) => set({ apply })} keyLabel="Header" />
+          </Field>
         )}
         <ErrorBox error={save.error} />
       </Panel>
@@ -1537,8 +1528,272 @@ function AuthTab({ a }: { a: APIDetail }) {
   );
 }
 
-function TLSPanel({ a }: { a: APIDetail }) {
-  const init = { insecure: a.tls?.insecure ?? false, caCerts: a.tls?.caCerts ?? "" };
+type SetAuth = (p: Partial<Auth>) => void;
+
+function RequestSelect({
+  a,
+  label,
+  value,
+  onChange,
+  placeholder = "Choose a request",
+}: {
+  a: APIDetail;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <Select
+      label={label}
+      placeholder={placeholder}
+      value={value}
+      onChange={onChange}
+      options={a.requests.map((r) => ({
+        value: r.id,
+        label: (
+          <span className="flex items-center gap-2">
+            <MethodChip method={r.method} /> {r.name}
+          </span>
+        ),
+      }))}
+    />
+  );
+}
+
+// Captures are written one per line as name = from, e.g. csrf = cookie:csrftoken.
+function capturesText(c: LoginStep["captures"]) {
+  return (c ?? []).map((x) => `${x.name} = ${x.from}`).join("\n");
+}
+function parseCaptures(text: string) {
+  return text
+    .split("\n")
+    .map((l) => l.split("="))
+    .filter((p) => p.length >= 2 && p[0].trim())
+    .map((p) => ({ name: p[0].trim(), from: p.slice(1).join("=").trim() }));
+}
+
+function LoginFields({ a, auth, set }: { a: APIDetail; auth: Auth; set: SetAuth }) {
+  const steps = auth.steps ?? [];
+  if (steps.length === 0) {
+    return (
+      <>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Login request" hint="Run when needed; tools never handle the login">
+            <RequestSelect
+              a={a}
+              label="Login request"
+              value={auth.loginRequestId ?? ""}
+              onChange={(v) => set({ loginRequestId: v })}
+            />
+          </Field>
+          <Field
+            label="Capture"
+            hint="cookie, a response header name, or json:access_token to send a body field as a bearer token"
+          >
+            <input
+              className="input mono"
+              value={auth.capture ?? "cookie"}
+              onChange={(e) => set({ capture: e.target.value })}
+            />
+          </Field>
+        </div>
+        <div>
+          <Button
+            kind="ghost"
+            onClick={() =>
+              set({
+                steps: [{ requestId: auth.loginRequestId ?? "", captures: [] }],
+                loginRequestId: undefined,
+                capture: undefined,
+              })
+            }
+          >
+            Use several steps
+          </Button>
+          <span className="muted ml-2 text-[12px]">For a login form with a CSRF token, or a token exchange.</span>
+        </div>
+      </>
+    );
+  }
+  const setStep = (i: number, st: LoginStep) => set({ steps: steps.map((x, j) => (j === i ? st : x)) });
+  return (
+    <>
+      {steps.map((st, i) => (
+        <div key={i} className="grid grid-cols-2 gap-2">
+          <Field label={`Step ${i + 1}`} hint={i === 0 ? "Runs first" : "Can use {{login.<name>}} from earlier steps"}>
+            <RequestSelect
+              a={a}
+              label={`Step ${i + 1} request`}
+              value={st.requestId}
+              onChange={(v) => setStep(i, { ...st, requestId: v })}
+            />
+          </Field>
+          <Field label="Keep from the response" hint="One per line: name = json:path, header:Name or cookie:name">
+            <textarea
+              className="textarea mono"
+              rows={2}
+              aria-label={`Step ${i + 1} captures`}
+              placeholder="access_token = json:access_token"
+              value={capturesText(st.captures)}
+              onChange={(e) => setStep(i, { ...st, captures: parseCaptures(e.target.value) })}
+            />
+          </Field>
+        </div>
+      ))}
+      <div className="flex gap-2">
+        <Button kind="ghost" onClick={() => set({ steps: [...steps, { requestId: "", captures: [] }] })}>
+          Add step
+        </Button>
+        {steps.length > 1 && (
+          <Button kind="ghost" onClick={() => set({ steps: steps.slice(0, -1) })}>
+            Remove last step
+          </Button>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Refresh request" hint="Optional; runs instead of the steps once the session expires">
+          <RequestSelect
+            a={a}
+            label="Refresh request"
+            placeholder="None"
+            value={auth.refreshRequestId ?? ""}
+            onChange={(v) => set({ refreshRequestId: v })}
+          />
+        </Field>
+        <Field label="Session lifetime" hint="json:expires_in from the last response, or seconds; default 30 minutes">
+          <input
+            className="input mono"
+            value={auth.expiresFrom ?? ""}
+            placeholder="json:expires_in"
+            onChange={(e) => set({ expiresFrom: e.target.value })}
+          />
+        </Field>
+      </div>
+    </>
+  );
+}
+
+function OAuthFields({ auth, set }: { auth: Auth; set: SetAuth }) {
+  const grant = auth.grant ?? "client_credentials";
+  const text = (k: keyof Auth, label: string, placeholder: string, hint?: string) => (
+    <Field label={label} hint={hint}>
+      <input
+        className="input mono"
+        aria-label={label}
+        value={(auth[k] as string | undefined) ?? ""}
+        placeholder={placeholder}
+        onChange={(e) => set({ [k]: e.target.value })}
+      />
+    </Field>
+  );
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Grant">
+          <Select
+            label="Grant"
+            value={grant}
+            onChange={(v) => set({ grant: v })}
+            options={[
+              { value: "client_credentials", label: "Client credentials" },
+              { value: "password", label: "Password" },
+            ]}
+          />
+        </Field>
+        {text("tokenUrl", "Token URL", "https://idp.example.com/oauth2/token")}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {text("clientId", "Client ID", "{{clientId}}")}
+        {text("clientSecret", "Client secret", "{{clientSecret}}", "Point it at a secret variable")}
+      </div>
+      {grant === "password" && (
+        <div className="grid grid-cols-2 gap-2">
+          {text("username", "Username", "{{username}}")}
+          {text("password", "Password", "{{password}}")}
+        </div>
+      )}
+      <div className="grid grid-cols-3 gap-2">
+        {text("scope", "Scope", "read")}
+        {text("audience", "Audience", "")}
+        <Field label="Send client secret">
+          <Select
+            label="Send client secret"
+            value={auth.clientAuth ?? "basic"}
+            onChange={(v) => set({ clientAuth: v })}
+            options={[
+              { value: "basic", label: "Basic header" },
+              { value: "body", label: "Request body" },
+            ]}
+          />
+        </Field>
+      </div>
+    </>
+  );
+}
+
+function HMACFields({ auth, set }: { auth: Auth; set: SetAuth }) {
+  return (
+    <>
+      <div className="grid grid-cols-3 gap-2">
+        <Field label="Secret" hint="Point it at a secret variable">
+          <input
+            className="input mono"
+            aria-label="Signing secret"
+            value={auth.secret ?? ""}
+            placeholder="{{signingSecret}}"
+            onChange={(e) => set({ secret: e.target.value })}
+          />
+        </Field>
+        <Field label="Algorithm">
+          <Select
+            label="Algorithm"
+            value={auth.algorithm ?? "sha256"}
+            onChange={(v) => set({ algorithm: v })}
+            options={[
+              { value: "sha256", label: "HMAC-SHA256" },
+              { value: "sha512", label: "HMAC-SHA512" },
+              { value: "sha1", label: "HMAC-SHA1" },
+            ]}
+          />
+        </Field>
+        <Field label="Encoding">
+          <Select
+            label="Encoding"
+            value={auth.encoding ?? "hex"}
+            onChange={(v) => set({ encoding: v })}
+            options={[
+              { value: "hex", label: "Hex" },
+              { value: "base64", label: "Base64" },
+            ]}
+          />
+        </Field>
+      </div>
+      <Field
+        label="String to sign"
+        hint="{{method}} {{path}} {{query}} {{timestamp}} {{nonce}} {{bodySha256}} {{bodyMd5}} and variables, one per line"
+      >
+        <textarea
+          className="textarea mono"
+          rows={4}
+          aria-label="String to sign"
+          placeholder={"{{method}}\n{{path}}\n{{timestamp}}\n{{bodySha256}}"}
+          value={(auth.stringToSign ?? "").replaceAll("\\n", "\n")}
+          onChange={(e) => set({ stringToSign: e.target.value })}
+        />
+      </Field>
+    </>
+  );
+}
+
+export function TLSPanel({ a }: { a: APIDetail }) {
+  const init = {
+    insecure: a.tls?.insecure ?? false,
+    caCerts: a.tls?.caCerts ?? "",
+    clientCert: a.tls?.clientCert ?? "",
+    clientKey: a.tls?.clientKey ?? "",
+  };
+  const secrets = a.variables.filter((v) => v.source === "secret");
   const [t, setT] = useState(init);
   const toast = useToast();
   const dirty = JSON.stringify(t) !== JSON.stringify(init);
@@ -1592,6 +1847,31 @@ function TLSPanel({ a }: { a: APIDetail }) {
           value={t.caCerts}
           onChange={(e) => setT({ ...t, caCerts: e.target.value })}
         />
+      </div>
+      <div className="settings-row">
+        <div className="what">
+          <strong>Client certificate</strong>
+          <span>
+            For servers that require mutual TLS. Paste the PEM certificate; the key stays in a secret variable.
+          </span>
+        </div>
+        <div className="flex w-full flex-col gap-2">
+          <textarea
+            className="textarea"
+            rows={4}
+            aria-label="Client certificate"
+            placeholder={"-----BEGIN CERTIFICATE-----\n…\n-----END CERTIFICATE-----"}
+            value={t.clientCert}
+            onChange={(e) => setT({ ...t, clientCert: e.target.value })}
+          />
+          <Select
+            label="Client key"
+            placeholder={secrets.length ? "Secret variable holding the key" : "Add a secret variable for the key first"}
+            value={t.clientKey.replace(/^\{\{\s*|\s*\}\}$/g, "")}
+            onChange={(v) => setT({ ...t, clientKey: v ? `{{${v}}}` : "" })}
+            options={secrets.map((v) => ({ value: v.name, label: v.name }))}
+          />
+        </div>
       </div>
       <div className="px-4 pb-3">
         <ErrorBox error={save.error} />

@@ -10,7 +10,23 @@ export type Auth = {
   password?: string;
   loginRequestId?: string;
   capture?: string;
+  steps?: LoginStep[];
+  refreshRequestId?: string;
+  expiresFrom?: string;
+  apply?: KV[];
+  grant?: string;
+  tokenUrl?: string;
+  clientId?: string;
+  clientSecret?: string;
+  clientAuth?: string;
+  scope?: string;
+  audience?: string;
+  algorithm?: string;
+  secret?: string;
+  stringToSign?: string;
+  encoding?: string;
 };
+export type LoginStep = { requestId: string; captures?: { name: string; from: string }[] };
 export type API = {
   id: string;
   name: string;
@@ -23,7 +39,7 @@ export type API = {
   tls?: TLS;
   createdAt: string;
 };
-export type TLS = { insecure: boolean; caCerts?: string };
+export type TLS = { insecure: boolean; caCerts?: string; clientCert?: string; clientKey?: string };
 export type SavedResponse = { id: string; name: string; status: number; body: unknown; savedAt: string };
 export type APISummary = API & {
   requests: number;
