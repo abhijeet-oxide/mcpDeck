@@ -63,6 +63,12 @@ func init() {
 		}
 		out := h.mustCLI(t, "help", "--json")
 		expect(t, json.Unmarshal([]byte(out), &cmds) == nil && len(cmds) >= 10, "help --json: %s", clip(out, 200))
+		group := h.mustCLI(t, "help", "--json", "auth")
+		var some []struct{ Name string }
+		expect(t, json.Unmarshal([]byte(group), &some) == nil && len(some) >= 1 && len(some) < len(cmds), "help --json auth: %s", clip(group, 200))
+		for _, c := range some {
+			expect(t, strings.HasPrefix(c.Name, "auth"), "help --json auth listed %s", c.Name)
+		}
 	})
 
 	add("cli", "tool generate refuses a write request without --write", func(t *testing.T) {

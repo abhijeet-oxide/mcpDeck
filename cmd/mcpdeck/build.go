@@ -664,10 +664,26 @@ func helpCmd(root *cobra.Command) *cobra.Command {
 				}
 				return target.Help()
 			}
-			printJSON(describe(root))
+			all := describe(root)
+			if len(args) == 0 {
+				printJSON(all)
+				return nil
+			}
+			// help --json auth: just that command group, for a smaller context.
+			want := strings.Join(args, " ")
+			var some []cmdDoc
+			for _, d := range all {
+				if d.Name == want || strings.HasPrefix(d.Name, want+" ") {
+					some = append(some, d)
+				}
+			}
+			if len(some) == 0 {
+				return fmt.Errorf("no command %q; run mcpdeck help --json for all", want)
+			}
+			printJSON(some)
 			return nil
 		}}
-	c.Flags().BoolVar(&asJSON, "json", false, "print every command as JSON")
+	c.Flags().BoolVar(&asJSON, "json", false, "print every command as JSON, or one command group with an argument")
 	return c
 }
 
