@@ -54,6 +54,11 @@ var h *harness
 
 func TestMain(m *testing.M) {
 	flag.Parse()
+	// The OS matrix in CI runs unit tests only; the scenarios job runs these.
+	if os.Getenv("MCPDECK_SKIP_SCENARIOS") != "" {
+		fmt.Println("scenarios skipped (MCPDECK_SKIP_SCENARIOS is set)")
+		os.Exit(0)
+	}
 	code, err := run(m)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "scenarios:", err)
