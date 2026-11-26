@@ -1,0 +1,26 @@
+// Copy this file to <name>_test.go in this folder, rename the scenarios, and
+// make them assert what an agent would see. See docs/testing.md.
+
+package scenarios
+
+import (
+	"testing"
+)
+
+func init() {
+	// add(category, name, fn): the category groups the pass rate in reports;
+	// the name says the behaviour in plain words, as docs/claims.md cites it.
+	add("shop", "a tool returns one order's status by id", func(t *testing.T) {
+		need(t, "shop") // onboard the mock system once (setup_test.go)
+
+		// A toolkit and a tool, saved the way the editor saves them.
+		ag, name := one(t, "read", []string{"shop"}, "One order's status by id.",
+			`order_id: { type: "string", description: "Order id, e.g. ord_0001" }`, []string{"order_id"},
+			`  const r = await shop.getOrder({ id: input.order_id });
+  return { id: r.order.id, status: r.order.status };`)
+
+		// Call it through a real MCP client and check what the agent receives.
+		out := ag.ok(name, map[string]any{"order_id": "ord_0001"})
+		expect(t, get(out, "status") == "shipped", "no status in %s", asJSON(out))
+	})
+}
