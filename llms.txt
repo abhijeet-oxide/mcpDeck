@@ -1,0 +1,48 @@
+# mcpDeck
+
+> One local binary that turns APIs you already have (OpenAPI, Swagger 2.0, Postman, curl) into small MCP tools. A tool is a TypeScript function that chains API calls and returns only what a task needs. Credentials stay encrypted in mcpDeck; one proxy injects them, enforces read/write access and records every call.
+
+## Concepts
+
+- API: imported requests plus variables, secrets, auth and TLS. The UI calls it an application.
+- Tool: `export const tool = { name, description, inputSchema }` plus `export default async function (input)`. Each API is a client object: `await shop.listOrders({ status: "open" })`. Also `call("api", "GET /path", params)`, `.raw()`, `pick()`, `xml()`, `sleep()`.
+- Toolkit: a set of tools served as one MCP server.
+- Access: read agents can't run write tools; the proxy refuses their writes. Write tools need a person's approval.
+
+## Endpoints
+
+- `/mcp/<toolkit>`: use tools. Extras: `search_tools`, `request_tool` (asks a person, grants nothing), `report_field_usage`; `use_tool` when there are more than 25 tools.
+- `/mcp/<toolkit>/build`: build tools (search and describe APIs, run requests and scripts, test, save).
+- `mcpdeck mcp --agent "<name>"`: admin MCP server on stdio. Import, variables, secrets from env, auth, TLS, requests, toolkits, tools, tests, lint, reviews, connect.
+
+## CLI (all support --json)
+
+```
+mcpdeck import <url-or-file> --api <name> [--ca-file pem] [--insecure]
+echo "$VALUE" | mcpdeck secret set <api> <name>
+mcpdeck var set <api> <name> <value>
+mcpdeck auth set <api> --type <bearer|basic|apikey|login|oauth2|hmac> ...
+mcpdeck api list | api show <api> | api tls <api> --ca-file --client-cert --client-key-var
+mcpdeck request send <api> <request> | request set-body | request access
+mcpdeck toolkit create <name> --apis a,b
+mcpdeck tool generate <toolkit> --from <api.request> [--write]
+mcpdeck tool test <toolkit> --file tool.ts --input '{...}'
+mcpdeck tool save <toolkit> --file tool.ts | pull <toolkit> | push <toolkit> --dir <dir>
+mcpdeck lint <toolkit> [--strict]
+mcpdeck connect <claude|vscode|cursor|claude-desktop> --toolkit <name>
+mcpdeck help --json [group]
+```
+
+## Rules an agent must follow
+
+- Never put credentials in tool code, descriptions or inputs; set the API's auth. Lint blocks these saves.
+- Return only the fields the question needs; add a limit input for lists.
+- Write tools wait for a person. Don't try to approve them.
+- Errors should say what input would work.
+
+## Docs
+
+- [README](README.md): what works, with tests behind each claim
+- [docs/agents.md](docs/agents.md): parity table and context sizes
+- [docs/lint-rules.md](docs/lint-rules.md): every rule, severity and source
+- [AGENTS.md](AGENTS.md): rules for agents changing this repo
