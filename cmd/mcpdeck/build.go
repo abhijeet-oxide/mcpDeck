@@ -496,6 +496,7 @@ func toolCmd(data *string) *cobra.Command {
 				return nil
 			}
 			fmt.Println(out["message"])
+			printLint(out["lint"])
 			return nil
 		}}
 	save.Flags().StringVar(&file, "file", "", "the .ts file")
@@ -625,4 +626,16 @@ func describe(root *cobra.Command) []cmdDoc {
 	}
 	walk(root, "")
 	return out
+}
+
+// printLint prints save-time findings, one per line with its fix.
+func printLint(v any) {
+	l, _ := v.([]any)
+	for _, f := range l {
+		m, _ := f.(map[string]any)
+		if m == nil {
+			continue
+		}
+		fmt.Printf("%-5v %v: %v\n      fix: %v\n", m["level"], m["rule"], m["title"], m["fix"])
+	}
 }

@@ -933,9 +933,13 @@ function OutputCheck({ body }: { body: string }) {
           <strong>If an agent read this:</strong> {num(r.tokens)} tokens · {r.fields} fields · {r.depth} levels deep
         </span>
         <span className="ml-auto flex gap-1.5">
-          {c.must > 0 && <Chip tone="bad">{c.must} must fix</Chip>}
-          {c.avoid > 0 && <Chip tone="warn">{c.avoid} to avoid</Chip>}
-          {c.must + c.avoid === 0 && <Chip tone="ok">Fine for agents</Chip>}
+          {c.block > 0 && <Chip tone="bad">{c.block} blocking</Chip>}
+          {c.warn > 0 && (
+            <Chip tone="warn">
+              {c.warn} {c.warn === 1 ? "warning" : "warnings"}
+            </Chip>
+          )}
+          {c.block + c.warn === 0 && <Chip tone="ok">Fine for agents</Chip>}
         </span>
         <ChevronDown size={14} className="muted" style={{ transform: open ? "rotate(180deg)" : undefined }} />
       </button>

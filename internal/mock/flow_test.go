@@ -142,8 +142,8 @@ func TestScannerFlow_EndToEnd(t *testing.T) {
 		t.Fatalf("lint: %v %s", err, lint.DraftError)
 	}
 	for _, f := range lint.Draft {
-		if f.Level == "must" {
-			t.Errorf("the finished flow has a must-fix: %+v", f)
+		if f.Level == "block" {
+			t.Errorf("the finished flow has a blocking finding: %+v", f)
 		}
 	}
 }

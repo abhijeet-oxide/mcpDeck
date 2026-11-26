@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/abhijeet-oxide/mcpdeck/internal/lint"
 	"io"
 	"io/fs"
 	"net/http"
@@ -137,6 +138,11 @@ func writeErr(w http.ResponseWriter, status int, code, msg string) {
 }
 
 func fail(w http.ResponseWriter, err error) {
+	var lb *deck.LintBlocked
+	if errors.As(err, &lb) {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"code": "lint_blocked", "error": err.Error(), "findings": lb.Findings})
+		return
+	}
 	status := deck.StatusOf(err)
 	code := "error"
 	var de *deck.Error
@@ -344,6 +350,9 @@ func (s *Server) routes() {
 	}))
 	m.HandleFunc("DELETE /api/toolkits/{ref}/tools/{tool}", h(func(r *http.Request) (any, error) {
 		return nil, d.RemoveToolFromToolkit(r.Context(), r.PathValue("ref"), r.PathValue("tool"))
+	}))
+	m.HandleFunc("GET /api/lint/rules", h(func(r *http.Request) (any, error) {
+		return map[string]any{"rules": lint.Rules, "sources": lint.Sources, "sections": lint.Sections}, nil
 	}))
 	m.HandleFunc("POST /api/toolkits/{ref}/lint", h(func(r *http.Request) (any, error) {
 		in, err := body[deck.LintInput](r)

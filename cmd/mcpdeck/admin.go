@@ -248,7 +248,7 @@ func adminTools() []adminTool {
 				if err := cl.do("POST", "/api/toolkits/"+str(a, "toolkit")+"/save", map[string]any{"source": g.Source, "tests": g.Tests}, &out); err != nil {
 					return nil, err
 				}
-				return map[string]any{"name": g.Name, "status": out["status"], "message": out["message"], "source": g.Source}, nil
+				return map[string]any{"name": g.Name, "status": out["status"], "message": out["message"], "source": g.Source, "lint": compactLint(out["lint"])}, nil
 			}},
 		{"save_tool", "Save TypeScript tool source as a new version, with optional tests. Review rules apply; lint runs.",
 			`{"type":"object","properties":{"toolkit":{"type":"string"},"source":{"type":"string"},"tests":{"type":"array","items":{"type":"object"}}},"required":["toolkit","source"]}`, false,
@@ -261,7 +261,7 @@ func adminTools() []adminTool {
 				if err := cl.do("POST", "/api/toolkits/"+str(a, "toolkit")+"/save", map[string]any{"source": str(a, "source"), "tests": tests}, &out); err != nil {
 					return nil, err
 				}
-				return map[string]any{"status": out["status"], "message": out["message"], "warnings": out["warnings"]}, nil
+				return map[string]any{"status": out["status"], "message": out["message"], "warnings": out["warnings"], "lint": compactLint(out["lint"])}, nil
 			}},
 		{"test_tool", "Run unsaved tool source against the live APIs and get output, calls and size.",
 			`{"type":"object","properties":{"toolkit":{"type":"string"},"source":{"type":"string"},"input":{"type":"object"}},"required":["toolkit","source"]}`, false,
@@ -396,3 +396,16 @@ func newAdminServer(cl *client) *sdk.Server {
 }
 
 func boolp(b bool) *bool { return &b }
+
+// compactLint keeps what an agent needs to act on a finding.
+func compactLint(v any) []map[string]any {
+	out := []map[string]any{}
+	for _, f := range asSlice(v) {
+		m, _ := f.(map[string]any)
+		if m == nil {
+			continue
+		}
+		out = append(out, map[string]any{"rule": m["rule"], "level": m["level"], "title": m["title"], "fix": m["fix"]})
+	}
+	return out
+}

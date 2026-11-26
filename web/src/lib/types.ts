@@ -338,8 +338,8 @@ export type ToolkitHealth = {
   tools: number;
   listTokens: number;
   score: number;
-  must: number;
-  avoid: number;
+  block: number;
+  warn: number;
   top?: string;
   agents: number;
 };
@@ -387,7 +387,8 @@ export type Info = {
 };
 export type Finding = {
   rule: string;
-  level: "must" | "avoid" | "tip";
+  level: "block" | "warn" | "hint";
+  source?: string;
   title: string;
   detail: string;
   fix: string;
@@ -452,4 +453,20 @@ export type AgentView = {
   instructions: string;
   tools: { name: string; description: string; inputSchema: unknown }[];
   tokens: number;
+};
+
+export type LintRule = {
+  id: string;
+  severity: "block" | "warn" | "hint";
+  section: string;
+  title: string;
+  why: string;
+  check: string;
+  fix: string;
+  sources: string[];
+};
+export type LintRules = {
+  rules: LintRule[];
+  sources: { key: string; title: string; url: string }[];
+  sections: string[];
 };

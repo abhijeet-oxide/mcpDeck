@@ -196,7 +196,7 @@ func (m *Manager) refresh(ctx context.Context, e *entry) {
 		d := d
 		ro, destr := d.ReadOnly, d.Destructive
 		t := &sdk.Tool{Name: d.Name, Description: d.Description, InputSchema: d.InputSchema,
-			Annotations: &sdk.ToolAnnotations{ReadOnlyHint: ro, DestructiveHint: &destr, OpenWorldHint: boolp(false)}}
+			Annotations: &sdk.ToolAnnotations{Title: d.Title, ReadOnlyHint: ro, DestructiveHint: &destr, IdempotentHint: d.Idempotent, OpenWorldHint: boolp(false)}}
 		e.server.AddTool(t, func(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
 			e.mu.Lock()
 			sess := e.sess

@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/abhijeet-oxide/mcpdeck/internal/lint"
 	"regexp"
 	"runtime"
 	"sort"
@@ -52,6 +53,9 @@ type Definition struct {
 	InputSchema json.RawMessage `json:"inputSchema"`
 	// Timeout is the run limit in seconds for long jobs, up to MaxTimeout.
 	Timeout float64 `json:"timeout,omitempty"`
+	// Annotations are optional MCP hints. readOnlyHint and destructiveHint
+	// are set from the requests the tool calls; a file may only narrow them.
+	Annotations *lint.Annotations `json:"annotations,omitempty"`
 }
 
 // Compile strips TypeScript types and makes a CommonJS module.

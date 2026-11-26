@@ -33,8 +33,8 @@ const base = {
       tools: 2,
       listTokens: 410,
       score: 70,
-      must: 1,
-      avoid: 1,
+      block: 1,
+      warn: 1,
       top: "Generic name new_tool",
       agents: 1,
     },
@@ -83,7 +83,7 @@ describe("Home", () => {
     expect(screen.getByText(/12 today/)).toBeInTheDocument();
     // Toolkit health and savings (GUIDE-4).
     expect(screen.getByText("Generic name new_tool")).toBeInTheDocument();
-    expect(screen.getByText("1 must fix")).toBeInTheDocument();
+    expect(screen.getByText("1 blocking")).toBeInTheDocument();
     expect(screen.getByText("90%")).toBeInTheDocument();
     // All four steps done: no onboarding text anywhere.
     expect(screen.queryByText(/Getting started/)).not.toBeInTheDocument();

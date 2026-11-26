@@ -4,15 +4,15 @@ import { FindingList } from "./Findings";
 
 // REQ: GUIDE-2
 describe("FindingList", () => {
-  it("puts must-fix first and shows how to fix each", () => {
+  it("puts blocking findings first and shows how to fix each", () => {
     render(
       <FindingList
         showTool
         findings={[
-          { rule: "param-docs", level: "tip", title: "Parameters without a description", detail: "d", fix: "Add one" },
+          { rule: "param-docs", level: "hint", title: "Parameters without a description", detail: "d", fix: "Add one" },
           {
             rule: "name",
-            level: "must",
+            level: "block",
             title: "Generic name new_tool",
             detail: "d",
             fix: "Rename it",

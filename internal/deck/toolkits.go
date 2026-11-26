@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/abhijeet-oxide/mcpdeck/internal/lint"
 	"sort"
 	"strings"
 	"time"
@@ -571,7 +572,22 @@ type SaveResult struct {
 	Status   string            `json:"status"`
 	Checks   []store.Check     `json:"checks"`
 	Warnings []string          `json:"warnings"`
-	Message  string            `json:"message"`
+	// Lint is what the linter found in this version (LINT-2).
+	Lint    []lint.Finding `json:"lint"`
+	Message string         `json:"message"`
+}
+
+// LintBlocked is returned when a save breaks a blocking lint rule (LINT-2).
+type LintBlocked struct {
+	Findings []lint.Finding
+}
+
+func (e *LintBlocked) Error() string {
+	var parts []string
+	for _, f := range e.Findings {
+		parts = append(parts, f.Rule+": "+f.Title+". "+f.Fix)
+	}
+	return "not saved: " + strings.Join(parts, "; ")
 }
 
 // SaveTool creates version N+1 of a tool in a toolkit (VER-1, AB-1…AB-6).
@@ -587,29 +603,7 @@ func (d *Deck) SaveTool(ctx context.Context, toolkitRef string, c Caller, in Sav
 	}
 	all := d.clients(ctx, nil)
 	calls, apis := tool.UsedCalls(in.Source, all)
-	access := "read"
-	byFull := map[string]store.Request{}
-	for _, cl := range all {
-		for _, r := range cl.Requests {
-			byFull[cl.API.Name+"."+r.Name] = r
-		}
-	}
-	for _, k := range calls {
-		if r, ok := byFull[k]; ok {
-			if r.EffectiveAccess() == "write" {
-				access = "write"
-			}
-			if strings.ToUpper(r.Method) == "POST" && proxy.IsGraphQLPath(strings.TrimPrefix(r.URL, "{{baseUrl}}")) && proxy.IsGraphQLMutation(in.Source) {
-				access = "write"
-			}
-		} else if parts := strings.Fields(k); len(parts) >= 3 {
-			// A raw call: by method, except a GraphQL POST whose code
-			// sends no mutation (TOOL-9).
-			if proxy.ClassifyMethod(parts[1]) == "write" && (!proxy.IsGraphQLPath(parts[2]) || strings.ToUpper(parts[1]) != "POST" || proxy.IsGraphQLMutation(in.Source)) {
-				access = "write"
-			}
-		}
-	}
+	access := d.accessOf(ctx, in.Source, calls)
 	existing, terr := d.Store.ToolByName(ctx, def.Name)
 	if terr == nil && c.byAgent() {
 		ids, _ := d.Store.ToolToolkits(ctx, existing.ID)
@@ -636,6 +630,10 @@ func (d *Deck) SaveTool(ctx context.Context, toolkitRef string, c Caller, in Sav
 	}
 	if v.Tests == nil {
 		v.Tests = []store.ToolTest{}
+	}
+	findings := d.saveFindings(ctx, tk, v, def)
+	if b := lint.Blocking(findings); len(b) > 0 {
+		return nil, &LintBlocked{Findings: b}
 	}
 	var warnings []string
 	for _, t := range in.Tests {
@@ -700,7 +698,7 @@ func (d *Deck) SaveTool(ctx context.Context, toolkitRef string, c Caller, in Sav
 		return nil, err
 	}
 	d.audit(ctx, c.Actor, "tool.save", fmt.Sprintf("%s v%d", t.Name, v.N), status)
-	res := &SaveResult{Version: v, Status: status, Checks: checks, Warnings: warnings}
+	res := &SaveResult{Version: v, Status: status, Checks: checks, Warnings: warnings, Lint: findings}
 	if status == "live" {
 		d.publish(ctx, v)
 		res.Message = fmt.Sprintf("%s v%d is live for every agent of %s.", t.Name, v.N, tk.Name)
@@ -840,4 +838,31 @@ func (d *Deck) AgentView(ctx context.Context, ref, access string, canBuild bool,
 	g := store.Grant{Access: access, CanBuild: canBuild}
 	return &AgentView{Toolkit: tk.Name, Endpoint: d.Endpoint(tk.Name, false), Access: access, CanBuild: canBuild, Client: client,
 		Instructions: d.UseInstructions(tk, g, client), Tools: defs, Tokens: tokens.Count(string(b))}, nil
+}
+
+// accessOf is write when any call a tool makes writes (TOOL-9).
+func (d *Deck) accessOf(ctx context.Context, src string, calls []string) string {
+	byFull := map[string]store.Request{}
+	for _, cl := range d.clients(ctx, nil) {
+		for _, r := range cl.Requests {
+			byFull[cl.API.Name+"."+r.Name] = r
+		}
+	}
+	for _, k := range calls {
+		if r, ok := byFull[k]; ok {
+			if r.EffectiveAccess() == "write" {
+				return "write"
+			}
+			if strings.ToUpper(r.Method) == "POST" && proxy.IsGraphQLPath(strings.TrimPrefix(r.URL, "{{baseUrl}}")) && proxy.IsGraphQLMutation(src) {
+				return "write"
+			}
+		} else if parts := strings.Fields(k); len(parts) >= 3 {
+			// A raw call: by method, except a GraphQL POST whose code
+			// sends no mutation.
+			if proxy.ClassifyMethod(parts[1]) == "write" && (!proxy.IsGraphQLPath(parts[2]) || strings.ToUpper(parts[1]) != "POST" || proxy.IsGraphQLMutation(src)) {
+				return "write"
+			}
+		}
+	}
+	return "read"
 }

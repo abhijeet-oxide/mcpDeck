@@ -818,10 +818,10 @@ function GuidelinesTab({ t }: { t: ToolkitDetail }) {
         <StatCard
           icon={<ShieldCheck size={14} />}
           label="Findings"
-          value={c.must + c.avoid}
+          value={c.block + c.warn}
           foot={
             <span>
-              <span style={{ color: "var(--bad)" }}>{c.must} must fix</span> · {c.avoid} avoid · {c.tip} tips
+              <span style={{ color: "var(--bad)" }}>{c.block} blocking</span> · {c.warn} warnings · {c.hint} hints
             </span>
           }
         />

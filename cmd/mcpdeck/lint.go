@@ -33,10 +33,10 @@ func lintCmd(data *string) *cobra.Command {
 				ListTokens int    `json:"listTokens"`
 				DraftError string `json:"draftError"`
 				Findings   []struct {
-					Rule, Severity, Level, Title, Detail, Fix, Tool, Source string
+					Rule, Level, Title, Detail, Fix, Tool, Source string
 				} `json:"findings"`
 				Draft []struct {
-					Rule, Severity, Level, Title, Detail, Fix, Tool, Source string
+					Rule, Level, Title, Detail, Fix, Tool, Source string
 				} `json:"draft"`
 			}
 			var raw json.RawMessage
@@ -47,7 +47,7 @@ func lintCmd(data *string) *cobra.Command {
 			all := append(rep.Findings, rep.Draft...)
 			blocks, warns := 0, 0
 			for _, f := range all {
-				switch f.Severity {
+				switch f.Level {
 				case "block":
 					blocks++
 				case "warn":
@@ -65,9 +65,12 @@ func lintCmd(data *string) *cobra.Command {
 					if where == "" {
 						where = args[0]
 					}
-					fmt.Printf("%-5s %s %s: %s\n", f.Severity, f.Rule, where, f.Title)
+					fmt.Printf("%-5s %s %s: %s\n", f.Level, f.Rule, where, f.Title)
 					if f.Fix != "" {
 						fmt.Printf("      fix: %s\n", f.Fix)
+					}
+					if f.Source != "" {
+						fmt.Printf("      why: %s\n", f.Source)
 					}
 				}
 				fmt.Printf("%d blocking, %d warnings, score %d/100, tools/list %d tokens.\n", blocks, warns, rep.Score, rep.ListTokens)

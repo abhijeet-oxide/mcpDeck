@@ -25,7 +25,7 @@ func TestToolkit_CountTokensAndWrappers(t *testing.T) {
 	}
 	r := Toolkit(tools)
 	got := rules(r.Findings)
-	if got["tool-count"] != Must || got["endpoint-wrappers"] != Avoid {
+	if got["tool-count"] != Warn || got["endpoint-wrappers"] != Warn {
 		t.Fatalf("findings %v", got)
 	}
 	if r.ListTokens == 0 || r.Score >= 100 {
@@ -43,8 +43,8 @@ func TestToolDef_Rules(t *testing.T) {
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"}}}`),
 		Source:      "export default async function (input) {\n  const res = await a.b();\n  return res;\n}", OutputTokens: 30000}
 	got := rules(ToolDef(bad, 5))
-	want := map[string]string{"name": Must, "description": Must, "use-when": Tip, "write-guard": Avoid, "param-name": Avoid,
-		"param-docs": Tip, "required": Avoid, "raw-return": Avoid, "output-tokens": Must}
+	want := map[string]string{"name": Warn, "description": Warn, "use-when": Hint, "write-guard": Warn, "param-name": Warn,
+		"param-docs": Hint, "required": Warn, "raw-return": Warn, "output-tokens": Warn}
 	for k, v := range want {
 		if got[k] != v {
 			t.Errorf("%s = %q, want %q (all %v)", k, got[k], v, got)
