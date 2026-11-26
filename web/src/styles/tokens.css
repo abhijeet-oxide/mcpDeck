@@ -1,7 +1,8 @@
 /* mcpDeck design tokens.
    Neutral zinc greys, one blue accent, ink for the main action, coloured
-   mono chips for HTTP methods and states. Solid surfaces with hairline
-   borders and soft, short shadows. No glass, glows or gradients on content. */
+   mono chips for HTTP methods and states. Hairline borders and soft, short
+   shadows; the gentle glass layer lives in glass.css. No glows or gradients
+   on content. */
 :root {
   --bg: #f7f7f8;
   --bg-sunk: #f1f1f3;

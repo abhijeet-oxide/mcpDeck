@@ -3,6 +3,7 @@ import { createContext, lazy, type ReactNode, Suspense, useContext, useEffect, u
 import { ConnectDialog } from "./components/ConnectDialog";
 import { leaveDemo, startTour, Tour } from "./components/Guide";
 import { Palette } from "./components/Palette";
+import { RequestTray } from "./components/RequestTray";
 import { Logo, Sidebar, TopBar } from "./components/Sidebar";
 import { Button, EmptyState, Loading } from "./components/ui";
 import { useHome, useInfo } from "./lib/hooks";
@@ -163,6 +164,7 @@ export function App() {
         </div>
       </div>
       <Tour />
+      <RequestTray />
       {palette && <Palette onClose={() => setPalette(false)} onConnect={(t) => openConnect(t)} />}
       {connect && (
         <ConnectDialog toolkitId={connect.toolkitId} agentId={connect.agentId} onClose={() => setConnect(null)} />

@@ -119,7 +119,7 @@ type ConnectResult struct {
 
 func (d *Deck) Connect(ctx context.Context, in ConnectInput) (*ConnectResult, error) {
 	if _, ok := Clients[in.Client]; !ok {
-		return nil, badRequest("client must be one of claude-code, vscode, cursor, claude-desktop, other")
+		return nil, badRequest("client must be one of vscode, claude-code, cursor, claude-desktop, other")
 	}
 	tk, err := d.toolkitByRef(ctx, in.ToolkitID)
 	if err != nil {

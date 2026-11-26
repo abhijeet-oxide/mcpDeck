@@ -4,6 +4,7 @@ import {
   BookmarkPlus,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   Code2,
   Cookie,
   Copy,
@@ -12,6 +13,7 @@ import {
   Gauge,
   KeyRound,
   Layers,
+  Lock,
   Pencil,
   Plus,
   Save,
@@ -20,11 +22,14 @@ import {
   ShieldAlert,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AskAgentButton } from "../components/AskAgent";
+import { byLogin, CaptureRows, loginScore } from "../components/CapturePicker";
 import { counts, FindingList } from "../components/Findings";
 import { KVEditor } from "../components/KVEditor";
+import { Elapsed, seconds } from "../components/RequestTray";
 import {
   AccessChip,
   Avatar,
@@ -50,8 +55,10 @@ import {
   useToast,
 } from "../components/ui";
 import { del, patch, post, put } from "../lib/api";
+import { getDraft, setDraft, useDrafts } from "../lib/drafts";
 import { ago, bytes, mod, num, pretty } from "../lib/format";
 import { useAction, useAPI, useHistory, useToolkits } from "../lib/hooks";
+import { cancel, flightKey, markSeen, send as sendRequest, useFlight } from "../lib/inflight";
 import { Link, navigate, useLocation } from "../lib/router";
 import type { APIDetail, Auth, EnvImport, LoginStep, OutputReport, Request, SendResult, Variable } from "../lib/types";
 
@@ -269,11 +276,28 @@ function toolCallOf(api: string, r: Request): string {
   return `await ${api}.${r.name}(${args ? `{ ${args} }` : ""})`;
 }
 
-function Requests({ a, onTab }: { a: APIDetail; onTab: (t: Tab) => void }) {
-  const [sel, setSel] = useState<string>(a.requests[0]?.id ?? "");
+export function Requests({ a, onTab }: { a: APIDetail; onTab: (t: Tab) => void }) {
+  const { search } = useLocation();
+  const asked = search.get("req");
+  const [sel, setSel] = useState<string>(asked ?? a.requests[0]?.id ?? "");
+  // The request tray links here with ?req= to reopen a request.
+  useEffect(() => {
+    if (asked) setSel(asked);
+  }, [asked]);
   const [side, setSide] = useState<"requests" | "history">("requests");
   const [filter, setFilter] = useState("");
   const [draft, setDraft] = useState<Request | null>(null);
+  const [resp, setResp] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggle = (id: string, open: boolean) => {
+    const next = new Set(expanded);
+    if (open) next.delete(id);
+    else next.add(id);
+    setExpanded(next);
+    if (open && sel === id) setSel("");
+  };
+  const removeResp = useAction((x: { req: string; id: string }) => del(`/api/requests/${x.req}/responses/${x.id}`));
+  const drafts = useDrafts();
   const hist = useHistory(a.id);
   useEffect(() => {
     const r = a.requests.find((x) => x.id === sel);
@@ -326,24 +350,80 @@ function Requests({ a, onTab }: { a: APIDetail; onTab: (t: Tab) => void }) {
             {folders.map(([f, rs]) => (
               <div key={f} className="mb-1">
                 {f && <div className="muted px-2 py-1 text-[11.5px] font-semibold uppercase tracking-wide">{f}</div>}
-                {rs.map((r) => (
-                  <button
-                    key={r.id}
-                    type="button"
-                    className="tree-row"
-                    aria-current={sel === r.id || (!sel && r === a.requests[0]) ? "true" : undefined}
-                    onClick={() => setSel(r.id)}
-                  >
-                    <MethodChip method={r.method} />
-                    <span className="min-w-0 flex-1 truncate">{r.name}</span>
-                    {(r.responses?.length ?? 0) > 0 && (
-                      <span className="faint text-[11px]" title={`${r.responses!.length} saved responses`}>
-                        {r.responses!.map((x) => x.status).join(" ")}
-                      </span>
-                    )}
-                    {r.accessFlag && <span className="dot warn" title="Check access" />}
-                  </button>
-                ))}
+                {rs.map((r) => {
+                  const n = r.responses?.length ?? 0;
+                  const open = n > 0 && (expanded.has(r.id) || sel === r.id);
+                  return (
+                    <div key={r.id}>
+                      <div className="tree-line">
+                        {n > 0 ? (
+                          <button
+                            type="button"
+                            className="tree-twisty"
+                            aria-expanded={open}
+                            aria-label={`${open ? "Hide" : "Show"} saved responses of ${r.name}`}
+                            onClick={() => toggle(r.id, open)}
+                          >
+                            <ChevronRight size={12} />
+                          </button>
+                        ) : (
+                          <span className="tree-twisty" />
+                        )}
+                        <button
+                          type="button"
+                          className="tree-row"
+                          aria-current={sel === r.id || (!sel && r === a.requests[0]) ? "true" : undefined}
+                          onClick={() => {
+                            setSel(r.id);
+                            setResp("");
+                          }}
+                        >
+                          <MethodChip method={r.method} />
+                          <span className="min-w-0 flex-1 truncate">{r.name}</span>
+                          {n > 0 && (
+                            <span
+                              className="faint text-[11px]"
+                              title={`${n} saved ${n === 1 ? "response" : "responses"}`}
+                            >
+                              {n}
+                            </span>
+                          )}
+                          {r.accessFlag && <span className="dot warn" title="Check access" />}
+                          {drafts.has(flightKey(a.id, r.id)) && (
+                            <span className="dot on" title="Unsaved changes" role="img" aria-label="Unsaved changes" />
+                          )}
+                        </button>
+                      </div>
+                      {open &&
+                        r.responses!.map((x) => (
+                          <div key={x.id} className="tree-line tree-child">
+                            <button
+                              type="button"
+                              className="tree-row"
+                              aria-current={sel === r.id && resp === x.id ? "true" : undefined}
+                              title={`Saved response: ${x.name}`}
+                              onClick={() => {
+                                setSel(r.id);
+                                setResp(x.id);
+                              }}
+                            >
+                              <span className={`dot ${x.status < 300 ? "on" : x.status < 500 ? "warn" : "bad"}`} />
+                              <span className="mono text-[11.5px]">{x.status}</span>
+                              <span className="min-w-0 flex-1 truncate">{x.name}</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-btn tree-del"
+                              aria-label={`Delete saved response ${x.name}`}
+                              onClick={() => removeResp.mutate({ req: r.id, id: x.id })}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        ))}
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </>
@@ -378,7 +458,15 @@ function Requests({ a, onTab }: { a: APIDetail; onTab: (t: Tab) => void }) {
         )}
       </Panel>
       {draft ? (
-        <Editor key={draft.id || "new"} api={a} initial={draft} onSaved={(id) => setSel(id)} onTab={onTab} />
+        <Editor
+          key={draft.id || "new"}
+          api={a}
+          initial={draft}
+          onSaved={(id) => setSel(id)}
+          onTab={onTab}
+          openResponse={resp}
+          onOpenResponse={setResp}
+        />
       ) : (
         <Panel>
           <EmptyState
@@ -409,23 +497,39 @@ function Editor({
   initial,
   onSaved,
   onTab,
+  openResponse = "",
+  onOpenResponse,
 }: {
   api: APIDetail;
   initial: Request;
   onSaved: (id: string) => void;
   onTab?: (t: Tab) => void;
+  /** A saved response picked in the sidebar. */
+  openResponse?: string;
+  onOpenResponse?: (id: string) => void;
 }) {
-  const [r, setR] = useState<Request>(initial);
-  const [sub, setSub] = useState<"params" | "headers" | "body" | "docs">(initial.body ? "body" : "params");
-  const [res, setRes] = useState<SendResult | null>(null);
+  const key = flightKey(api.id, initial.id);
+  // Unsaved edits survive opening another request or page.
+  const [r, setR] = useState<Request>(() => getDraft(key) ?? initial);
+  const [sub, setSub] = useState<"params" | "headers" | "body" | "docs" | "settings">(initial.body ? "body" : "params");
+  const flight = useFlight(key);
+  // The last response stays with the request while you look elsewhere (NET-3).
+  const [res, setRes] = useState<SendResult | null>(flight?.result ?? null);
   const [view, setView] = useState<"pretty" | "raw" | "headers">("pretty");
-  const [sending, setSending] = useState(false);
+  const sending = !!flight && !flight.finishedAt;
+  useEffect(() => {
+    if (flight?.finishedAt && flight.result) {
+      setRes(flight.result);
+      markSeen(key);
+    }
+  }, [flight?.finishedAt, flight?.result, key]);
   const copy = useCopy();
   const toast = useToast();
   const confirm = useConfirm();
   const tks = useToolkits();
   const strip = ({ example: _e, responses: _r, ...x }: Request) => JSON.stringify(x);
   const dirty = strip(r) !== strip(initial);
+  useEffect(() => setDraft(key, dirty ? r : undefined), [key, dirty, r]);
   const save = useAction(
     () => {
       // A request added manually gets a name from its method and path, like getAccount.
@@ -434,6 +538,7 @@ function Editor({
     },
     {
       onSuccess: (x) => {
+        setDraft(key, undefined);
         toast(`Saved ${api.name}.${x.name}`);
         onSaved(x.id);
       },
@@ -448,18 +553,16 @@ function Editor({
   const setAccess = useAction((acc: string) => post<Request>(`/api/requests/${r.id}/access`, { access: acc }), {
     onSuccess: (x) => setR((cur) => ({ ...cur, access: x.access, accessFlag: false, accessReason: x.accessReason })),
   });
-  const send = async () => {
-    setSending(true);
-    try {
-      setRes(await post<SendResult>("/api/send", { apiId: api.id, draft: r }));
-    } catch (e) {
-      setRes({ body: "", tokens: 0, error: (e as Error).message });
-    } finally {
-      setSending(false);
-    }
+  const send = () => {
+    if (sending) return;
+    sendRequest(
+      { apiId: api.id, reqId: initial.id, label: `${api.name}.${r.name}`, method: r.method },
+      { apiId: api.id, draft: r },
+    );
   };
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && sending) cancel(key);
       if (!(e.ctrlKey || e.metaKey)) return;
       if (e.key === "Enter") {
         e.preventDefault();
@@ -499,16 +602,15 @@ function Editor({
             value={r.url}
             onChange={(e) => setR({ ...r, url: e.target.value })}
           />
-          <Button
-            kind="blue"
-            icon={<Send size={13} />}
-            loading={sending}
-            onClick={send}
-            title={`${mod()}+Enter`}
-            data-tour="send"
-          >
-            Send
-          </Button>
+          {sending ? (
+            <Button kind="bad" icon={<X size={13} />} onClick={() => cancel(key)} title="Cancel (Esc)">
+              Cancel · <Elapsed since={flight!.startedAt} />
+            </Button>
+          ) : (
+            <Button kind="blue" icon={<Send size={13} />} onClick={send} title={`${mod()}+Enter`} data-tour="send">
+              Send
+            </Button>
+          )}
           <Button
             icon={<Save size={13} />}
             disabled={!dirty && !!r.id}
@@ -517,6 +619,11 @@ function Editor({
           >
             Save
           </Button>
+          {dirty && r.id && (
+            <Button kind="ghost" onClick={() => setR(initial)} title="Drop unsaved changes">
+              Revert
+            </Button>
+          )}
         </div>
         {unresolved.length > 0 && (
           <div className="banner bad mx-3 mb-2">
@@ -550,12 +657,16 @@ function Editor({
               { id: "headers", label: "Headers", n: r.headers.length },
               { id: "body", label: "Body" },
               { id: "docs", label: "Name and docs" },
+              { id: "settings", label: "Settings" },
             ]}
           />
         </div>
         <div className="px-3 pb-3">
           {sub === "params" && (
-            <KVEditor rows={r.query} onChange={(q) => setR({ ...r, query: q })} keyLabel="Query param" />
+            <>
+              <KVEditor rows={r.query} onChange={(q) => setR({ ...r, query: q })} keyLabel="Query param" />
+              <PathVariables r={r} onChange={(pathParams) => setR({ ...r, pathParams })} />
+            </>
           )}
           {sub === "headers" && (
             <>
@@ -582,6 +693,27 @@ function Editor({
                   onChange={(e) => setR({ ...r, body: e.target.value })}
                 />
               )}
+            </div>
+          )}
+          {sub === "settings" && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field
+                label="Timeout"
+                hint="Seconds to wait for a response. Empty uses the default in Settings → Requests and proxy."
+              >
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  step="any"
+                  aria-label="Timeout in seconds"
+                  placeholder="Default"
+                  value={r.timeoutSeconds ?? ""}
+                  onChange={(e) =>
+                    setR({ ...r, timeoutSeconds: e.target.value === "" ? undefined : Number(e.target.value) })
+                  }
+                />
+              </Field>
             </div>
           )}
           {sub === "docs" && (
@@ -642,7 +774,7 @@ function Editor({
               <span className="flex items-center gap-3">
                 <Chip tone={res.status! < 400 ? "ok" : "bad"}>{res.statusText}</Chip>
                 <span className="muted text-[12.5px] font-normal">
-                  {res.durationMs} ms · {bytes(res.size)} · {num(res.tokens)} tokens
+                  {seconds(res.durationMs ?? 0)} · {bytes(res.size)} · {num(res.tokens)} tokens
                 </span>
               </span>
             )
@@ -710,7 +842,12 @@ function Editor({
         )}
         {res && !res.error && isJSON && <OutputCheck body={res.body} />}
         {(r.responses?.length ?? 0) > 0 && (
-          <SavedResponses req={r} onChange={(x) => setR((cur) => ({ ...cur, responses: x.responses }))} />
+          <SavedResponses
+            req={r}
+            open={openResponse}
+            setOpen={(id) => onOpenResponse?.(id)}
+            onChange={(x) => setR((cur) => ({ ...cur, responses: x.responses }))}
+          />
         )}
         <div className="flex flex-wrap justify-end gap-2 p-3" style={{ borderTop: "1px solid var(--line)" }}>
           <Button
@@ -858,15 +995,70 @@ function SaveResponseCard({
   );
 }
 
+/** pathNames are the {id} and :id parts of a URL, in order. */
+export function pathNames(url: string): string[] {
+  const out: string[] = [];
+  for (const m of url.replace(/\{\{[^}]*\}\}/g, "").matchAll(/\{([A-Za-z0-9_]+)\}|\/:([A-Za-z_][A-Za-z0-9_]*)/g)) {
+    const n = m[1] ?? m[2];
+    if (!out.includes(n)) out.push(n);
+  }
+  return out;
+}
+
+/** PathVariables sets values for the URL's path parts when you send it,
+ *  like Postman's Path Variables. Tools and agents pass their own. */
+function PathVariables({ r, onChange }: { r: Request; onChange: (kv: Request["query"]) => void }) {
+  const names = pathNames(r.url);
+  if (names.length === 0) return null;
+  const value = (n: string) => r.pathParams?.find((x) => x.key === n)?.value ?? "";
+  const set = (n: string, v: string) =>
+    onChange(names.map((k) => ({ key: k, value: k === n ? v : value(k) })).filter((x) => x.value !== ""));
+  return (
+    <div className="mt-3">
+      <div className="mb-1.5 flex items-baseline gap-2">
+        <span className="text-[12.5px] font-semibold">Path variables</span>
+        <span className="muted text-[12px]">Used when you send it here. Tools and agents pass their own.</span>
+      </div>
+      <div className="kv-grid">
+        {names.map((n) => (
+          <div key={n} className="flex items-center gap-2">
+            <code className="mono kv-key">{n}</code>
+            <input
+              className="input mono"
+              aria-label={`Path variable ${n}`}
+              placeholder="Value"
+              value={value(n)}
+              onChange={(e) => set(n, e.target.value)}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** SavedResponses lists the kept responses of a request; click to view. */
-function SavedResponses({ req, onChange }: { req: Request; onChange: (r: Request) => void }) {
-  const [open, setOpen] = useState<string>("");
+function SavedResponses({
+  req,
+  onChange,
+  open,
+  setOpen,
+}: {
+  req: Request;
+  onChange: (r: Request) => void;
+  open: string;
+  setOpen: (id: string) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open) ref.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  }, [open]);
   const remove = useAction((rid: string) => del<Request>(`/api/requests/${req.id}/responses/${rid}`), {
     onSuccess: (x) => onChange(x),
   });
   const shown = req.responses?.find((x) => x.id === open);
   return (
-    <div style={{ borderTop: "1px solid var(--line)" }}>
+    <div ref={ref} style={{ borderTop: "1px solid var(--line)" }}>
       <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
         <span className="muted text-[12.5px] font-medium">Saved responses</span>
         {req.responses!.map((x) => (
@@ -1010,28 +1202,47 @@ function VarRow({ apiId, v, envId }: { apiId: string; v?: Variable; envId: strin
       <td>
         {source === "secret" && !editing ? (
           <span className="flex items-center gap-2">
-            <span className="mono muted">••••••••••</span>
-            <Chip tone="ok">set</Chip>
-            <Button size="sm" onClick={() => setEditing(true)}>
+            <span
+              className="secret-set"
+              title="Encrypted in mcpDeck's database with a key kept in the OS keychain or a key file (Settings → Security). It is never shown again."
+            >
+              <Lock size={12} /> Set · Encrypted
+            </span>
+            <Button size="sm" onClick={() => setEditing(true)} aria-label={`Replace ${name}`}>
               Replace
             </Button>
           </span>
         ) : (
-          <input
-            className="input mono"
-            aria-label="Value"
-            type={source === "secret" ? "password" : "text"}
-            autoComplete="off"
-            placeholder={
-              source === "os_env"
-                ? "ACME_CRM_URL"
-                : source === "secret"
-                  ? "new value, write-only"
-                  : "https://api.acme.example"
-            }
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-          />
+          <span className="flex items-center gap-2">
+            <input
+              className="input mono"
+              aria-label="Value"
+              type={source === "secret" ? "password" : "text"}
+              autoComplete="off"
+              placeholder={
+                source === "os_env"
+                  ? "ACME_CRM_URL"
+                  : source === "secret"
+                    ? "new value, write-only"
+                    : "https://api.acme.example"
+              }
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+            />
+            {source === "secret" && v?.isSet && (
+              <Button
+                size="sm"
+                kind="ghost"
+                onClick={() => {
+                  setValue("");
+                  setEditing(false);
+                }}
+              >
+                Keep current
+              </Button>
+            )}
+            {source === "secret" && v?.source === "secret" && !v.isSet && <Chip tone="warn">Not set</Chip>}
+          </span>
         )}
       </td>
       <td style={{ width: 120 }} className="num">
@@ -1387,8 +1598,11 @@ function ImportEnvDialog({ a, onClose, onDone }: { a: APIDetail; onClose: () => 
 export function AuthTab({ a }: { a: APIDetail }) {
   const [auth, setAuth] = useState<Auth>(a.auth ?? { type: "none" });
   const toast = useToast();
-  const save = useAction(() => patch(`/api/apis/${a.id}`, { auth }), {
-    onSuccess: () => toast("Authentication saved"),
+  const save = useAction(() => patch<APIDetail>(`/api/apis/${a.id}`, { auth: cleanAuth(auth) }), {
+    onSuccess: (saved) => {
+      if (saved?.auth) setAuth(saved.auth);
+      toast("Authentication saved");
+    },
   });
   const secrets = a.variables.filter((v) => v.source === "secret");
   const set = (p: Partial<Auth>) => setAuth({ ...auth, ...p });
@@ -1490,9 +1704,7 @@ export function AuthTab({ a }: { a: APIDetail }) {
         {auth.type === "login" && <LoginFields a={a} auth={auth} set={set} />}
         {auth.type === "oauth2" && <OAuthFields auth={auth} set={set} />}
         {auth.type === "hmac" && <HMACFields auth={auth} set={set} />}
-        {(auth.type === "oauth2" ||
-          auth.type === "hmac" ||
-          (auth.type === "login" && (auth.steps?.length ?? 0) > 0)) && (
+        {(auth.type === "oauth2" || auth.type === "hmac" || (auth.type === "login" && !auth.loginRequestId)) && (
           <Field
             label="Headers on every call"
             hint={
@@ -1530,51 +1742,88 @@ export function AuthTab({ a }: { a: APIDetail }) {
 
 type SetAuth = (p: Partial<Auth>) => void;
 
+const authKeys: Record<string, (keyof Auth)[]> = {
+  bearer: ["token"],
+  apikey: ["key", "value", "in"],
+  basic: ["username", "password"],
+  login: ["loginRequestId", "capture", "steps", "refreshRequestId", "expiresFrom", "apply"],
+  oauth2: [
+    "grant",
+    "tokenUrl",
+    "clientId",
+    "clientSecret",
+    "clientAuth",
+    "scope",
+    "audience",
+    "username",
+    "password",
+    "apply",
+  ],
+  hmac: ["algorithm", "secret", "stringToSign", "encoding", "apply"],
+};
+
+/** cleanAuth keeps only the fields the auth type uses (a token left from
+ * an earlier type would ask for a credential nothing uses) and drops
+ * capture rows left blank. */
+export function cleanAuth(au: Auth): Auth {
+  const keys = authKeys[au.type];
+  const out: Auth = keys ? { type: au.type } : { ...au };
+  if (keys) for (const k of keys) if (au[k] !== undefined) (out as Record<string, unknown>)[k] = au[k];
+  if (out.steps)
+    out.steps = out.steps.map((st) => ({
+      ...st,
+      captures: (st.captures ?? []).filter((c) => c.name.trim() || !/^((json|header|cookie):?)?$/.test(c.from.trim())),
+    }));
+  return out;
+}
+
 function RequestSelect({
   a,
   label,
   value,
   onChange,
   placeholder = "Choose a request",
+  suggest,
 }: {
   a: APIDetail;
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  /** Put requests that look like a sign-in first. */
+  suggest?: boolean;
 }) {
+  const rs = suggest ? byLogin(a.requests) : a.requests;
   return (
     <Select
       label={label}
       placeholder={placeholder}
       value={value}
       onChange={onChange}
-      options={a.requests.map((r) => ({
+      options={rs.map((r) => ({
         value: r.id,
         label: (
           <span className="flex items-center gap-2">
             <MethodChip method={r.method} /> {r.name}
           </span>
         ),
+        hint: suggest && loginScore(r) >= 3 ? "Looks like a sign-in request" : undefined,
       }))}
     />
   );
 }
 
-// Captures are written one per line as name = from, e.g. csrf = cookie:csrftoken.
-function capturesText(c: LoginStep["captures"]) {
-  return (c ?? []).map((x) => `${x.name} = ${x.from}`).join("\n");
-}
-function parseCaptures(text: string) {
-  return text
-    .split("\n")
-    .map((l) => l.split("="))
-    .filter((p) => p.length >= 2 && p[0].trim())
-    .map((p) => ({ name: p[0].trim(), from: p.slice(1).join("=").trim() }));
-}
-
 function LoginFields({ a, auth, set }: { a: APIDetail; auth: Auth; set: SetAuth }) {
-  const steps = auth.steps ?? [];
+  // A new login starts with one step; the single-request shorthand stays
+  // for logins saved that way.
+  const steps = auth.steps?.length ? auth.steps : auth.loginRequestId ? [] : [{ requestId: "", captures: [] }];
+  const bearer = (name: string) =>
+    set({
+      apply: [
+        ...(auth.apply ?? []).filter((h) => h.key.toLowerCase() !== "authorization"),
+        { key: "Authorization", value: `Bearer {{login.${name}}}` },
+      ],
+    });
   if (steps.length === 0) {
     return (
       <>
@@ -1583,6 +1832,7 @@ function LoginFields({ a, auth, set }: { a: APIDetail; auth: Auth; set: SetAuth 
             <RequestSelect
               a={a}
               label="Login request"
+              suggest
               value={auth.loginRequestId ?? ""}
               onChange={(v) => set({ loginRequestId: v })}
             />
@@ -1620,25 +1870,24 @@ function LoginFields({ a, auth, set }: { a: APIDetail; auth: Auth; set: SetAuth 
   return (
     <>
       {steps.map((st, i) => (
-        <div key={i} className="grid grid-cols-2 gap-2">
+        <div key={i} className="login-step">
           <Field label={`Step ${i + 1}`} hint={i === 0 ? "Runs first" : "Can use {{login.<name>}} from earlier steps"}>
             <RequestSelect
               a={a}
               label={`Step ${i + 1} request`}
+              suggest={i === 0}
               value={st.requestId}
               onChange={(v) => setStep(i, { ...st, requestId: v })}
             />
           </Field>
-          <Field label="Keep from the response" hint="One per line: name = json:path, header:Name or cookie:name">
-            <textarea
-              className="textarea mono"
-              rows={2}
-              aria-label={`Step ${i + 1} captures`}
-              placeholder="access_token = json:access_token"
-              value={capturesText(st.captures)}
-              onChange={(e) => setStep(i, { ...st, captures: parseCaptures(e.target.value) })}
-            />
-          </Field>
+          <CaptureRows
+            apiId={a.id}
+            step={st}
+            index={i}
+            request={a.requests.find((r) => r.id === st.requestId)}
+            onChange={(captures) => setStep(i, { ...st, captures })}
+            onBearer={bearer}
+          />
         </div>
       ))}
       <div className="flex gap-2">

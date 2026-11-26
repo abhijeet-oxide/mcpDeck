@@ -68,6 +68,8 @@ export type Request = {
   example?: unknown;
   responseSchema?: unknown;
   responses?: SavedResponse[] | null;
+  timeoutSeconds?: number;
+  pathParams?: { key: string; value: string; disabled?: boolean }[];
 };
 export type Environment = { id: string; apiId: string; name: string };
 export type Variable = {
@@ -441,6 +443,8 @@ export type SettingsView = {
   dataDir: string;
   keychain: string;
   keyFile?: string;
+  keyItem?: string;
+  database: string;
   demo: boolean;
   version: string;
 };

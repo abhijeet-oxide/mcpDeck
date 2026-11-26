@@ -10,12 +10,13 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
+export async function api<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(path, {
     method,
     headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
     credentials: "same-origin",
+    signal,
   });
   if (res.status === 204) return undefined as T;
   const text = await res.text();
@@ -33,7 +34,7 @@ export async function api<T>(method: string, path: string, body?: unknown): Prom
 }
 
 export const get = <T>(path: string) => api<T>("GET", path);
-export const post = <T>(path: string, body?: unknown) => api<T>("POST", path, body ?? {});
+export const post = <T>(path: string, body?: unknown, signal?: AbortSignal) => api<T>("POST", path, body ?? {}, signal);
 export const put = <T>(path: string, body?: unknown) => api<T>("PUT", path, body ?? {});
 export const patch = <T>(path: string, body?: unknown) => api<T>("PATCH", path, body ?? {});
 export const del = <T>(path: string) => api<T>("DELETE", path);

@@ -62,9 +62,9 @@ function CursorMark({ size }: { size: number }) {
 }
 
 export const clientLabels: Record<string, string> = {
-  "claude-code": "Claude Code",
-  "claude-desktop": "Claude Desktop",
   vscode: "VS Code",
+  "claude-code": "Claude Code",
   cursor: "Cursor",
+  "claude-desktop": "Claude Desktop",
   other: "Other client",
 };

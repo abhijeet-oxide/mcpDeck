@@ -67,7 +67,7 @@ export function About() {
             <p className="text-2 m-0 max-w-[620px] text-[14.5px] leading-relaxed">
               mcpDeck turns the APIs you already have, including old ones, into small, fast MCP tools. Import them the
               way you would in Postman, chain requests into tools that return only what an agent needs, and give each
-              toolkit to Claude Code, VS Code or Cursor as one MCP endpoint.
+              toolkit to VS Code, Claude Code or Cursor as one MCP endpoint.
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
               {info.data?.demo ? (

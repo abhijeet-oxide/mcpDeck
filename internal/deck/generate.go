@@ -148,8 +148,19 @@ func (d *Deck) GenerateTool(ctx context.Context, in GenerateInput) (*Generated, 
 		qs[i] = fmt.Sprintf("%q", s)
 	}
 	fmt.Fprintf(&b, "    required: [%s],\n  },\n};\n\n", strings.Join(qs, ", "))
+	// One step in the flow builder's shape, so Visual shows it as a step.
+	v := resultName(reqName)
+	args := make([]string, len(props))
+	for i, p := range props {
+		args[i] = fmt.Sprintf("%s: input.%s", p.name, p.name)
+	}
 	b.WriteString("export default async function (input: Input) {\n")
-	fmt.Fprintf(&b, "  return await %s.%s({ ...input });\n}\n", apiName, reqName)
+	if len(args) == 0 {
+		fmt.Fprintf(&b, "  const %s = await %s.%s();\n", v, apiName, reqName)
+	} else {
+		fmt.Fprintf(&b, "  const %s = await %s.%s({ %s });\n", v, apiName, reqName, strings.Join(args, ", "))
+	}
+	fmt.Fprintf(&b, "  return %s;\n}\n", v)
 	g := &Generated{Source: b.String(), Access: r.EffectiveAccess(), Name: name, Tests: []store.ToolTest{}}
 	if len(required) == 0 && g.Access == "read" {
 		g.Tests = append(g.Tests, store.ToolTest{Name: "returns data", Input: json.RawMessage(`{}`),
@@ -162,6 +173,25 @@ var toolNameRe = regexp.MustCompile(`^[a-z][a-z0-9_]{2,63}$`)
 var identRe = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*$`)
 
 func validIdent(s string) bool { return identRe.MatchString(s) }
+
+var verbRe = regexp.MustCompile(`^(get|list|search|fetch|find|create|post|do)([A-Z])`)
+
+// resultName names a request's result the way the flow builder does:
+// listInvoices → invoices, getCustomerSummary → customerSummary.
+func resultName(req string) string {
+	n := req
+	if m := verbRe.FindStringSubmatch(req); m != nil {
+		n = strings.ToLower(m[2]) + req[len(m[0]):]
+	}
+	switch n {
+	case "input", "tool", "pick", "call", "vars", "await", "return", "const", "result", "":
+		return "result"
+	}
+	if !validIdent(n) {
+		return "result"
+	}
+	return n
+}
 
 func firstSentence(s string) string {
 	s = strings.TrimSpace(strings.SplitN(s, "\n", 2)[0])

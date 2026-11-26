@@ -194,7 +194,7 @@ internal/
   usage/           aggregates for usage views
   insight/         suggestion rules over recorded calls
   lint/            MCP guideline rules over toolkits, tools and outputs (GUIDE-1…4)
-  connect/         client config writers (Claude Code, VS Code, Cursor, Claude Desktop)
+  connect/         client config writers (VS Code, Claude Code, Cursor, Claude Desktop)
   audit/           append-only hash-chained log
   mock/            mock servers from specs + examples; demo
   store/           SQLite, migrations/, queries/ (sqlc)

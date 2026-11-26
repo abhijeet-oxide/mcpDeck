@@ -107,6 +107,29 @@ default timeouts, retention, keychain status, and a "Reveal data folder"
 button. Every setting is stored in SQLite and takes effect without a restart,
 except the port.
 
+**NET-1 Proxy.** Settings → Requests and proxy chooses how requests reach
+APIs: the system proxy (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`), no proxy,
+or a manual HTTP and HTTPS proxy with a bypass list (hosts, domains, CIDR
+ranges) and an optional sign-in. The proxy password is a secret: stored
+encrypted and never returned. Requests to localhost and loopback addresses
+never use a proxy. It applies to Send, tools and agents. Certificate checks
+stay per application (API-9).
+
+**NET-2 Timeouts.** A request waits 30 seconds by default. Settings sets the
+default and a maximum (300 seconds unless changed); a request can set its
+own on its Settings tab, capped by the maximum. A timeout error says which
+request, how long it waited and where to raise it. Send shows the time
+elapsed while waiting and the duration when done.
+
+**NET-3 Sends survive navigation.** A send keeps going when you open another
+request or page. A tray at the bottom lists running sends with their elapsed
+time and ones that finished while you were away; clicking one opens its
+request with the response, and Cancel (or Esc in the editor) stops it,
+which also stops the upstream call. Unsaved edits to a request also stay
+until saved or reverted, marked with a dot in the request list. The Params
+tab sets values for the URL's path variables (`{id}`, `:id`) used when you
+send it.
+
 ## APIs (M2)
 
 APIs behave like Postman or Bruno collections. Someone who has used
@@ -151,7 +174,10 @@ inside the proxy (CRED-7).
 **AUTH-1 Auth types.** Auth is set on the API and applies to all of its
 requests. Types: none, API key (header or query), bearer, basic, OAuth 2.0
 (AUTH-3), HMAC signing (AUTH-4) and login requests (AUTH-2). Digest auth and
-per-folder or per-request auth are not built.
+per-folder or per-request auth are not built. Only the fields of the chosen
+type are saved, so switching type never asks for a credential the new type
+doesn't use, and empty secret variables the old type created are removed
+when nothing refers to them.
 
 **AUTH-2 Login chains.** Login is one or more saved requests run in order.
 Each step can capture values from the JSON body, a header or a cookie
@@ -161,6 +187,10 @@ result is reused across calls, renewed when it expires (from `expires_in` or
 a set lifetime), renewed with
 a refresh request when one is set, and re-run on a 401 or a redirect to a
 login page. Agents can't call login requests and never see captured values.
+In the Auth tab, requests that look like a sign-in are listed first, and each
+capture is picked as From (body, header, cookie or a custom expression) and a
+Field listed from the request's last response with sample values; "Use as
+bearer" adds `Authorization: Bearer {{login.<name>}}`.
 *Accept:* scenarios for token login, refresh, expiry, CSRF form login and a
 login redirect.
 
@@ -252,8 +282,9 @@ before storage, and the user can mask more by clicking a field.
 
 **EX-3 Saved responses.** After a send, the response pane offers to save the
 response under its status (200 "Success", 401 "Not allowed", 404 "Not
-found"…), one per status, masked like EX-1. Saved responses are listed on the
-request and can be opened or deleted. A 2xx one also becomes the request's
+found"…), one per status, masked like EX-1. Saved responses are listed under
+their request in the sidebar, like Postman examples, and on the request, and
+can be opened or deleted from either. A 2xx one also becomes the request's
 example, so output fields are known when building tools (EX-2, FLOW-2).
 
 **EX-2 Captured schema.** mcpDeck infers a JSON schema from saved examples,
@@ -420,8 +451,12 @@ version. Pinned grants keep getting it after newer saves.
 (from tests and recent calls) with the previous version and flag breaking
 changes; grants on `latest` move only when non-breaking or confirmed.
 
-**VER-4 Diff and roll back.** Any two versions can be diffed side by side, like
-a code review. "Roll back" creates a new version equal to an older one.
+**VER-4 History, diff and restore.** The Versions tab is a timeline, newest
+first. Selecting a version shows what it changed against the version before
+it (or against the live or latest version) as a highlighted diff with line
+numbers, unchanged runs folded. "Restore this version" asks for
+confirmation, then saves a new version equal to the selected one; nothing is
+deleted. Unsaved edits in Build survive a visit to Versions.
 
 **FILE-1 Tools as files.** `mcpdeck pull <toolkit> <dir>` writes each tool as
 `<name>.ts`, plus `mcpdeck.d.ts` (all client types) and a `tsconfig.json`, so
@@ -444,8 +479,25 @@ params.
 are dragged in from a side panel (or added with a button), an earlier step's
 output fields, known from its saved response (EX-3), are connected to a later
 step's inputs. Both views edit the same TypeScript: a change in one shows in
-the other. Code the visual view can't represent (loops, conditions) stays
-editable as code and the visual view says why it can't show it.
+the other. Code the visual view has no card for (loops, conditions,
+calculations) shows as a custom code step, so every tool opens in Visual.
+
+**FLOW-4 Every shipped tool round-trips.** Every demo, example and generated
+tool parses into the visual builder and generates back to the same tool
+definition and the same code, ignoring formatting.
+
+**FLOW-5 Reorder steps.** Steps can be reordered by dragging them in the
+Steps list (mouse or keyboard) or left and right on the canvas, and with
+Move earlier / Move later in the inspector. The order is the code order. A
+move that would run a step before a step it reads from is refused with a
+message naming both.
+
+**FLOW-6 Canvas controls.** The canvas lays steps out in run order with
+parallel steps in one column, has Arrange (back to that layout), Full screen
+(Esc leaves) and a Legend explaining the dots and lines.
+
+**FLOW-7 Agent inputs.** The tool's inputs (name, type, description,
+required) are edited first in the inspector and from the Input card.
 
 **FLOW-3 Choose output fields.** The flow's Output step lists the last
 step's fields as a tree with sizes; unticked fields are left out with
@@ -866,14 +918,16 @@ and that the named agent's grant allows.
 **UI-11 Guided, never in the way.** The first time mcpDeck opens with no
 data, a welcome page says what it does in three ideas (applications, toolkits,
 agents) and offers the demo tour or "Set up my own"; it's shown once. A
-"Getting started" list then follows the journey: create an application, send
-a request, save a response as an example, create a toolkit, build a tool,
+"Getting started" list then follows the journey: create an application, set
+up its sign-in, send a request, save a response as an example, create a toolkit, build a tool,
 connect an agent. Steps can be done in any order; one that needs another first
 says so. Home shows the list; a small card at the bottom of the sidebar shows
 the next step on every page. Pages also suggest the next step in place (after
 a send: save it as an example; after an example: create a tool). The guide
-can be hidden, and shown again from Settings.
-*Accept:* after the six steps, or after Hide, no onboarding text appears
+can be hidden, and shown again from Settings. Each panel of the tool editor
+says in one line what it is for (Test input, Output, Tests, Guidelines), and
+the editor opens with a dismissible line saying what a tool is.
+*Accept:* after the seven steps, or after Hide, no onboarding text appears
 anywhere.
 
 **UI-12 Demo kept apart.** "Demo" (on Home, the welcome page and About)
@@ -927,14 +981,23 @@ console error and no unhandled request.
 "seamless", "effortless", "powerful", "unlock", "supercharge", "leverage",
 "revolutionize", "AI-powered", "elevate". Checked in CI.
 
-**UI-6 Command palette.** `Ctrl+K` / `⌘K` finds any API, request,
-toolkit, tool, agent or setting, and runs actions ("New request",
-"Add toolkit to Claude Code").
+**UI-15 Gentle glass.** The sidebar, top bar, menus, dialogs, drawers, the
+request tray and toasts are translucent and blurred over a soft backdrop;
+panels are slightly translucent with soft shadows. Text colours don't
+change, so contrast stays at WCAG AA. With prefers-reduced-transparency,
+forced colours, or no backdrop-filter support, every surface is solid.
+
+**UI-6 Command palette.** `Ctrl+K` / `⌘K`, or the search box on the right
+of the top bar, finds any application, request, toolkit, tool, agent or
+setting, and runs actions ("New application", "Connect an agent to
+support", "Switch to dark theme"). A request opens in its application.
 
 **UI-7 Accessible.** Keyboard reachable, visible focus, WCAG AA contrast,
 works at 1024 px and down to tablet width.
 
-**UI-8 Dark mode.** Follows the system setting, with a switch in Settings.
+**UI-8 Light and dark.** On first run the theme follows the computer's
+setting. The sun or moon button in the top bar, or Settings → Appearance,
+switches between light and dark, and the choice is kept in this browser.
 
 **UI-9 Offline.** The UI ships inside the binary and works with no network.
 Fonts are bundled.

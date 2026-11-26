@@ -16,7 +16,7 @@ bottom. Each item is one step of the same pipeline, in order:
 | **Home** | What needs you (reviews, tool requests, suggestions) and today's numbers. Until set up: the Getting started list | See what to do next |
 | **Applications** | One application per system (your CRM, Jira, a SOAP service). Inside it: requests from any number of imports, environments, credentials | Create an application, add requests to it, store its credential |
 | **Toolkits** | Toolkits (one MCP server each) and, under *All tools*, the tool library | Create a toolkit, create or edit a tool, set approval rules |
-| **Agents** | One row per client (Claude Code on this laptop, Cursor...) and what each may do | Connect, change access, revoke |
+| **Agents** | One row per client (VS Code on this laptop, Claude Code, Cursor...) and what each may do | Connect, change access, revoke |
 | **Activity** | Calls, usage and the audit log | See who called what, what it cost, what changed |
 | About | What mcpDeck does and how it works, the demo and its tour, security, and the GitHub repository: star, docs, releases, report a bug | Understand and find the project |
 | Settings | Theme, port, timeouts, call history, setup guide, security, data | Change how mcpDeck runs |
@@ -54,11 +54,11 @@ change as little as possible.
 | Script trust | Bruno safe mode | Imported scripts off until trusted |
 | Credentials | Postman collection auth, GitHub/Vercel secrets | Auth type set once and inherited; secrets write-only (Replace, never Reveal) |
 | Toolkit page | Vercel/Supabase project "Connect" panels | Endpoint and copy button at the top, then tabs |
-| Connect agent | Each client's own install path: `claude mcp add` (Claude Code docs), `vscode:mcp/install` links (VS Code), `cursor://anysphere.cursor-deeplink/mcp/install` links (Cursor), `claude_desktop_config.json` | The client's own command first, a one-click link where the client has one, the config file as the fallback |
+| Connect agent | Each client's own install path, VS Code first: `vscode:mcp/install` links (VS Code), `claude mcp add` (Claude Code docs), `cursor://anysphere.cursor-deeplink/mcp/install` links (Cursor), `claude_desktop_config.json` | The client's own command first, a one-click link where the client has one, the config file as the fallback |
 | Token shown once | GitHub personal access tokens, Vercel tokens | Shown once with a warning, then only a prefix |
 | Tool editor | VS Code + Postman scripts | Code in the middle, request list on the left that inserts calls, test panel on the right, `Ctrl+S` / `Ctrl+Enter`, problems under the editor |
 | Test run timeline | Chrome DevTools Network | One bar per API call on a shared time axis |
-| Versions | GitHub file history and diffs | List on the left, side-by-side diff, "Roll back" makes a new version |
+| Versions | GitHub file history, VS Code Timeline | Timeline on the left; the selected version against the one before it (or live, or latest) as a highlighted diff; "Restore this version" confirms, then makes a new version |
 | Review a version | GitHub pull request with checks | Diff on the left, checks with pass/fail on the right, Approve / Reject |
 | Needs you | Linear Inbox, GitHub notifications | One list of things waiting for a decision, each with its action inline |
 | Calls | Chrome DevTools Network | Table with status, duration, size and a waterfall when one session is selected; detail pane with tabs |

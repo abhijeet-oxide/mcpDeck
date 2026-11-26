@@ -200,3 +200,31 @@ export default async function () {
 		t.Fatalf("got  %s\nwant %s", b, want)
 	}
 }
+
+// REQ: TOOL-10
+func TestRun_UndefinedArgsAreLeftOut(t *testing.T) {
+	src := `export const tool = {
+  name: "get_account",
+  description: "One account by id.",
+  inputSchema: { type: "object", properties: { id: { type: "string" }, limit: { type: "integer" } }, required: ["id"] },
+};
+export default async function (input: Input) {
+  const account = await crm.getAccount({ id: input.id, limit: input.limit, note: null });
+  return account;
+}`
+	f := &fakeSender{}
+	r := Run(context.Background(), src, map[string]any{"id": "001"}, env(f))
+	if r.Error != "" {
+		t.Fatal(r.Error)
+	}
+	got := f.calls[0].Args.Flat
+	if _, ok := got["limit"]; ok {
+		t.Fatalf("an input the agent left out was sent: %v", got)
+	}
+	if v, ok := got["note"]; !ok || v != nil {
+		t.Fatalf("an explicit null was dropped: %v", got)
+	}
+	if got["id"] != "001" {
+		t.Fatalf("id: %v", got)
+	}
+}

@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { autoWire, type Flow, fieldsOf, generateFlow, parseFlow, parseLiteral, type ReqInfo } from "./flow";
+import {
+  autoWire,
+  codeDefines,
+  type Flow,
+  fieldsOf,
+  generateFlow,
+  moveStep,
+  parseFlow,
+  parseLiteral,
+  type ReqInfo,
+} from "./flow";
 
 const flow: Flow = {
   meta: {
@@ -40,7 +50,9 @@ describe("flow engine", () => {
     expect(code).toContain('return pick(images, ["items[].tag", "total"]);');
     const back = parseFlow(code);
     expect(back.ok).toBe(true);
-    expect(back.flow).toEqual(flow);
+    expect(back.flow!.steps).toEqual(flow.steps);
+    expect(back.flow!.inputs).toEqual(flow.inputs);
+    expect(back.flow!.output).toEqual(flow.output);
     expect(generateFlow(back.flow!)).toBe(code);
   });
 
@@ -63,15 +75,18 @@ export default async function (input: Input) {
     expect(r.flow!.output).toEqual({ code: "{ name: account.name, owner: owner.name }" });
   });
 
-  it("says why custom logic can't be shown", () => {
+  it("keeps custom logic as a code step", () => {
     const r = parseFlow(`export const tool = { name: "a_b", description: "x", inputSchema: { type: "object" } };
 export default async function (input: Input) {
   const a = await crm.getAccount({ id: input.id });
   if (!a) throw new Error("none");
   return a;
 }`);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.line).toBe(4);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.flow.steps.map((s) => s.kind ?? "call")).toEqual(["call", "code"]);
+    expect(r.flow.steps[1].code).toBe('if (!a) throw new Error("none");');
+    expect(r.flow.output).toEqual({ step: "a", fields: [] });
   });
 
   it("never evaluates code in tool", () => {
@@ -141,5 +156,74 @@ export default async function (input: Input) {
       "bearer",
     );
     expect(w.args).toEqual([{ name: "id", source: { kind: "step", step: "account", path: "ownerId" } }]);
+  });
+
+  it("reads calls whose result isn't kept, multi-line statements and comments", () => {
+    const src = `export const tool = { name: "close_it", description: "Closes one ticket and says so.", inputSchema: { type: "object", properties: { key: { type: "string" } }, required: ["key"] } };
+
+export default async function (input: Input) {
+  // Close it first.
+  await support.closeIssue({ key: input.key });
+  const open = (await support.searchIssues({ jql: "status != Done" })).issues
+    .filter((i) => i.key !== input.key)
+    .map((i) => i.key);
+  return { closed: input.key, stillOpen: open.length };
+}
+`;
+    const r = parseFlow(src);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const [close, open] = r.flow.steps;
+    expect(close).toMatchObject({ api: "support", req: "closeIssue", discard: true, comment: "Close it first." });
+    expect(open.kind).toBe("code");
+    expect(open.code).toContain(".filter((i) => i.key !== input.key)");
+    expect(open.code?.split("\n")).toHaveLength(3);
+    const out = generateFlow(r.flow);
+    expect(out).toContain("  // Close it first.\n  await support.closeIssue({ key: input.key });");
+    expect(out).toContain("    .map((i) => i.key);");
+  });
+
+  it("writes parallel steps as one Promise.all", () => {
+    const f: Flow = {
+      ...flow,
+      steps: [
+        { id: "a", api: "crm", req: "getAccount", args: [], group: 1 },
+        { id: "b", api: "crm", req: "getOwner", args: [], group: 1 },
+      ],
+      output: { step: "b", fields: [] },
+    };
+    expect(generateFlow(f)).toContain(
+      "  const [a, b] = await Promise.all([\n    crm.getAccount(),\n    crm.getOwner(),\n  ]);",
+    );
+  });
+
+  it("moves steps only after what they read, and says why not", () => {
+    const moved = moveStep(flow, 2, 0);
+    expect("error" in moved && moved.error).toBe("images reads apps, so it has to run after it.");
+    const ok = moveStep(
+      { ...flow, steps: [flow.steps[0], flow.steps[2], { id: "x", api: "a", req: "b", args: [] }] },
+      2,
+      0,
+    );
+    expect("flow" in ok && ok.flow.steps.map((s) => s.id)).toEqual(["x", "login", "images"]);
+    // A step pulled out of a Promise.all group runs on its own.
+    const g: Flow = {
+      ...flow,
+      steps: [
+        { id: "a", api: "crm", req: "getAccount", args: [], group: 1 },
+        { id: "b", api: "crm", req: "getOwner", args: [], group: 1 },
+        { id: "c", api: "crm", req: "listContacts", args: [] },
+      ],
+    };
+    const r = moveStep(g, 0, 2);
+    expect("flow" in r && r.flow.steps.map((s) => [s.id, s.group ?? null])).toEqual([
+      ["b", null],
+      ["c", null],
+      ["a", null],
+    ]);
+  });
+
+  it("finds the names a code step declares", () => {
+    expect(codeDefines("const a = 1;\nconst [b, c] = x;\nconst { d, e: f } = y;")).toEqual(["a", "b", "c", "d", "f"]);
   });
 });

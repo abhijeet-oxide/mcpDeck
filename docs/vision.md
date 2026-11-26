@@ -102,7 +102,7 @@ words in the UI, docs, CLI, errors and code.
 API → Requests → Environments + Variables → Credentials → Examples
 Tool library → Tools (TypeScript, calling one or more APIs)
 Toolkit → some of those tools → one MCP endpoint
-Agent (Claude Code, VS Code, Cursor…) → grants to toolkits (read or read+write, may build or not)
+Agent (VS Code, Claude Code, Cursor…) → grants to toolkits (read or read+write, may build or not)
 Agent → every call, with time, bytes and tokens → suggestions
 ```
 

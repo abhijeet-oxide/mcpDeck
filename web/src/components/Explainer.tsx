@@ -21,7 +21,7 @@ const parts = [
     tone: "warn",
     title: "Agents",
     what: "The AI clients you connect",
-    body: "Add a toolkit to Claude Code, VS Code or Cursor in one step. Each agent may read only, or read and write.",
+    body: "Add a toolkit to VS Code, Claude Code or Cursor in one step. Each agent may read only, or read and write.",
   },
 ];
 
@@ -44,8 +44,8 @@ export function HowItWorks() {
             <p className="text-2 m-0 text-[13px] leading-relaxed">{p.body}</p>
             {p.title === "Agents" && (
               <div className="mt-auto flex items-center gap-2 pt-1">
-                <ClientIcon client="claude-code" size={16} />
                 <ClientIcon client="vscode" size={16} />
+                <ClientIcon client="claude-code" size={16} />
                 <ClientIcon client="cursor" size={16} />
               </div>
             )}

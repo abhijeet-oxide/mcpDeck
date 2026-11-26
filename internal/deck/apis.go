@@ -3,6 +3,7 @@ package deck
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"fmt"
 	"regexp"
 	"sort"
@@ -151,7 +152,7 @@ func (d *Deck) CreateAPI(ctx context.Context, in CreateAPIInput) (*store.API, er
 		return nil, conflict("an API named %s already exists; import into it instead", in.Name)
 	}
 	now := d.Clock.Now()
-	a := store.API{ID: d.IDs.New(), Name: in.Name, Title: in.Title, Source: "manual", Auth: in.Auth, TLS: in.TLS, CreatedAt: now}
+	a := store.API{ID: d.IDs.New(), Name: in.Name, Title: in.Title, Source: "manual", Auth: tidyAuth(in.Auth), TLS: in.TLS, CreatedAt: now}
 	if a.Title == "" {
 		a.Title = in.Name
 	}
@@ -180,9 +181,55 @@ func (d *Deck) CreateAPI(ctx context.Context, in CreateAPIInput) (*store.API, er
 
 var tmplVar = regexp.MustCompile(`\{\{\s*([A-Za-z0-9_.\-]+)\s*\}\}`)
 
+// authSecrets lists the fields of an auth that hold a credential, for its
+// type only: a token left over from an earlier type isn't used, so it
+// must not create or ask for a secret.
+func authSecrets(a store.Auth) []string {
+	switch a.Type {
+	case "bearer":
+		return []string{a.Token}
+	case "apikey":
+		return []string{a.Value}
+	case "basic":
+		return []string{a.Password}
+	case "oauth2":
+		return []string{a.ClientSecret, a.Password}
+	case "hmac":
+		return []string{a.Secret}
+	}
+	return nil
+}
+
+// tidyAuth drops the fields another auth type left behind, so what is
+// saved is what is used.
+func tidyAuth(a store.Auth) store.Auth {
+	t := store.Auth{Type: a.Type}
+	switch a.Type {
+	case "bearer":
+		t.Token = a.Token
+	case "apikey":
+		t.Key, t.Value, t.In = a.Key, a.Value, a.In
+	case "basic":
+		t.Username, t.Password = a.Username, a.Password
+	case "login":
+		t.LoginRequestID, t.Capture, t.Steps, t.RefreshRequestID, t.ExpiresFrom, t.Apply = a.LoginRequestID, a.Capture, a.Steps, a.RefreshRequestID, a.ExpiresFrom, a.Apply
+	case "oauth2":
+		t = a
+		t.Token, t.Key, t.Value, t.In, t.LoginRequestID, t.Capture, t.Steps, t.RefreshRequestID, t.ExpiresFrom, t.Secret, t.StringToSign, t.Algorithm, t.Encoding = "", "", "", "", "", "", nil, "", "", "", "", "", ""
+		if a.Grant != "password" {
+			t.Username, t.Password = "", ""
+		}
+	case "hmac":
+		t.Algorithm, t.Secret, t.StringToSign, t.Encoding, t.Apply = a.Algorithm, a.Secret, a.StringToSign, a.Encoding, a.Apply
+	default:
+		t = a
+	}
+	return t
+}
+
 func secretVarsOf(a store.Auth) []string {
 	var out []string
-	for _, s := range []string{a.Token, a.Value, a.Password, a.ClientSecret, a.Secret} {
+	for _, s := range authSecrets(a) {
 		for _, m := range tmplVar.FindAllStringSubmatch(s, -1) {
 			out = append(out, m[1])
 		}
@@ -228,8 +275,10 @@ func (d *Deck) UpdateAPI(ctx context.Context, id string, in UpdateAPIInput) (*st
 		if err := d.checkAuth(ctx, a, *in.Auth); err != nil {
 			return nil, err
 		}
-		a.Auth = *in.Auth
+		prev := secretVarsOf(a.Auth)
+		a.Auth = tidyAuth(*in.Auth)
 		changed = append(changed, "auth")
+		d.dropUnusedSecrets(ctx, a, prev)
 		// Make sure the auth's secret variables exist in the active environment.
 		vars, _ := d.Store.Variables(ctx, a.ID)
 		for _, name := range secretVarsOf(a.Auth) {
@@ -781,8 +830,22 @@ type SendResult struct {
 
 func (d *Deck) Send(ctx context.Context, in SendInput) (*SendResult, error) {
 	c := proxy.Call{APIID: in.APIID, RequestID: in.RequestID, Draft: in.Draft, EnvID: in.EnvID, Actor: proxy.Actor{Kind: "you", Name: "You"}}
-	if in.Draft != nil {
+	r := in.Draft
+	if r != nil {
 		c.RequestID = ""
+	} else if saved, err := d.Store.Request(ctx, in.RequestID); err == nil {
+		r = &saved
+	}
+	// The path values set on the request's Params tab, like Postman's path variables.
+	if r != nil {
+		for _, kv := range r.PathParams {
+			if kv.Key != "" && !kv.Disabled {
+				if c.Args.Path == nil {
+					c.Args.Path = map[string]any{}
+				}
+				c.Args.Path[kv.Key] = kv.Value
+			}
+		}
 	}
 	res, err := d.Proxy.Do(ctx, c)
 	if err != nil {
@@ -1057,6 +1120,45 @@ func (d *Deck) notifyToolkitsUsingAPI(ctx context.Context, apiName string) {
 	}
 	_ = apiName
 	d.toolsChanged(ids)
+}
+
+// dropUnusedSecrets removes the empty secret variables an earlier auth
+// created when nothing uses them any more, so they don't show as missing
+// credentials. A variable that has a value, or that any request,
+// environment or the current auth refers to, stays.
+func (d *Deck) dropUnusedSecrets(ctx context.Context, a store.API, names []string) {
+	if len(names) == 0 {
+		return
+	}
+	used := map[string]bool{}
+	for _, n := range secretVarsOf(a.Auth) {
+		used[n] = true
+	}
+	refs := func(s string) {
+		for _, m := range tmplVar.FindAllStringSubmatch(s, -1) {
+			used[m[1]] = true
+		}
+	}
+	if b, err := json.Marshal(a.Auth); err == nil {
+		refs(string(b))
+	}
+	reqs, _ := d.Store.Requests(ctx, a.ID)
+	for _, r := range reqs {
+		if b, err := json.Marshal(r); err == nil {
+			refs(string(b))
+		}
+	}
+	vars, _ := d.Store.Variables(ctx, a.ID)
+	for _, v := range vars {
+		if v.Source != "secret" {
+			refs(v.Value)
+		}
+	}
+	for _, v := range vars {
+		if v.Source == "secret" && v.Ciphertext == "" && slices.Contains(names, v.Name) && !used[v.Name] {
+			_ = d.Store.Delete(ctx, "variable", v.ID)
+		}
+	}
 }
 
 // putSecret seals a value into a secret variable in the API's active

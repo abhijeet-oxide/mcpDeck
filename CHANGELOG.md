@@ -9,6 +9,35 @@ them out of Unreleased.
 
 ### Features
 
+- Visual builder opens every shipped and generated tool. Steps reorder by
+  drag (or keyboard) and the code follows; Arrange tidies the canvas; full
+  screen; a legend explains the connectors; agent inputs are editable.
+- Versions are a timeline with a highlighted diff against the previous,
+  live or latest version, and Restore with confirmation.
+- Requests: a timeout per request plus a default (30 s) and maximum (300 s)
+  in Settings; Send shows the elapsed time and becomes Cancel; sends keep
+  running when you leave the page, listed in a tray with jump-back and
+  cancel; unsaved edits are kept until saved or reverted; saved responses
+  are listed under their request; path variables are set on the Params tab.
+- Proxy in Settings: system, none or manual HTTP/HTTPS with a no-proxy list
+  and sign-in (password sealed, write-only); applied to every outbound call.
+- Auth: requests that look like a sign-in are suggested first; captures are
+  picked as From (body, header, cookie, custom) and a Field listed from the
+  last response with sample values; "Use as bearer".
+- Secrets show "Set · Encrypted" inline, and Settings → Security says where
+  they and their key are stored.
+- Build tabs explain themselves, and a first-run checklist includes sign-in.
+- VS Code is listed first; search sits on the right of the top bar and finds
+  requests; one light/dark toggle (system only until you choose); a gentle
+  glass look that turns solid with reduced transparency.
+
+### Fixes
+
+- Switching auth to a login request no longer recreates an empty "token"
+  credential or warns that requests will fail.
+- Edits in Build were lost when opening Versions.
+- The palette's "Settings: security" opened General.
+
 - Auth for real systems: login chains with captures, refresh and re-login on
   401 or a login redirect; OAuth 2.0 client credentials and password grants
   with refresh-token rotation; HMAC request signing; mutual TLS.
