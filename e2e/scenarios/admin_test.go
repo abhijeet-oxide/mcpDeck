@@ -136,6 +136,6 @@ func init() {
 		b, _ := json.Marshal(res.Tools)
 		n := tokens.Count(string(b)) + tokens.Count(ad.cs.InitializeResult().Instructions)
 		t.Logf("admin MCP: %d tools, %d tokens with instructions", len(res.Tools), n)
-		expect(t, n < 4000, "admin MCP costs %d tokens to load; keep it under 4000", n)
+		expect(t, n < 2500, "admin MCP costs %d tokens to load; keep it under 2500", n)
 	})
 }

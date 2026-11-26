@@ -73,7 +73,7 @@ func lintCmd(data *string) *cobra.Command {
 						fmt.Printf("      why: %s\n", f.Source)
 					}
 				}
-				fmt.Printf("%d blocking, %d warnings, score %d/100, tools/list %d tokens.\n", blocks, warns, rep.Score, rep.ListTokens)
+				fmt.Printf("%d blocking, %s, score %d/100, tools/list %d tokens.\n", blocks, plural(warns, "warning"), rep.Score, rep.ListTokens)
 			}
 			if blocks > 0 || rep.DraftError != "" || (strict && warns > 0) {
 				os.Exit(1)
@@ -84,4 +84,12 @@ func lintCmd(data *string) *cobra.Command {
 	c.Flags().BoolVar(&asJSON, "json", false, "print JSON")
 	c.Flags().BoolVar(&strict, "strict", false, "exit 1 on warnings too")
 	return c
+}
+
+// plural writes "1 warning" or "2 warnings".
+func plural(n int, word string) string {
+	if n == 1 {
+		return "1 " + word
+	}
+	return fmt.Sprintf("%d %ss", n, word)
 }

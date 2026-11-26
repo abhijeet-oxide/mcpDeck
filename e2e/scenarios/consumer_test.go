@@ -135,6 +135,6 @@ func init() {
 		}
 		size := tokens.Count(instr) + tokens.Count(asJSON(list.Tools))
 		t.Logf("use endpoint: %d tools, %d tokens with instructions", len(list.Tools), size)
-		expect(t, instr != "" && size < 1500, "instructions + tools/list = %d tokens", size)
+		expect(t, instr != "" && size < 1000, "instructions + tools/list = %d tokens", size)
 	})
 }

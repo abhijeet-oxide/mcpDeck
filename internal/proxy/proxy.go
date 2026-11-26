@@ -673,7 +673,7 @@ func unresolvedErr(api store.API, missing map[string]bool) error {
 		parts = append(parts, "missing path values: "+strings.Join(params, ", ")+"; pass them as arguments")
 	}
 	if len(vars) > 0 {
-		parts = append(parts, "unresolved variables "+strings.Join(vars, ", ")+"; add them on the "+api.Name+" API's Environments tab in mcpDeck")
+		parts = append(parts, "unresolved variables "+strings.Join(vars, ", ")+"; set them with mcpdeck var set (or secret set) "+api.Name+" <name>, or on the "+api.Name+" application's Environments tab in mcpDeck")
 	}
 	return &Error{Code: CodeUnresolved, Message: strings.Join(parts, "; ")}
 }

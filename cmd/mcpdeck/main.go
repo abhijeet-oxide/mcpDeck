@@ -54,7 +54,7 @@ func root() *cobra.Command {
 	serveCmd.Flags().BoolVar(&so.noOpen, "no-open", false, "don't open the browser")
 
 	var do serveOpts
-	devCmd := &cobra.Command{Use: "dev", Short: "Start with the demo, a dev toolkit and a fixed-token agent, in temporary data",
+	devCmd := &cobra.Command{Use: "dev", Short: "Start with the demo, a dev toolkit and an agent token, in temporary data",
 		Example: "  mcpdeck dev\n  mcpdeck dev --port 47900 --mock-port 9101",
 		RunE: func(*cobra.Command, []string) error {
 			do.dev, do.data = true, data
