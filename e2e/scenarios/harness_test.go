@@ -194,7 +194,9 @@ func (h *harness) mustCLI(t T, args ...string) string {
 }
 
 // api calls the HTTP API the UI uses.
-func (h *harness) api(method, path string, in, out any) error { return h.apiAs("", method, path, in, out) }
+func (h *harness) api(method, path string, in, out any) error {
+	return h.apiAs("", method, path, in, out)
+}
 
 // apiAs calls the HTTP API as the agent behind the admin MCP server.
 func (h *harness) apiAs(agentName, method, path string, in, out any) error {
