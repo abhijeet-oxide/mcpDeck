@@ -128,7 +128,7 @@ func (e *Env) saasBilling() http.Handler {
 		for _, in := range list[start:end] {
 			data = append(data, map[string]any{"id": in.ID, "object": "invoice", "customer": in.Customer, "status": in.Status, "currency": in.Currency,
 				"amount_due": in.Amount, "amount_paid": map[bool]int{true: in.Amount}[in.Status == "paid"], "created": in.Created,
-				"lines": map[string]any{"object": "list", "data": []any{map[string]any{"id": "il_" + in.ID, "amount": in.Amount, "description": "Pro plan × 1"}}, "has_more": false},
+				"lines":    map[string]any{"object": "list", "data": []any{map[string]any{"id": "il_" + in.ID, "amount": in.Amount, "description": "Pro plan × 1"}}, "has_more": false},
 				"metadata": map[string]any{}, "livemode": false})
 		}
 		writeJSON(w, 200, map[string]any{"object": "list", "url": "/v1/invoices", "has_more": end < len(list), "data": data})

@@ -33,7 +33,7 @@ func pod(ns string, i int) map[string]any {
 		"ownerReferences": []any{map[string]any{"apiVersion": "apps/v1", "kind": "ReplicaSet", "name": app + "-7d9f8c6b5", "uid": "rs", "controller": true}}, "managedFields": mf},
 		"spec": map[string]any{"containers": []any{map[string]any{"name": app, "image": "registry.acme.example/" + app + ":1.4.2", "ports": []any{map[string]any{"containerPort": 8080, "protocol": "TCP"}},
 			"resources": map[string]any{"limits": map[string]any{"cpu": "500m", "memory": "512Mi"}, "requests": map[string]any{"cpu": "100m", "memory": "128Mi"}},
-			"env": []any{map[string]any{"name": "LOG_LEVEL", "value": "info"}}, "terminationMessagePath": "/dev/termination-log", "imagePullPolicy": "IfNotPresent"}},
+			"env":       []any{map[string]any{"name": "LOG_LEVEL", "value": "info"}}, "terminationMessagePath": "/dev/termination-log", "imagePullPolicy": "IfNotPresent"}},
 			"restartPolicy": "Always", "dnsPolicy": "ClusterFirst", "serviceAccountName": "default", "nodeName": fmt.Sprintf("node-%d", i%4), "tolerations": []any{map[string]any{"key": "node.kubernetes.io/not-ready", "operator": "Exists", "effect": "NoExecute", "tolerationSeconds": 300}}},
 		"status": map[string]any{"phase": map[bool]string{true: "Running", false: "Running"}[true], "podIP": fmt.Sprintf("10.0.%d.%d", i/250, i%250), "hostIP": "192.168.1.10",
 			"containerStatuses": []any{map[string]any{"name": app, "ready": phase == "Running", "restartCount": restarts, "image": "registry.acme.example/" + app + ":1.4.2",

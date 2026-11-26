@@ -239,8 +239,8 @@ func (e *Env) jfrog() http.Handler {
 		writeJSON(w, 200, map[string]any{"uri": origin(r) + r.URL.Path, "buildInfo": map[string]any{
 			"version": "1.0.1", "name": name, "number": num, "type": "GENERIC", "started": "2026-11-24T10:00:00.000+0000", "durationMillis": 183000,
 			"agent": map[string]any{"name": "GitHub Actions", "version": "2.320"}, "buildAgent": map[string]any{"name": "Maven", "version": "3.9.9"},
-			"vcs":     []any{map[string]any{"revision": "9f1c2ab7e0d4", "url": "https://github.com/acme/" + name, "branch": "main", "message": "release " + num}},
-			"modules": []any{map[string]any{"id": "com.acme:" + strings.TrimSuffix(name, "-ci") + ":1.4." + num, "artifacts": []any{map[string]any{"type": "jar", "sha1": sha(name)[:40], "name": strings.TrimSuffix(name, "-ci") + "-1.4." + num + ".jar"}}, "dependencies": deps}},
+			"vcs":        []any{map[string]any{"revision": "9f1c2ab7e0d4", "url": "https://github.com/acme/" + name, "branch": "main", "message": "release " + num}},
+			"modules":    []any{map[string]any{"id": "com.acme:" + strings.TrimSuffix(name, "-ci") + ":1.4." + num, "artifacts": []any{map[string]any{"type": "jar", "sha1": sha(name)[:40], "name": strings.TrimSuffix(name, "-ci") + "-1.4." + num + ".jar"}}, "dependencies": deps}},
 			"properties": map[string]any{"buildInfo.env.GITHUB_RUN_ID": "123456"},
 		}})
 	}))

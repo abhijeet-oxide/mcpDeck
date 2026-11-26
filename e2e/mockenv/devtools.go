@@ -44,8 +44,8 @@ func ghIssue(n int, repo string) map[string]any {
 		"user":   map[string]any{"login": fmt.Sprintf("user%d", n%6), "id": 100 + n%6, "avatar_url": "https://avatars.githubusercontent.com/u/1", "type": "User", "site_admin": false, "url": "https://api.github.com/users/x", "html_url": "https://github.com/x"},
 		"labels": labels, "assignee": nil, "assignees": []any{}, "milestone": nil, "author_association": "CONTRIBUTOR",
 		"created_at": fmt.Sprintf("2026-10-%02dT08:00:00Z", n%28+1), "updated_at": "2026-11-20T08:00:00Z", "closed_at": nil,
-		"body":       "### Steps\n" + longText(60), "reactions": map[string]any{"total_count": n % 7, "+1": n % 7, "-1": 0, "laugh": 0, "url": "https://api.github.com/r"},
-		"html_url":   fmt.Sprintf("https://github.com/acme/%s/issues/%d", repo, n), "url": fmt.Sprintf("https://api.github.com/repos/acme/%s/issues/%d", repo, n),
+		"body": "### Steps\n" + longText(60), "reactions": map[string]any{"total_count": n % 7, "+1": n % 7, "-1": 0, "laugh": 0, "url": "https://api.github.com/r"},
+		"html_url": fmt.Sprintf("https://github.com/acme/%s/issues/%d", repo, n), "url": fmt.Sprintf("https://api.github.com/repos/acme/%s/issues/%d", repo, n),
 		"repository_url": "https://api.github.com/repos/acme/" + repo, "timeline_url": "https://api.github.com/t", "performed_via_github_app": nil}
 	if n%5 == 0 {
 		is["pull_request"] = map[string]any{"url": fmt.Sprintf("https://api.github.com/repos/acme/%s/pulls/%d", repo, n), "merged_at": nil}

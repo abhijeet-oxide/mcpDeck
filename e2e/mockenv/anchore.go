@@ -49,9 +49,9 @@ func (e *Env) anchore() http.Handler {
 		repo, tag, _ := strings.Cut(repoTag, ":")
 		return map[string]any{"image_digest": im.Digest, "analysis_status": im.Status, "image_status": "active",
 			"created_at": "2026-11-20T10:00:00Z", "analyzed_at": map[bool]any{true: "2026-11-20T10:03:00Z", false: nil}[im.Status == "analyzed"],
-			"image_detail": []any{map[string]any{"full_tag": im.Tag, "registry": parts[0], "repo": repo, "tag": tag, "full_digest": parts[0] + "/" + repo + "@" + im.Digest}},
+			"image_detail":  []any{map[string]any{"full_tag": im.Tag, "registry": parts[0], "repo": repo, "tag": tag, "full_digest": parts[0] + "/" + repo + "@" + im.Digest}},
 			"image_content": map[string]any{"metadata": map[string]any{"arch": "amd64", "distro": "debian", "distro_version": "12", "image_size": 74000000, "layer_count": 7, "dockerfile_mode": "Guessed"}},
-			"annotations": map[string]any{}, "parent_digest": im.Digest, "image_type": "docker"}
+			"annotations":   map[string]any{}, "parent_digest": im.Digest, "image_type": "docker"}
 	}
 	find := func(d string) *ancImage {
 		for _, im := range images {
