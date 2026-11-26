@@ -56,7 +56,7 @@ export default async function (input: Input) {
 }
 `;
 
-// REQ: VER-4
+// REQ: VER-4, UI-11
 describe("ToolEditor", () => {
   it("keeps unsaved edits when you look at Versions and come back", async () => {
     mockAPI({
@@ -85,5 +85,37 @@ describe("ToolEditor", () => {
     expect(await screen.findByText("History")).toBeInTheDocument();
     fireEvent.mouseDown(screen.getByRole("tab", { name: /Build/ }), { button: 0 });
     expect(screen.getByDisplayValue("ping_service")).toBeInTheDocument();
+  });
+
+  it("explains what a tool is until dismissed, and what a test is", async () => {
+    localStorage.clear();
+    mockAPI({
+      "/api/tools/ping": {
+        tool: { id: "t1", name: "ping" },
+        versions: [
+          {
+            id: "v1",
+            n: 1,
+            source,
+            status: "live",
+            tests: [],
+            createdByKind: "you",
+            createdAt: "2026-11-26T05:00:00Z",
+          },
+        ],
+        fields: [],
+      },
+      "/api/apis": [],
+      "/api/toolkits/dev/types.d.ts": "",
+    });
+    const { unmount } = renderApp(<ToolEditor toolkit="dev" tool="ping" />);
+    expect(await screen.findByText(/A tool is one function an agent can call/)).toBeInTheDocument();
+    expect(screen.getByText(/A test is a saved input plus checks on the output/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText(/A tool is one function an agent can call/)).toBeNull();
+    unmount();
+    renderApp(<ToolEditor toolkit="dev" tool="ping" />);
+    await screen.findByText(/A test is a saved input/);
+    expect(screen.queryByText(/A tool is one function an agent can call/)).toBeNull();
   });
 });

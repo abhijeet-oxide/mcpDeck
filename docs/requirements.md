@@ -887,14 +887,16 @@ and that the named agent's grant allows.
 **UI-11 Guided, never in the way.** The first time mcpDeck opens with no
 data, a welcome page says what it does in three ideas (applications, toolkits,
 agents) and offers the demo tour or "Set up my own"; it's shown once. A
-"Getting started" list then follows the journey: create an application, send
-a request, save a response as an example, create a toolkit, build a tool,
+"Getting started" list then follows the journey: create an application, set
+up its sign-in, send a request, save a response as an example, create a toolkit, build a tool,
 connect an agent. Steps can be done in any order; one that needs another first
 says so. Home shows the list; a small card at the bottom of the sidebar shows
 the next step on every page. Pages also suggest the next step in place (after
 a send: save it as an example; after an example: create a tool). The guide
-can be hidden, and shown again from Settings.
-*Accept:* after the six steps, or after Hide, no onboarding text appears
+can be hidden, and shown again from Settings. Each panel of the tool editor
+says in one line what it is for (Test input, Output, Tests, Guidelines), and
+the editor opens with a dismissible line saying what a tool is.
+*Accept:* after the seven steps, or after Hide, no onboarding text appears
 anywhere.
 
 **UI-12 Demo kept apart.** "Demo" (on Home, the welcome page and About)

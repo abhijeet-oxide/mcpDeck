@@ -18,6 +18,8 @@ export function useGoStep() {
     switch (key) {
       case "api":
         return navigate("/apps/new");
+      case "auth":
+        return navigate(app ? `/apps/${app.id}?tab=auth` : "/apps/new");
       case "send":
       case "example":
         return navigate(app ? `/apps/${app.id}` : "/apps/new");

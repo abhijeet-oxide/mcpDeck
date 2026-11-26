@@ -17,6 +17,7 @@ const base = {
   recent: [],
   steps: [
     { key: "api", done: true },
+    { key: "auth", done: true },
     { key: "send", done: true },
     { key: "example", done: true },
     { key: "toolkit", done: true },
@@ -97,6 +98,7 @@ describe("Home", () => {
         needsYou: [],
         steps: [
           { key: "api", done: false },
+          { key: "auth", done: false, reason: "Add an application first" },
           { key: "send", done: false, reason: "Add an application first" },
           { key: "example", done: false, reason: "Send a request first" },
           { key: "toolkit", done: false },
@@ -110,11 +112,14 @@ describe("Home", () => {
     });
     renderApp(<Home />);
     expect(await screen.findByText("Getting started")).toBeInTheDocument();
-    expect(screen.getByText("Add an application first")).toBeInTheDocument();
+    expect(screen.getAllByText("Add an application first")).toHaveLength(2);
     // The next step and a step with no prerequisite can both be started.
     expect(screen.getAllByRole("button", { name: "Create application" })[0]).toBeEnabled();
     expect(screen.getByRole("button", { name: "Create toolkit" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "New tool" })).toBeDisabled();
+    // Sign-in is its own step, right after creating the application.
+    expect(screen.getByText("Set up sign-in")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Auth" })).toBeDisabled();
     // The demo is always one click away.
     expect(screen.getAllByRole("button", { name: "Demo" }).length).toBeGreaterThan(0);
   });

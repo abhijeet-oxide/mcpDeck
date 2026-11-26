@@ -1366,3 +1366,27 @@
     position: static;
   }
 }
+.panel-intro {
+  padding: 8px 16px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--accent-ring);
+  border-radius: 10px;
+  background: var(--accent-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.hint .icon-btn {
+  width: 24px;
+  height: 24px;
+}

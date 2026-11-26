@@ -65,18 +65,26 @@ func TestGettingStartedFollowsTheJourney(t *testing.T) {
 			t.Fatalf("nothing is done on a new install: %+v", s)
 		}
 	}
-	want := "api send example toolkit tool agent"
+	want := "api auth send example toolkit tool agent"
 	if got := strings.Join(keys, " "); got != want {
 		t.Fatalf("steps = %q, want %q", got, want)
 	}
-	if h.Steps[1].Reason == "" || h.Steps[3].Reason != "" {
-		t.Fatalf("send needs an application; a toolkit needs nothing: %+v", h.Steps)
+	if h.Steps[1].Reason == "" || h.Steps[2].Reason == "" || h.Steps[4].Reason != "" {
+		t.Fatalf("auth and send need an application; a toolkit needs nothing: %+v", h.Steps)
 	}
 	if _, err := d.CreateAPI(ctx, deck.CreateAPIInput{Name: "crm", BaseURL: "http://127.0.0.1:1"}); err != nil {
 		t.Fatal(err)
 	}
 	h, _ = d.Home(ctx)
-	if !h.Steps[0].Done || h.Steps[1].Reason != "" {
-		t.Fatalf("with an application, sending is the next step: %+v", h.Steps)
+	if !h.Steps[0].Done || h.Steps[1].Reason != "" || h.Steps[1].Done || h.Steps[2].Reason != "" {
+		t.Fatalf("with an application, sign-in is the next step: %+v", h.Steps)
+	}
+	if _, err := d.CreateAPI(ctx, deck.CreateAPIInput{Name: "billing", BaseURL: "http://127.0.0.1:1",
+		Auth: store.Auth{Type: "bearer", Token: "{{token}}"}}); err != nil {
+		t.Fatal(err)
+	}
+	h, _ = d.Home(ctx)
+	if !h.Steps[1].Done {
+		t.Fatalf("an application with auth set completes sign-in: %+v", h.Steps)
 	}
 }

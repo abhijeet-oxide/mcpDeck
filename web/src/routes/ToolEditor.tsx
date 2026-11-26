@@ -30,6 +30,7 @@ import {
   EmptyState,
   ErrorBox,
   Field,
+  Hint,
   Loading,
   MethodChip,
   PageHead,
@@ -200,6 +201,10 @@ export default function ToolEditor({ toolkit, tool }: { toolkit: string; tool: s
       )}
       {/* The workbench stays mounted on other tabs so unsaved edits survive. */}
       <div hidden={tab !== "code"}>
+        <Hint id="tool-editor">
+          A tool is one function an agent can call. Build its steps in Visual or Code, try it with <b>Run</b>, check the{" "}
+          <b>Guidelines</b>, then <b>Save</b> to make a new version.
+        </Hint>
         <Workbench
           key={latest?.id ?? "new"}
           toolkit={toolkit}
@@ -768,6 +773,7 @@ function Workbench({
         <div className="flex min-w-0 flex-col gap-3">
           <Panel
             title="Test input"
+            intro={`Sample arguments, the way an agent would send them. Run (${mod()}+Enter) calls the tool with them.`}
             right={
               <label className="flex items-center gap-2 text-[12px]">
                 <Toggle label="Use saved responses" checked={examples} onChange={setExamples} />
@@ -794,6 +800,7 @@ function Workbench({
           {run ? (
             <Panel
               title={run.error ? <span style={{ color: "var(--bad)" }}>Failed</span> : `Output · ${run.durationMs} ms`}
+              intro="What the agent gets back from the last run, and each call it made."
             >
               {run.error && <div className="banner bad m-3">{run.error}</div>}
               {!run.error && (
@@ -854,7 +861,7 @@ function Workbench({
               )}
             </Panel>
           ) : (
-            <Panel title="Output">
+            <Panel title="Output" intro="What the agent gets back from the last run, and each call it made.">
               <Empty title="Run it">
                 Every step runs in order. You'll see each call on a timeline, and tokens fetched against tokens
                 returned.
@@ -914,6 +921,7 @@ function GuidePanel({ toolkit, src, run }: { toolkit: string; src: string; run: 
           <ShieldCheck size={14} className="muted" /> Guidelines
         </span>
       }
+      intro="Checks that help agents pick and call the tool: name, description, input schema and output size. Blocking findings stop a save."
       right={
         <Link to={`/toolkits/${toolkit}?tab=guidelines`} className="text-[12.5px]">
           All rules
@@ -996,6 +1004,7 @@ function TestsPanel({
           <FlaskConical size={14} className="muted" /> Tests <span className="chip">{tests.length}</span>
         </span>
       }
+      intro="A test is a saved input plus checks on the output, written like Postman tests. Every save runs them; tools that write run them against saved responses only."
       right={
         <Button size="sm" icon={<Plus size={13} />} onClick={add}>
           Add from current input
@@ -1003,8 +1012,10 @@ function TestsPanel({
       }
     >
       {tests.length === 0 && (
-        <Empty title="No tests">
-          Agent-saved tools need at least one passing test to go live. Tests run on every save.
+        <Empty title="No tests yet">
+          Add one from the current input, then write a check such as{" "}
+          <code className="inline-code">pm.expect(output.name).to.be.a("string")</code>. If the toolkit requires tests,
+          a version an agent saves only goes live when they pass.
         </Empty>
       )}
       {tests.map((t, i) => (

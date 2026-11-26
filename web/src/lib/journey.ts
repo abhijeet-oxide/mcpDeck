@@ -3,12 +3,17 @@ import type { Home } from "./types";
 
 /** The steps a new user is guided through (UI-11). They can be done in any
  *  order; the guide always points at the first one not done. */
-export type StepKey = "api" | "send" | "example" | "toolkit" | "tool" | "agent";
+export type StepKey = "api" | "auth" | "send" | "example" | "toolkit" | "tool" | "agent";
 export const steps: Record<StepKey, { title: string; why: string; action: string }> = {
   api: {
     title: "Create an application",
     why: "An application is one system your tools call, like your CRM. Import its Postman collection or OpenAPI file, or add requests manually.",
     action: "Create application",
+  },
+  auth: {
+    title: "Set up sign-in",
+    why: "Tell mcpDeck how the application signs in: an API key, a bearer token, or a login request whose token is reused. Secrets are stored encrypted, never in tools.",
+    action: "Open Auth",
   },
   send: {
     title: "Send a request",

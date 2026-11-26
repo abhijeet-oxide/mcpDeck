@@ -2,7 +2,7 @@ import * as RMenu from "@radix-ui/react-dropdown-menu";
 import * as RSelect from "@radix-ui/react-select";
 import * as RTabs from "@radix-ui/react-tabs";
 import * as RTooltip from "@radix-ui/react-tooltip";
-import { Check, CheckCircle2, ChevronDown, CircleAlert, Copy, Loader2, MoreHorizontal, X } from "lucide-react";
+import { Check, CheckCircle2, ChevronDown, CircleAlert, Copy, Info, Loader2, MoreHorizontal, X } from "lucide-react";
 import {
   type ButtonHTMLAttributes,
   createContext,
@@ -97,8 +97,11 @@ export function Panel({
   bodyClass,
   footer,
   id,
+  intro,
 }: {
   title?: ReactNode;
+  /** One line under the title saying what the panel is for. */
+  intro?: ReactNode;
   icon?: ReactNode;
   right?: ReactNode;
   children: ReactNode;
@@ -116,6 +119,7 @@ export function Panel({
           {right && <div className="right">{right}</div>}
         </div>
       )}
+      {intro && <div className="panel-intro">{intro}</div>}
       <div className={bodyClass ?? ""}>{children}</div>
       {footer && <div className="panel-foot">{footer}</div>}
     </section>
@@ -727,5 +731,40 @@ export function Toggle({
         }}
       />
     </button>
+  );
+}
+
+/** Hint is a one-line explanation for a new user that stays hidden once dismissed. */
+export function Hint({ id, children }: { id: string; children: ReactNode }) {
+  const key = `mcpdeck-hint-${id}`;
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return localStorage.getItem(key) === "1";
+    } catch {
+      return false;
+    }
+  });
+  if (hidden) return null;
+  return (
+    <div className="hint" role="note">
+      <Info size={14} className="mt-0.5 flex-none" />
+      <div className="min-w-0 flex-1">{children}</div>
+      <button
+        type="button"
+        className="icon-btn"
+        aria-label="Dismiss"
+        title="Dismiss"
+        onClick={() => {
+          setHidden(true);
+          try {
+            localStorage.setItem(key, "1");
+          } catch {
+            /* private mode: hide for this visit */
+          }
+        }}
+      >
+        <X size={13} />
+      </button>
+    </div>
   );
 }

@@ -377,20 +377,27 @@ func (d *Deck) Home(ctx context.Context) (*Home, error) {
 	}
 	// The journey a new user is guided through (UI-11). Steps can be done in
 	// any order; Reason names what a step needs when it can't start yet.
+	hasAuth := false
+	for _, a := range apis {
+		if t := a.Auth.Type; t != "" && t != "none" && t != "inherit" {
+			hasAuth = true
+		}
+	}
 	h.Steps = []Step{
 		{Key: "api", Done: h.APIs > 0},
+		{Key: "auth", Done: hasAuth},
 		{Key: "send", Done: len(sent) > 0},
 		{Key: "example", Done: hasExample},
 		{Key: "toolkit", Done: h.Toolkits > 0},
 		{Key: "tool", Done: hasLive},
 		{Key: "agent", Done: h.Agents > 0},
 	}
-	needs := map[string]string{"send": "Add an application first", "example": "Send a request first", "tool": "Create a toolkit first", "agent": "Create a toolkit first"}
+	needs := map[string]string{"auth": "Add an application first", "send": "Add an application first", "example": "Send a request first", "tool": "Create a toolkit first", "agent": "Create a toolkit first"}
 	done := map[string]bool{}
 	for _, st := range h.Steps {
 		done[st.Key] = st.Done
 	}
-	prereq := map[string]string{"send": "api", "example": "send", "tool": "toolkit", "agent": "toolkit"}
+	prereq := map[string]string{"auth": "api", "send": "api", "example": "send", "tool": "toolkit", "agent": "toolkit"}
 	for i, st := range h.Steps {
 		if p, ok := prereq[st.Key]; ok && !st.Done && !done[p] {
 			h.Steps[i].Reason = needs[st.Key]
