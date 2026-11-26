@@ -23,6 +23,71 @@ type Auth struct {
 	Password       string `json:"password,omitempty"`
 	LoginRequestID string `json:"loginRequestId,omitempty"`
 	Capture        string `json:"capture,omitempty"` // cookie (default), a response header name, or json:<field> sent as a bearer token
+
+	// Login chains (AUTH-2). Steps run in order before the API's calls;
+	// each step's captures become {{login.<name>}} for later steps, for
+	// Apply headers and for any request template. LoginRequestID with
+	// Capture is the one-step shorthand.
+	Steps            []LoginStep `json:"steps,omitempty"`
+	RefreshRequestID string      `json:"refreshRequestId,omitempty"` // run instead of the steps once the session expires, while {{login.refresh_token}} works
+	ExpiresFrom      string      `json:"expiresFrom,omitempty"`      // json:<path> in the last response, or a number of seconds; default 30 minutes
+	// Apply adds headers to every call once signed in (login, oauth2, hmac),
+	// e.g. Authorization: Bearer {{login.access_token}}.
+	Apply []KV `json:"apply,omitempty"`
+
+	// OAuth 2.0 (AUTH-3): client_credentials, password or refresh_token
+	// grants against TokenURL. Values may be {{vars}}.
+	Grant        string `json:"grant,omitempty"`
+	TokenURL     string `json:"tokenUrl,omitempty"`
+	ClientID     string `json:"clientId,omitempty"`
+	ClientSecret string `json:"clientSecret,omitempty"`
+	ClientAuth   string `json:"clientAuth,omitempty"` // basic (default) | body
+	Scope        string `json:"scope,omitempty"`
+	Audience     string `json:"audience,omitempty"`
+
+	// HMAC request signing (AUTH-4). StringToSign may use {{method}},
+	// {{path}} (path and query as sent), {{pathOnly}}, {{query}}, {{host}},
+	// {{timestamp}}, {{timestampMs}}, {{isoTime}}, {{nonce}}, {{body}},
+	// {{bodySha256}}, {{bodyMd5}} and any variable. Apply headers can use
+	// {{sign.signature}}, {{sign.timestamp}} and {{sign.nonce}}.
+	Algorithm    string `json:"algorithm,omitempty"` // sha256 (default) | sha1 | sha512
+	Secret       string `json:"secret,omitempty"`
+	StringToSign string `json:"stringToSign,omitempty"`
+	Encoding     string `json:"encoding,omitempty"` // hex (default) | base64
+}
+
+// LoginStep is one request in a login chain and what to keep from its response.
+type LoginStep struct {
+	RequestID string    `json:"requestId"`
+	Captures  []Capture `json:"captures,omitempty"`
+}
+
+// Capture keeps one value from a login response as {{login.<Name>}}.
+// From is json:<path>, header:<name>, cookie:<name> or regex:<pattern with one group>.
+type Capture struct {
+	Name string `json:"name"`
+	From string `json:"from"`
+}
+
+// AuthRequestIDs are the requests an auth setup sends itself (login steps
+// and refresh). Tools and agents can't call them (CRED-8).
+func (a Auth) AuthRequestIDs() []string {
+	if a.Type != "login" {
+		return nil
+	}
+	var out []string
+	if a.LoginRequestID != "" {
+		out = append(out, a.LoginRequestID)
+	}
+	for _, s := range a.Steps {
+		if s.RequestID != "" {
+			out = append(out, s.RequestID)
+		}
+	}
+	if a.RefreshRequestID != "" {
+		out = append(out, a.RefreshRequestID)
+	}
+	return out
 }
 
 // API is one system you call (APP-1). Name is the client name in tool code.
@@ -48,6 +113,10 @@ type TLS struct {
 	// CACerts are extra PEM certificates trusted for this API, on top of
 	// the system roots (a company CA, a self-signed server).
 	CACerts string `json:"caCerts,omitempty"`
+	// ClientCert and ClientKey are PEM for mutual TLS (API-10). ClientKey
+	// is a {{variable}} holding a secret; a pasted key is moved into one.
+	ClientCert string `json:"clientCert,omitempty"`
+	ClientKey  string `json:"clientKey,omitempty"`
 }
 
 // SavedResponse is a response kept on a request, one per outcome you care
