@@ -220,6 +220,7 @@
   }
   .page-head .actions {
     margin-left: auto;
+    flex-shrink: 0;
     display: flex;
     gap: 8px;
     flex-wrap: wrap;

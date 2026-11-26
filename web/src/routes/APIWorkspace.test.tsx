@@ -18,8 +18,9 @@ const base = {
 } as unknown as APIDetail;
 
 function patchBody(fetchFn: ReturnType<typeof mockAPI>) {
-  const call = fetchFn.mock.calls.find((c) => (c[1] as RequestInit | undefined)?.method === "PATCH");
-  return call ? JSON.parse(String((call[1] as RequestInit).body)) : undefined;
+  const calls = fetchFn.mock.calls as unknown as [unknown, RequestInit | undefined][];
+  const call = calls.find((c) => c[1]?.method === "PATCH");
+  return call ? JSON.parse(String(call[1]?.body)) : undefined;
 }
 
 // REQ: API-9, API-10

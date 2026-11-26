@@ -987,7 +987,7 @@ function VarRow({ apiId, v, envId }: { apiId: string; v?: Variable; envId: strin
     <tr>
       <td>
         <input
-          className="input mono"
+          className="input mono min-w-[7rem]"
           aria-label="Variable name"
           placeholder="baseUrl"
           value={name}
@@ -1394,7 +1394,7 @@ export function AuthTab({ a }: { a: APIDetail }) {
   const set = (p: Partial<Auth>) => setAuth({ ...auth, ...p });
   const dirty = JSON.stringify(auth) !== JSON.stringify(a.auth ?? { type: "none" });
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-2">
+    <div className="grid items-start gap-5 min-[1400px]:grid-cols-2">
       <Panel
         title="Authentication"
         bodyClass="panel-body flex flex-col gap-4"
