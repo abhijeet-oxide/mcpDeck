@@ -88,7 +88,7 @@ export function Settings({ section = "general" }: { section?: string }) {
   const q = useSettings();
   const info = useInfo();
   const toast = useToast();
-  const { theme, set, accent, setAccent } = useTheme();
+  const { theme, chosen, set, accent, setAccent } = useTheme();
   const [vals, setVals] = useState<Record<string, string>>({});
   const [pw, setPw] = useState<string | null | undefined>(undefined);
   useEffect(() => {
@@ -177,13 +177,19 @@ export function Settings({ section = "general" }: { section?: string }) {
             <>
               <SectionHead title="Appearance" sub="How mcpDeck looks in this browser." />
               <Panel>
-                <Row title="Theme" sub="System follows your computer's light or dark setting.">
+                <Row
+                  title="Theme"
+                  sub={
+                    chosen
+                      ? "Kept in this browser. The sun or moon button at the top switches it too."
+                      : "Following your computer's setting until you choose."
+                  }
+                >
                   <Seg
                     label="Theme"
                     value={theme}
                     onChange={set}
                     options={[
-                      { id: "system", label: "System" },
                       { id: "light", label: "Light" },
                       { id: "dark", label: "Dark" },
                     ]}
@@ -267,7 +273,6 @@ export function Settings({ section = "general" }: { section?: string }) {
                     value={(vals.proxyMode || "system") as "system" | "none" | "manual"}
                     onChange={(m) => setVals({ ...vals, proxyMode: m })}
                     options={[
-                      { id: "system", label: "System" },
                       { id: "none", label: "No proxy" },
                       { id: "manual", label: "Manual" },
                     ]}

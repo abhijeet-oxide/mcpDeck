@@ -1,7 +1,11 @@
-import { AppWindow, Bot, Code2, Search, Settings, ToolCase, Zap } from "lucide-react";
+import { useQueries } from "@tanstack/react-query";
+import { AppWindow, Bot, Code2, Moon, Search, Send, Settings, ToolCase, Zap } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { get } from "../lib/api";
 import { useAgents, useAPIs, useLibrary, useToolkits } from "../lib/hooks";
 import { navigate } from "../lib/router";
+import type { APIDetail } from "../lib/types";
+import { useTheme } from "./Sidebar";
 
 type Item = { label: string; hint: string; icon: ReactNode; go: () => void };
 
@@ -13,6 +17,16 @@ export function Palette({ onClose, onConnect }: { onClose: () => void; onConnect
   const tks = useToolkits();
   const tools = useLibrary();
   const agents = useAgents();
+  const { dark, toggle } = useTheme();
+  // Requests are searchable too; each application's detail is one query.
+  const details = useQueries({
+    queries: (apis.data ?? []).slice(0, 40).map((a) => ({
+      queryKey: ["api", a.id],
+      queryFn: () => get<APIDetail>(`/api/apis/${a.id}`),
+      staleTime: 30_000,
+    })),
+  });
+  const requests = details.flatMap((d) => (d.data ? d.data.requests.map((r) => ({ api: d.data, r })) : []));
   const items = useMemo<Item[]>(() => {
     const out: Item[] = [
       { label: "New application", hint: "Action", icon: <Zap size={15} />, go: () => navigate("/apps/new") },
@@ -29,10 +43,22 @@ export function Palette({ onClose, onConnect }: { onClose: () => void; onConnect
       { label: "About mcpDeck", hint: "Page", icon: <Search size={15} />, go: () => navigate("/about") },
       { label: "Settings", hint: "Page", icon: <Settings size={15} />, go: () => navigate("/settings") },
       {
+        label: dark ? "Switch to light theme" : "Switch to dark theme",
+        hint: "Action",
+        icon: <Moon size={15} />,
+        go: toggle,
+      },
+      {
+        label: "Settings: requests and proxy",
+        hint: "Page",
+        icon: <Settings size={15} />,
+        go: () => navigate("/settings/network"),
+      },
+      {
         label: "Settings: security",
         hint: "Page",
         icon: <Settings size={15} />,
-        go: () => navigate("/settings#security"),
+        go: () => navigate("/settings/security"),
       },
     ];
     for (const a of apis.data ?? [])
@@ -50,12 +76,19 @@ export function Palette({ onClose, onConnect }: { onClose: () => void; onConnect
         go: () => navigate(`/toolkits/${t.name}`),
       });
       out.push({
-        label: `Add ${t.name} to Claude Code`,
+        label: `Connect an agent to ${t.name}`,
         hint: "Action",
         icon: <Zap size={15} />,
         go: () => onConnect(t.id),
       });
     }
+    for (const { api, r } of requests)
+      out.push({
+        label: r.name,
+        hint: `Request · ${r.method} · ${api.name}`,
+        icon: <Send size={15} />,
+        go: () => navigate(`/apps/${api.id}?req=${r.id}`),
+      });
     for (const t of tools.data ?? [])
       out.push({
         label: t.name,
@@ -71,7 +104,7 @@ export function Palette({ onClose, onConnect }: { onClose: () => void; onConnect
         go: () => navigate(`/agents/${a.id}`),
       });
     return out;
-  }, [apis.data, tks.data, tools.data, agents.data]);
+  }, [apis.data, tks.data, tools.data, agents.data, requests, dark]);
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const shown = items.filter((i) => words.every((w) => `${i.label} ${i.hint}`.toLowerCase().includes(w))).slice(0, 12);
   useEffect(() => setSel(0), [q]);
@@ -89,7 +122,7 @@ export function Palette({ onClose, onConnect }: { onClose: () => void; onConnect
             autoFocus
             className="input"
             style={{ border: 0, boxShadow: "none", height: 44 }}
-            placeholder="customer_360"
+            placeholder="Search applications, requests, tools, agents or actions"
             aria-label="Search"
             value={q}
             onChange={(e) => setQ(e.target.value)}

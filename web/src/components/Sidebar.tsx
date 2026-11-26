@@ -7,7 +7,6 @@ import {
   CirclePlay,
   House,
   Info,
-  Monitor,
   Moon,
   Palette,
   Search,
@@ -81,7 +80,10 @@ export function useTheme() {
     store("mcpdeck-accent", a);
     window.dispatchEvent(new Event("mcpdeck-theme"));
   };
-  return { theme: st.theme, accent: st.accent, dark, set, setAccent };
+  // Light or dark. Until you choose, it follows the computer (UI-8).
+  const theme = dark ? "dark" : "light";
+  const toggle = () => set(dark ? "light" : "dark");
+  return { theme, chosen: st.theme !== "system", accent: st.accent, dark, set, toggle, setAccent };
 }
 
 export function Logo({ size = 22 }: { size?: number }) {
@@ -162,45 +164,26 @@ const titles: [RegExp, string][] = [
 /** TopBar: where you are, search, theme and help, always visible. */
 export function TopBar({ onSearch, onTour }: { onSearch: () => void; onTour?: () => void }) {
   const { path } = useLocation();
-  const { theme, dark, set } = useTheme();
+  const { dark, toggle } = useTheme();
   const title = titles.find(([re]) => re.test(path))?.[1] ?? "";
-  const ThemeIcon = theme === "system" ? Monitor : dark ? Moon : Sun;
   return (
     <header className="topbar">
-      <div className="crumb" style={{ width: 160 }}>
-        {title}
-      </div>
+      <div className="crumb">{title}</div>
       <button type="button" className="top-search" onClick={onSearch} aria-label="Search or run a command">
         <Search size={15} />
-        <span className="truncate">Search applications, requests, tools…</span>
+        <span className="truncate">Search or run a command</span>
         <kbd>{mod()} K</kbd>
       </button>
       <div className="top-actions">
-        <Menu
-          label="Theme"
-          trigger={
-            <button type="button" className="icon-btn" aria-label={`Theme: ${theme}`} title="Theme">
-              <ThemeIcon size={16} />
-            </button>
-          }
-          items={[
-            {
-              label: "Light",
-              icon: <Sun size={15} />,
-              onClick: () => set("light"),
-              hint: theme === "light" ? "✓" : "",
-            },
-            { label: "Dark", icon: <Moon size={15} />, onClick: () => set("dark"), hint: theme === "dark" ? "✓" : "" },
-            {
-              label: "System",
-              icon: <Monitor size={15} />,
-              onClick: () => set("system"),
-              hint: theme === "system" ? "✓" : "",
-            },
-            "sep",
-            { label: "Colours and more", icon: <Palette size={15} />, onClick: () => navigate("/settings/appearance") },
-          ]}
-        />
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={toggle}
+          aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
+          title={dark ? "Switch to light theme" : "Switch to dark theme"}
+        >
+          {dark ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
         <Menu
           label="Help"
           trigger={
@@ -212,6 +195,7 @@ export function TopBar({ onSearch, onTour }: { onSearch: () => void; onTour?: ()
             ...(onTour ? [{ label: "Take the tour", icon: <CirclePlay size={15} />, onClick: onTour }] : []),
             { label: "MCP guidelines", icon: <BookOpen size={15} />, onClick: () => navigate("/guidelines") },
             { label: "Keyboard: search", icon: <Search size={15} />, onClick: onSearch, hint: `${mod()} K` },
+            { label: "Appearance", icon: <Palette size={15} />, onClick: () => navigate("/settings/appearance") },
             "sep",
             {
               label: "Star on GitHub",

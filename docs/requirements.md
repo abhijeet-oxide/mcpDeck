@@ -981,14 +981,17 @@ console error and no unhandled request.
 "seamless", "effortless", "powerful", "unlock", "supercharge", "leverage",
 "revolutionize", "AI-powered", "elevate". Checked in CI.
 
-**UI-6 Command palette.** `Ctrl+K` / `⌘K` finds any API, request,
-toolkit, tool, agent or setting, and runs actions ("New request",
-"Add toolkit to Claude Code").
+**UI-6 Command palette.** `Ctrl+K` / `⌘K`, or the search box on the right
+of the top bar, finds any application, request, toolkit, tool, agent or
+setting, and runs actions ("New application", "Connect an agent to
+support", "Switch to dark theme"). A request opens in its application.
 
 **UI-7 Accessible.** Keyboard reachable, visible focus, WCAG AA contrast,
 works at 1024 px and down to tablet width.
 
-**UI-8 Dark mode.** Follows the system setting, with a switch in Settings.
+**UI-8 Light and dark.** On first run the theme follows the computer's
+setting. The sun or moon button in the top bar, or Settings → Appearance,
+switches between light and dark, and the choice is kept in this browser.
 
 **UI-9 Offline.** The UI ships inside the binary and works with no network.
 Fonts are bundled.
