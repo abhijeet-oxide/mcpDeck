@@ -981,6 +981,12 @@ console error and no unhandled request.
 "seamless", "effortless", "powerful", "unlock", "supercharge", "leverage",
 "revolutionize", "AI-powered", "elevate". Checked in CI.
 
+**UI-15 Gentle glass.** The sidebar, top bar, menus, dialogs, drawers, the
+request tray and toasts are translucent and blurred over a soft backdrop;
+panels are slightly translucent with soft shadows. Text colours don't
+change, so contrast stays at WCAG AA. With prefers-reduced-transparency,
+forced colours, or no backdrop-filter support, every surface is solid.
+
 **UI-6 Command palette.** `Ctrl+K` / `⌘K`, or the search box on the right
 of the top bar, finds any application, request, toolkit, tool, agent or
 setting, and runs actions ("New application", "Connect an agent to

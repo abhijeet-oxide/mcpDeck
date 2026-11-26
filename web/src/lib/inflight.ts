@@ -64,7 +64,7 @@ export function cancel(key: string) {
 
 export function markSeen(key: string) {
   const f = flights.find((x) => x.key === key);
-  if (f && f.finishedAt && !f.seen) update(key, (x) => ({ ...x, seen: true }));
+  if (f?.finishedAt && !f.seen) update(key, (x) => ({ ...x, seen: true }));
 }
 
 export function dismiss(key: string) {

@@ -11,7 +11,7 @@ describe("Connect agent", () => {
     await screen.findByText("Install link or mcp.json + custom agent");
     const order = Array.from(document.querySelectorAll("button.choice"));
     const names = ["VS Code", "Claude Code", "Cursor", "Claude Desktop"];
-    names.forEach((n, i) => expect(order[i].textContent).toContain(n));
+    for (const [i, n] of names.entries()) expect(order[i].textContent).toContain(n);
     expect(order[0]).toHaveAttribute("aria-pressed", "true");
   });
 });

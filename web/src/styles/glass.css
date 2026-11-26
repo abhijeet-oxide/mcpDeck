@@ -1,0 +1,95 @@
+/* Glass (UI-15): translucent chrome over a soft backdrop.
+   Chrome (sidebar, top bar, menus, dialogs, drawers, the request tray and
+   toasts) is translucent and blurred. Panels are slightly translucent with
+   no blur: a backdrop-filter on a panel would trap the full-screen flow
+   builder and inline dialogs, which use position: fixed. Text colours are
+   unchanged and every surface stays at least 80% opaque, so contrast stays
+   at WCAG AA. With prefers-reduced-transparency, forced colours, or no
+   backdrop-filter support, every surface is solid. */
+:root {
+  --glass-chrome: color-mix(in srgb, var(--surface) 72%, transparent);
+  --glass-side: color-mix(in srgb, var(--sidebar) 70%, transparent);
+  --glass-panel: color-mix(in srgb, var(--surface) 86%, transparent);
+  --glass-pop: color-mix(in srgb, var(--surface) 84%, transparent);
+  --glass-blur: saturate(160%) blur(18px);
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --glass-shadow: 0 1px 2px rgba(24, 24, 27, 0.04), 0 8px 24px -8px rgba(24, 24, 27, 0.08);
+  --backdrop:
+    radial-gradient(1200px 600px at 8% -10%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, color-mix(in srgb, #14b8a6 7%, transparent), transparent 60%),
+    radial-gradient(1000px 700px at 60% 110%, color-mix(in srgb, #a855f7 5%, transparent), transparent 60%);
+}
+:root[data-theme="dark"] {
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --glass-shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 12px 32px -12px rgba(0, 0, 0, 0.6);
+  --backdrop:
+    radial-gradient(1200px 600px at 8% -10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, color-mix(in srgb, #14b8a6 7%, transparent), transparent 60%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --glass-shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 12px 32px -12px rgba(0, 0, 0, 0.6);
+    --backdrop:
+      radial-gradient(1200px 600px at 8% -10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, color-mix(in srgb, #14b8a6 7%, transparent), transparent 60%);
+  }
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  body {
+    background: var(--backdrop), var(--bg);
+    background-attachment: fixed;
+  }
+  .side {
+    background: var(--glass-side);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
+  .topbar {
+    background: var(--glass-chrome);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
+  .panel {
+    background: var(--glass-panel);
+    box-shadow: var(--glass-edge), var(--glass-shadow);
+  }
+  .dialog,
+  .drawer,
+  .menu,
+  .select-content,
+  .tray,
+  .toast {
+    background: var(--glass-pop);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    box-shadow: var(--glass-edge), var(--shadow-pop);
+  }
+  .overlay {
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+  :root {
+    --glass-chrome: var(--surface);
+    --glass-side: var(--sidebar);
+    --glass-panel: var(--surface);
+    --glass-pop: var(--surface);
+    --backdrop: none;
+  }
+  .side,
+  .topbar,
+  .dialog,
+  .drawer,
+  .menu,
+  .select-content,
+  .tray,
+  .toast,
+  .overlay {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
