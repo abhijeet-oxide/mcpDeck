@@ -5,6 +5,7 @@ package importer
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"unicode"
@@ -178,6 +179,11 @@ func Classify(r *store.Request) {
 	case strings.Contains(body, "mutation ") || strings.Contains(body, `"mutation`):
 		r.AccessFlag = true
 		r.AccessReason = "GraphQL mutation: confirm whether it writes"
+	case m == "POST" && isGraphQL(r.URL) && strings.Contains(body, "query"):
+		// A GraphQL query only reads (GraphQL spec, 6.2.1); a mutation
+		// sent through it is still checked per call.
+		r.Access = "read"
+		r.AccessReason = "GraphQL query reads"
 	case r.Access == "read" && nonRESTPath.MatchString(pathOf(r.URL)):
 		r.AccessFlag = true
 		r.AccessReason = m + " with an action word in its path; confirm it only reads"
@@ -228,4 +234,36 @@ func maskPreview(v string) string {
 		return "••••"
 	}
 	return "••••" + v[len(v)-4:]
+}
+
+// ResolveBase makes a relative server URL (Swagger basePath "/v2", OpenAPI
+// servers: [{url: /api}]) absolute against where the spec was fetched
+// (OpenAPI 3.1 4.8.5: relative to the document's location).
+func (r *Result) ResolveBase(specURL string) {
+	if specURL == "" || strings.HasPrefix(r.BaseURL, "http://") || strings.HasPrefix(r.BaseURL, "https://") {
+		return
+	}
+	su, err := url.Parse(specURL)
+	if err != nil || su.Host == "" {
+		return
+	}
+	ref, err := url.Parse(r.BaseURL)
+	if err != nil {
+		return
+	}
+	if r.BaseURL == "" {
+		ref, _ = url.Parse("/")
+	}
+	abs := strings.TrimSuffix(su.ResolveReference(ref).String(), "/")
+	for i := range r.Vars {
+		if r.Vars[i].Name == "baseUrl" {
+			r.Vars[i].Value, r.Vars[i].Preview = abs, abs
+		}
+	}
+	r.BaseURL = abs
+}
+
+func isGraphQL(u string) bool {
+	p := strings.ToLower(strings.TrimSuffix(pathOf(u), "/"))
+	return strings.HasSuffix(p, "/graphql") || strings.HasSuffix(p, "/gql")
 }
