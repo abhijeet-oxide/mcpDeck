@@ -420,8 +420,12 @@ version. Pinned grants keep getting it after newer saves.
 (from tests and recent calls) with the previous version and flag breaking
 changes; grants on `latest` move only when non-breaking or confirmed.
 
-**VER-4 Diff and roll back.** Any two versions can be diffed side by side, like
-a code review. "Roll back" creates a new version equal to an older one.
+**VER-4 History, diff and restore.** The Versions tab is a timeline, newest
+first. Selecting a version shows what it changed against the version before
+it (or against the live or latest version) as a highlighted diff with line
+numbers, unchanged runs folded. "Restore this version" asks for
+confirmation, then saves a new version equal to the selected one; nothing is
+deleted. Unsaved edits in Build survive a visit to Versions.
 
 **FILE-1 Tools as files.** `mcpdeck pull <toolkit> <dir>` writes each tool as
 `<name>.ts`, plus `mcpdeck.d.ts` (all client types) and a `tsconfig.json`, so

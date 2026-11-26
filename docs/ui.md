@@ -58,7 +58,7 @@ change as little as possible.
 | Token shown once | GitHub personal access tokens, Vercel tokens | Shown once with a warning, then only a prefix |
 | Tool editor | VS Code + Postman scripts | Code in the middle, request list on the left that inserts calls, test panel on the right, `Ctrl+S` / `Ctrl+Enter`, problems under the editor |
 | Test run timeline | Chrome DevTools Network | One bar per API call on a shared time axis |
-| Versions | GitHub file history and diffs | List on the left, side-by-side diff, "Roll back" makes a new version |
+| Versions | GitHub file history, VS Code Timeline | Timeline on the left; the selected version against the one before it (or live, or latest) as a highlighted diff; "Restore this version" confirms, then makes a new version |
 | Review a version | GitHub pull request with checks | Diff on the left, checks with pass/fail on the right, Approve / Reject |
 | Needs you | Linear Inbox, GitHub notifications | One list of things waiting for a decision, each with its action inline |
 | Calls | Chrome DevTools Network | Table with status, duration, size and a waterfall when one session is selected; detail pane with tabs |

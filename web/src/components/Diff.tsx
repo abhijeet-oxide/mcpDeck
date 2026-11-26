@@ -1,4 +1,4 @@
-// Side-by-side line diff, like a code review (VER-4).
+// Line diff for the version timeline (VER-4).
 type Line = { a?: string; b?: string; kind: "same" | "del" | "add" | "mod" };
 
 export function diffLines(left: string, right: string): Line[] {
@@ -27,31 +27,4 @@ export function diffLines(left: string, right: string): Line[] {
     }
   }
   return out;
-}
-
-export function Diff({ left, right }: { left: string; right: string }) {
-  const lines = diffLines(left, right);
-  const cell = (text: string | undefined, kind: string) => ({
-    background: kind === "del" ? "var(--bad-bg)" : kind === "add" ? "var(--ok-bg)" : "transparent",
-    text: text ?? "",
-  });
-  return (
-    <div className="code" style={{ padding: 0, display: "grid", gridTemplateColumns: "1fr 1fr" }}>
-      {lines.map((l, k) => {
-        const L = cell(l.a, l.kind === "del" ? "del" : "");
-        const R = cell(l.b, l.kind === "add" ? "add" : "");
-        return [
-          <div
-            key={`l${k}`}
-            style={{ background: L.background, padding: "0 10px", minHeight: 18, borderRight: "1px solid var(--line)" }}
-          >
-            {L.text}
-          </div>,
-          <div key={`r${k}`} style={{ background: R.background, padding: "0 10px", minHeight: 18 }}>
-            {R.text}
-          </div>,
-        ];
-      })}
-    </div>
-  );
 }
