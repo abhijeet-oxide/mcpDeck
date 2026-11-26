@@ -375,10 +375,12 @@ func (p *Proxy) oauthToken(ctx context.Context, api store.API, a store.Auth, res
 	// allowed hosts or the token URL of its saved auth. An unsaved draft or a
 	// variable can't send it anywhere else.
 	hosts := p.tokenHosts(ctx, api, res)
-	if !tokenURLPattern(hosts).MatchString(tokenURL) {
-		return nil, &Error{Code: CodeHostNotAllowed, Message: fmt.Sprintf(
-			"the %s API's OAuth 2.0 token URL host %s isn't in its allowed hosts (%s). Save the auth on its Auth tab, or a person can add the host under the API's Settings.",
-			api.Name, u.Host, strings.Join(hosts, ", "))}
+	allowed := tokenURLPattern(hosts)
+	notAllowed := &Error{Code: CodeHostNotAllowed, Message: fmt.Sprintf(
+		"the %s API's OAuth 2.0 token URL host %s isn't in its allowed hosts (%s). Save the auth on its Auth tab, or a person can add the host under the API's Settings.",
+		api.Name, u.Host, strings.Join(hosts, ", "))}
+	if !allowed.MatchString(tokenURL) {
+		return nil, notAllowed
 	}
 	grant := a.Grant
 	if grant == "" {
@@ -398,6 +400,11 @@ func (p *Proxy) oauthToken(ctx context.Context, api store.API, a store.Auth, res
 		}
 		if a.Audience != "" {
 			form.Set("audience", res.expand(a.Audience, missing))
+		}
+		// Checked again here, where the request is built, so the check
+		// guards every token request this closure sends.
+		if !allowed.MatchString(tokenURL) {
+			return nil, notAllowed, false
 		}
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(form.Encode()))
 		if err != nil {
