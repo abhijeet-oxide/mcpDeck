@@ -925,12 +925,9 @@ versions, so `releases/latest/download/<name>` always points at the newest:
   without admin rights and put `mcpdeck` on the `PATH`. `MCPDECK_VERSION` pins
   a version and `MCPDECK_INSTALL_DIR` changes the folder.
 
-When their repositories and tokens exist, the same release also updates the
-Homebrew tap `abhijeet-oxide/homebrew-tap` (a cask, macOS) and the Scoop
-bucket `abhijeet-oxide/scoop-bucket` (Windows); without them those steps are
-skipped and the release still succeeds. winget follows once a release is
-accepted into `microsoft/winget-pkgs`, which Microsoft reviews. mcpDeck never
-updates itself.
+Package managers (Homebrew, Scoop, winget) and a Docker image are not
+published yet; each is added only together with a release check that
+installs from it (see docs/releasing.md). mcpDeck never updates itself.
 *Accept:* the installer tests run both scripts on Linux, macOS and Windows
 in CI against a local release, including a checksum mismatch that must abort.
 

@@ -21,9 +21,10 @@ type GenerateInput struct {
 
 // Generated is a starter tool's source, not saved yet.
 type Generated struct {
-	Source string `json:"source"`
-	Access string `json:"access"` // read | write
-	Name   string `json:"name"`
+	Source string           `json:"source"`
+	Access string           `json:"access"` // read | write
+	Name   string           `json:"name"`
+	Tests  []store.ToolTest `json:"tests"` // a smoke test when the tool has no required inputs
 }
 
 var snakeRe = regexp.MustCompile(`([a-z0-9])([A-Z])`)
@@ -145,7 +146,12 @@ func (d *Deck) GenerateTool(ctx context.Context, in GenerateInput) (*Generated, 
 	fmt.Fprintf(&b, "    required: [%s],\n  },\n};\n\n", strings.Join(qs, ", "))
 	b.WriteString("export default async function (input: Input) {\n")
 	fmt.Fprintf(&b, "  return await %s.%s({ ...input });\n}\n", apiName, reqName)
-	return &Generated{Source: b.String(), Access: r.EffectiveAccess(), Name: name}, nil
+	g := &Generated{Source: b.String(), Access: r.EffectiveAccess(), Name: name, Tests: []store.ToolTest{}}
+	if len(required) == 0 && g.Access == "read" {
+		g.Tests = append(g.Tests, store.ToolTest{Name: "returns data", Input: json.RawMessage(`{}`),
+			Script: `pm.test("returns data", () => pm.expect(output).to.exist)`})
+	}
+	return g, nil
 }
 
 var toolNameRe = regexp.MustCompile(`^[a-z][a-z0-9_]{2,63}$`)

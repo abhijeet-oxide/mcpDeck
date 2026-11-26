@@ -433,7 +433,10 @@ func toolCmd(data *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			var g struct{ Source, Access, Name string }
+			var g struct {
+				Source, Access, Name string
+				Tests                json.RawMessage
+			}
 			if err := cl.do("POST", "/api/tools/generate", map[string]any{"from": from, "name": name, "description": desc}, &g); err != nil {
 				return err
 			}
@@ -449,7 +452,7 @@ func toolCmd(data *string) *cobra.Command {
 				Message string         `json:"message"`
 				Version map[string]any `json:"version"`
 			}
-			if err := cl.do("POST", "/api/toolkits/"+args[0]+"/save", map[string]any{"source": g.Source, "tests": []any{}}, &out); err != nil {
+			if err := cl.do("POST", "/api/toolkits/"+args[0]+"/save", map[string]any{"source": g.Source, "tests": g.Tests}, &out); err != nil {
 				return err
 			}
 			if asJSON {
@@ -536,7 +539,38 @@ func toolCmd(data *string) *cobra.Command {
 			return w.Flush()
 		}}
 	list.Flags().BoolVar(&listJSON, "json", false, "print JSON")
-	c.AddCommand(gen, save, list)
+	decide := func(approve bool) *cobra.Command {
+		verb := map[bool]string{true: "approve", false: "reject"}[approve]
+		return &cobra.Command{Use: verb + " <toolkit> <tool>", Short: map[bool]string{true: "Approve a tool's pending version so agents get it", false: "Reject a tool's pending version"}[approve],
+			Example: "  mcpdeck tool " + verb + " support cancel_order", Args: cobra.ExactArgs(2),
+			RunE: func(_ *cobra.Command, args []string) error {
+				cl, err := localClient(*data)
+				if err != nil {
+					return err
+				}
+				var tk struct {
+					PendingList []struct {
+						ID   string `json:"id"`
+						Name string `json:"name"`
+						N    int    `json:"n"`
+					} `json:"pendingList"`
+				}
+				if err := cl.do("GET", "/api/toolkits/"+args[0], nil, &tk); err != nil {
+					return err
+				}
+				for _, v := range tk.PendingList {
+					if v.Name == args[1] {
+						if err := cl.do("POST", "/api/versions/"+v.ID+"/"+verb, nil, nil); err != nil {
+							return err
+						}
+						fmt.Printf("%s %s v%d.\n", map[bool]string{true: "Approved", false: "Rejected"}[approve], v.Name, v.N)
+						return nil
+					}
+				}
+				return fmt.Errorf("%s has no pending version of %s", args[0], args[1])
+			}}
+	}
+	c.AddCommand(gen, save, list, decide(true), decide(false))
 	return c
 }
 

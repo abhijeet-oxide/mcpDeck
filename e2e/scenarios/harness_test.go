@@ -194,7 +194,10 @@ func (h *harness) mustCLI(t T, args ...string) string {
 }
 
 // api calls the HTTP API the UI uses.
-func (h *harness) api(method, path string, in, out any) error {
+func (h *harness) api(method, path string, in, out any) error { return h.apiAs("", method, path, in, out) }
+
+// apiAs calls the HTTP API as the agent behind the admin MCP server.
+func (h *harness) apiAs(agentName, method, path string, in, out any) error {
 	var body io.Reader
 	if in != nil {
 		b, _ := json.Marshal(in)
@@ -203,6 +206,9 @@ func (h *harness) api(method, path string, in, out any) error {
 	req, _ := http.NewRequest(method, h.base+path, body)
 	req.Header.Set("Authorization", "Bearer "+h.cliToken)
 	req.Header.Set("Content-Type", "application/json")
+	if agentName != "" {
+		req.Header.Set("X-Mcpdeck-Agent", agentName)
+	}
 	res, err := (&http.Client{Timeout: 60 * time.Second}).Do(req)
 	if err != nil {
 		return err

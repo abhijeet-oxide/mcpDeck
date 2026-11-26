@@ -135,7 +135,7 @@ func root() *cobra.Command {
 		}})
 
 	r.AddCommand(serveCmd, devCmd, stopCmd, versionCmd, auditCmd, connectCmd(&data), agentsCmd(&data), importCmd(&data), stdioCmd(), pullCmd(&data), pushCmd(&data),
-		varCmd(&data), secretCmd(&data), requestCmd(&data), authCmd(&data), toolkitCmd(&data), toolCmd(&data), lintCmd(&data))
+		varCmd(&data), secretCmd(&data), requestCmd(&data), authCmd(&data), toolkitCmd(&data), toolCmd(&data), lintCmd(&data), mcpCmd(&data))
 	r.SetHelpCommand(helpCmd(r))
 	return r
 }

@@ -83,8 +83,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusForbidden, "cross_origin", "requests from other sites are refused")
 			return
 		}
-		if _, ok := g.Authed(r); !ok {
+		who, ok := g.Authed(r)
+		if !ok {
 			writeErr(w, http.StatusUnauthorized, "no_session", "open mcpDeck from the link it printed when it started, or run mcpdeck again")
+			return
+		}
+		r = withAdminAgent(r, who)
+		if why := blockedForAgent(r); why != "" {
+			writeErr(w, http.StatusForbidden, "person_only", why)
 			return
 		}
 		w.Header().Set("Cache-Control", "no-store")
@@ -369,7 +375,7 @@ func (s *Server) routes() {
 		if err != nil {
 			return nil, err
 		}
-		return d.SaveTool(r.Context(), r.PathValue("ref"), deck.Caller{Actor: you()}, in)
+		return d.SaveTool(r.Context(), r.PathValue("ref"), deck.Caller{Actor: you(r)}, in)
 	}))
 	m.HandleFunc("POST /api/toolkits/{ref}/test", h(func(r *http.Request) (any, error) {
 		in, err := body[deck.TestInput](r)
@@ -380,7 +386,7 @@ func (s *Server) routes() {
 		if err != nil {
 			return nil, err
 		}
-		return d.TestTool(r.Context(), deck.Caller{Actor: you(), Toolkit: &tk}, in)
+		return d.TestTool(r.Context(), deck.Caller{Actor: you(r), Toolkit: &tk}, in)
 	}))
 	m.HandleFunc("POST /api/tools/generate", h(func(r *http.Request) (any, error) {
 		in, err := body[deck.GenerateInput](r)
@@ -427,6 +433,9 @@ func (s *Server) routes() {
 		if err != nil {
 			return nil, err
 		}
+		if you(r).Kind == "agent" && (in.Access != "read" || in.CanBuild) {
+			return nil, deck.Forbidden("an agent can connect clients with read access only; ask the user to give write or build access in mcpDeck")
+		}
 		res, err := d.Connect(r.Context(), in.ConnectInput)
 		if err != nil {
 			return nil, err
@@ -453,7 +462,7 @@ func (s *Server) routes() {
 			return nil, &deck.Error{Status: 500, Code: "write_failed", Message: err.Error()}
 		}
 		a, _ := d.Store.Agent(r.Context(), rec.agentID)
-		_ = d.Audit.Append(r.Context(), you(), "connect.write_config", a.Name, strings.Join(written, ", "))
+		_ = d.Audit.Append(r.Context(), you(r), "connect.write_config", a.Name, strings.Join(written, ", "))
 		return map[string]any{"written": written}, nil
 	}))
 

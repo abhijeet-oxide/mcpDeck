@@ -15,6 +15,7 @@ import (
 type client struct {
 	base  string
 	token string
+	agent string // set by the admin MCP server; actions are recorded as this agent's
 }
 
 func localClient(data string) (*client, error) {
@@ -40,6 +41,9 @@ func (c *client) do(method, path string, in, out any) error {
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Content-Type", "application/json")
+	if c.agent != "" {
+		req.Header.Set("X-Mcpdeck-Agent", c.agent)
+	}
 	res, err := (&http.Client{Timeout: 60 * time.Second}).Do(req)
 	if err != nil {
 		return errors.New("mcpDeck isn't running. Start it with: mcpdeck")
