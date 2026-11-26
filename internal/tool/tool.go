@@ -37,7 +37,7 @@ var pmPrelude string
 // Limits (TOOL-6).
 const (
 	DefaultTimeout   = 10 * time.Second
-	DefaultMaxOutput = 64 << 10
+	DefaultMaxOutput = 4 << 20 // a safety cap; agents get outputs over deck.OutputBudget cut to fit
 	memoryCap        = 256 << 20
 	maxCallDepth     = 2000
 	// MaxTimeout caps tool.timeout (TOOL-6).

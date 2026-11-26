@@ -234,7 +234,7 @@ func (d *Deck) AgentCall(ctx context.Context, s AgentSession, name string, raw j
 		text, isErr, versionID = d.runPublished(ctx, s, callID, name, raw)
 	}
 	tok := tokens.Count(text)
-	if !isErr && kind == "tool" && s.Toolkit.Hints && s.Toolkit.HintTokens > 0 && tok > s.Toolkit.HintTokens {
+	if !isErr && kind == "tool" && s.Toolkit.Hints && s.Toolkit.HintTokens > 0 && tok > s.Toolkit.HintTokens && !strings.Contains(text, `"_mcpdeck":{`) {
 		text += fmt.Sprintf("\n\nLarge response (%d tokens). If you used only some fields, call report_field_usage.", tok)
 		tok = tokens.Count(text)
 	}
@@ -318,7 +318,8 @@ func (d *Deck) runPublished(ctx context.Context, s AgentSession, callID, name st
 		}
 		return msg, true, v.ID
 	}
-	return r.OutputJSON, false, v.ID
+	out, _ := fitOutput(r.OutputJSON, OutputBudget)
+	return out, false, v.ID
 }
 
 func (d *Deck) searchTools(ctx context.Context, tk store.Toolkit, access, q string) string {

@@ -352,8 +352,14 @@ passes.
 size of each upstream response and of the tool's output, in bytes and tokens,
 so the saving is visible while editing.
 
-**TOOL-6 Limits.** Per tool: timeout (default 10 s), memory cap (default
-32 MB), max output size (default 64 KB), retries for idempotent reads.
+**TOOL-6 Limits.** Per tool: timeout (default 10 s, up to 300 s with
+`timeout` in the tool file), memory cap (256 MB), max output size (4 MB),
+retries for reads on 429 and 503.
+
+**USE-4 Output budget.** A tool result over 20,000 tokens is cut before it
+reaches an agent: the longest list keeps as many items as fit, and a
+`_mcpdeck` field gives the shown and total counts and asks for a narrower
+input. Claude Code otherwise cuts results over 25,000 tokens mid-JSON.
 
 **TOOL-7 Test run.** "Test" (`Ctrl+Enter`) runs the tool with an input form
 generated from `inputSchema`, against real APIs or against saved examples

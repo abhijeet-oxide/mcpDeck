@@ -1,6 +1,8 @@
 package scenarios
 
 import (
+	"encoding/json"
+	"github.com/abhijeet-oxide/mcpdeck/internal/tokens"
 	"strings"
 	"testing"
 	"time"
@@ -252,11 +254,14 @@ func init() {
 		expect(t, strings.Contains(text, "application/pdf") && !strings.Contains(text, "%PDF"), "got %q", clip(text, 200))
 	})
 
-	add("payloads", "huge response is refused with advice, not truncated JSON", func(t *testing.T) {
+	add("payloads", "huge response reaches the agent as valid JSON under budget, with a note", func(t *testing.T) {
 		need(t, "flaky")
 		a, name := one(t, "read", []string{"flaky"}, "The whole catalog.", "", nil, `  return await flaky.getCatalog({});`)
 		text, isErr := a.call(name, map[string]any{})
-		expect(t, isErr && len(text) < 2000, "a 1 MB response reached the agent (%d chars)", len(text))
+		var v map[string]any
+		err := json.Unmarshal([]byte(text), &v)
+		expect(t, !isErr && err == nil, "not valid JSON (%v): %s", err, clip(text, 200))
+		expect(t, tokens.Count(text) <= 20000 && v["_mcpdeck"] != nil, "a %d-token response reached the agent without a note", tokens.Count(text))
 	})
 
 	add("shaping", "huge response summarized inside the tool", func(t *testing.T) {
