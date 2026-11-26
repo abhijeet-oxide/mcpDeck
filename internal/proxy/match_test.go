@@ -43,3 +43,29 @@ func TestClassifyRaw_GraphQL(t *testing.T) {
 		t.Fatal("a field named mutationLog is not a mutation")
 	}
 }
+
+// REQ: AUTH-3
+func TestTokenURLPattern(t *testing.T) {
+	re := tokenURLPattern([]string{"idp.example.com", "127.0.0.1:8443"})
+	for u, want := range map[string]bool{
+		"https://idp.example.com/oauth2/token":            true,
+		"https://IDP.example.com:9443/token":              true,
+		"http://127.0.0.1:8443/token":                     true,
+		"https://idp.example.com?x=1":                     true,
+		"https://idp.example.com":                         true,
+		"https://idp.example.com.evil.test/token":         false,
+		"https://idp.example.com@evil.test/token":         false,
+		"https://evil.test/https://idp.example.com/token": false,
+		"https://127.0.0.1:9999/token":                    false,
+		"file:///etc/passwd":                              false,
+		"ftp://idp.example.com/token":                     false,
+		"https://idpxexample.com/token":                   false,
+	} {
+		if got := re.MatchString(u); got != want {
+			t.Errorf("%s: got %v, want %v", u, got, want)
+		}
+	}
+	if tokenURLPattern(nil).MatchString("https://idp.example.com/") {
+		t.Error("an empty host list matched")
+	}
+}

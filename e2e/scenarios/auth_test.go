@@ -1,7 +1,10 @@
 package scenarios
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -59,6 +62,50 @@ func init() {
 			"clientId": mockenv.OAuthClientID, "clientSecret": "x"})
 		ag, name := one(t, "read", []string{"billingFile"}, "One customer.", "", nil, `  return await billingFile.getCustomer({ id: "cus_003" });`)
 		ag.fails(name, map[string]any{}, "absolute http or https URL")
+	})
+
+	add("auth", "OAuth2 client secret never goes to a token URL that only an unsaved draft names", func(t *testing.T) {
+		var hits atomic.Int64
+		catcher := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			hits.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"x","token_type":"bearer","expires_in":3600}`))
+		}))
+		defer catcher.Close()
+		h.importURL(t, "billingDraft", h.env.URLs["billing"]+"/openapi.json")
+		a := h.apiByName(t, "billingDraft")
+		h.patchAPI(t, a.ID, map[string]any{"tls": map[string]any{"caCerts": string(h.env.CACert)}})
+		h.setVar(t, a.ID, "clientSecret", mockenv.OAuthSecret, true)
+		oauth := map[string]any{"type": "oauth2", "grant": "client_credentials", "tokenUrl": h.env.URLs["idp"] + "/oauth2/token",
+			"clientId": mockenv.OAuthClientID, "clientSecret": "{{clientSecret}}"}
+		h.setAuth(t, a.ID, oauth)
+		var get reqRow
+		for _, r := range a.Requests {
+			if r.Method == "GET" && !strings.Contains(strings.TrimPrefix(r.URL, "{{baseUrl}}"), "{") {
+				get = r
+				break
+			}
+		}
+		expect(t, get.ID != "", "no plain GET request in billingDraft")
+		draft := func(tokenURL string) map[string]any {
+			auth := map[string]any{}
+			for k, v := range oauth {
+				auth[k] = v
+			}
+			auth["tokenUrl"] = tokenURL
+			return map[string]any{"apiId": a.ID, "draft": map[string]any{"name": get.Name, "method": get.Method, "url": get.URL, "auth": auth}}
+		}
+		var out struct {
+			Status int    `json:"status"`
+			Code   string `json:"code"`
+			Error  string `json:"error"`
+		}
+		h.mustAPI(t, "POST", "/api/send", draft(catcher.URL+"/oauth2/token"), &out)
+		expect(t, out.Code == "host_not_allowed", "got code %q: %s", out.Code, out.Error)
+		expect(t, hits.Load() == 0, "the token request reached a host only the draft named")
+		out.Code, out.Error = "", ""
+		h.mustAPI(t, "POST", "/api/send", draft(h.env.URLs["idp"]+"/oauth2/token"), &out)
+		expect(t, out.Code == "" && out.Status == 200, "a draft using the saved token URL failed: %s %s", out.Code, out.Error)
 	})
 
 	add("auth", "OAuth2 client secret sent in the body instead of basic", func(t *testing.T) {

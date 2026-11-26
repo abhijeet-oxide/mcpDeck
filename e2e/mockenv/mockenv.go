@@ -130,7 +130,7 @@ func Start() (*Env, error) {
 		{"anchore", e.anchore(), false, false},
 		{"idp", e.idp(), true, false},
 		{"billing", e.saasBilling(), true, false},
-		{"legacy", e.legacy(), false, false},
+		{"legacy", e.legacy(), true, false},
 		{"payments", e.payments(), false, false},
 		{"vault", e.mtlsService(), true, true},
 		{"github", e.github(), false, false},

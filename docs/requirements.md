@@ -167,7 +167,9 @@ login redirect.
 **AUTH-3 OAuth 2.0.** Client credentials and password grants; client
 authentication by basic header or body; scopes; tokens cached until shortly
 before expiry; refresh-token rotation. Imported from an OpenAPI `oauth2`
-security scheme with its token URL.
+security scheme with its token URL. The token request goes only to an http or
+https URL on the API's allowed hosts or the host of a saved token URL, so an
+unsaved draft or a variable can't send the client secret elsewhere.
 
 **AUTH-4 HMAC signing.** A string to sign built from `{{method}}`,
 `{{path}}`, `{{query}}`, `{{timestamp}}`, `{{nonce}}`, `{{bodySha256}}`,

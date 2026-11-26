@@ -136,6 +136,7 @@ var onboard = map[string]func(t *recorder){
 	"legacy": func(t *recorder) {
 		h.importText(t, "legacy", h.env.LegacyCurl())
 		a := h.apiByName(t, "legacy")
+		h.patchAPI(t, a.ID, map[string]any{"tls": map[string]any{"caCerts": string(h.env.CACert)}})
 		var page, form reqRow
 		for _, r := range a.Requests {
 			if strings.HasSuffix(r.URL, "/accounts/login/") && r.Method == "GET" {

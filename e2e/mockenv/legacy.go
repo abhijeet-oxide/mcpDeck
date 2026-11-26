@@ -58,7 +58,7 @@ func (e *Env) legacy() http.Handler {
 	}
 	mux.HandleFunc("GET /accounts/login/", func(w http.ResponseWriter, r *http.Request) {
 		tok := randHex(16)
-		http.SetCookie(w, &http.Cookie{Name: "csrftoken", Value: tok, Path: "/"})
+		http.SetCookie(w, &http.Cookie{Name: "csrftoken", Value: tok, Path: "/", Secure: true, SameSite: http.SameSiteLaxMode})
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprintf(w, `<!doctype html><html><body><form method="post" action="/accounts/login/">
 <input type="hidden" name="csrfmiddlewaretoken" value="%s">
@@ -83,7 +83,7 @@ func (e *Env) legacy() http.Handler {
 		sessions[sid] = time.Now().Add(e.ttl())
 		mu.Unlock()
 		e.inc("legacy.login")
-		http.SetCookie(w, &http.Cookie{Name: "sessionid", Value: sid, Path: "/", HttpOnly: true})
+		http.SetCookie(w, &http.Cookie{Name: "sessionid", Value: sid, Path: "/", HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode})
 		http.Redirect(w, r, "/home/", http.StatusFound)
 	})
 	mux.HandleFunc("GET /api/customers/", func(w http.ResponseWriter, r *http.Request) {

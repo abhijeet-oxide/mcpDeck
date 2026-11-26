@@ -307,6 +307,54 @@ func capture(from string, hr *http.Response, body []byte, cl *http.Client, u *ur
 	return ""
 }
 
+// tokenHosts lists the hosts an OAuth 2.0 token request may go to: the
+// API's allowed hosts and the hosts of the token URLs in its saved auth,
+// API-level and per request, expanded with its stored variables.
+func (p *Proxy) tokenHosts(ctx context.Context, api store.API, res resolved) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(h string) {
+		h = strings.ToLower(strings.TrimSpace(h))
+		if h != "" && !seen[h] {
+			seen[h] = true
+			out = append(out, h)
+		}
+	}
+	for _, h := range p.AllowedHosts(ctx, api) {
+		add(h)
+	}
+	saved := []string{api.Auth.TokenURL}
+	if reqs, err := p.store.Requests(ctx, api.ID); err == nil {
+		for _, r := range reqs {
+			if r.Auth != nil {
+				saved = append(saved, r.Auth.TokenURL)
+			}
+		}
+	}
+	for _, t := range saved {
+		if t == "" {
+			continue
+		}
+		if u, err := url.Parse(res.expand(t, map[string]bool{})); err == nil && u.Host != "" && !strings.Contains(u.Host, "{{") {
+			add(u.Host)
+		}
+	}
+	return out
+}
+
+// tokenURLPattern matches an http or https URL on exactly one of hosts. A
+// host listed without a port matches it on any port, as hostAllowed does.
+func tokenURLPattern(hosts []string) *regexp.Regexp {
+	if len(hosts) == 0 {
+		return regexp.MustCompile(`[^\s\S]`) // matches nothing
+	}
+	q := make([]string, 0, len(hosts))
+	for _, h := range hosts {
+		q = append(q, regexp.QuoteMeta(h))
+	}
+	return regexp.MustCompile(`(?i)^https?://(?:` + strings.Join(q, "|") + `)(?::\d+)?(?:[/?#]|$)`)
+}
+
 // oauthToken gets an access token from an OAuth 2.0 token endpoint
 // (RFC 6749 sections 4.3, 4.4 and 6), refreshing while it can.
 func (p *Proxy) oauthToken(ctx context.Context, api store.API, a store.Auth, res resolved, prev map[string]string) (*session, error) {
@@ -319,8 +367,18 @@ func (p *Proxy) oauthToken(ctx context.Context, api store.API, a store.Auth, res
 	if tokenURL == "" {
 		return nil, &Error{Code: CodeLoginFailed, Message: "the " + api.Name + " API uses OAuth 2.0 but has no token URL; set it on its Auth tab"}
 	}
-	if u, err := url.Parse(tokenURL); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+	u, err := url.Parse(tokenURL)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
 		return nil, &Error{Code: CodeLoginFailed, Message: "the " + api.Name + " API's OAuth 2.0 token URL must be an absolute http or https URL; fix it on its Auth tab"}
+	}
+	// The client secret goes only to a host the person configured: the API's
+	// allowed hosts or the token URL of its saved auth. An unsaved draft or a
+	// variable can't send it anywhere else.
+	hosts := p.tokenHosts(ctx, api, res)
+	if !tokenURLPattern(hosts).MatchString(tokenURL) {
+		return nil, &Error{Code: CodeHostNotAllowed, Message: fmt.Sprintf(
+			"the %s API's OAuth 2.0 token URL host %s isn't in its allowed hosts (%s). Save the auth on its Auth tab, or a person can add the host under the API's Settings.",
+			api.Name, u.Host, strings.Join(hosts, ", "))}
 	}
 	grant := a.Grant
 	if grant == "" {
