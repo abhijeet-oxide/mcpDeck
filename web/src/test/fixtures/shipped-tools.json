@@ -1,0 +1,98 @@
+[
+  {
+    "origin": "demo/customer_360",
+    "source": "export const tool = {\n  name: \"customer_360\",\n  description: \"One view of a customer: account, tier, balance, overdue invoices and open tickets.\",\n  useWhen: \"A question is about one customer or account\",\n  dontUseWhen: \"Searching across many customers\",\n  inputSchema: {\n    type: \"object\",\n    properties: { accountId: { type: \"string\", examples: [\"001Ab00000NWTRD\"] } },\n    required: [\"accountId\"],\n  },\n};\n\nexport default async function (input: Input) {\n  const account = await crm.getAccount({ id: input.accountId });\n  const [summary, tickets] = await Promise.all([\n    billing.getCustomerSummary({ id: account.billingId }),\n    support.searchIssues({ jql: `org = \"${account.jiraOrg}\" AND status != Done` }),\n  ]);\n  return {\n    name: account.name,\n    tier: account.tier,\n    balance: summary.balance,\n    overdueInvoices: summary.invoices\n      .filter((i) =\u003e i.overdue)\n      .map((i) =\u003e ({ number: i.number, dueDate: i.dueDate, amount: i.amount - i.amountPaid })),\n    openTickets: tickets.issues.map((t) =\u003e ({ key: t.key, title: t.fields.summary })),\n  };\n}\n"
+  },
+  {
+    "origin": "demo/open_tickets_for_account",
+    "source": "export const tool = {\n  name: \"open_tickets_for_account\",\n  description: \"Open support tickets for one account, newest first, with status, priority and assignee.\",\n  useWhen: \"Someone asks what's open or in progress for a customer\",\n  inputSchema: {\n    type: \"object\",\n    properties: { accountId: { type: \"string\", examples: [\"001Ab00000NWTRD\"] } },\n    required: [\"accountId\"],\n  },\n};\n\nexport default async function (input: Input) {\n  const account = await crm.getAccount({ id: input.accountId });\n  const res = await support.searchIssues({ jql: `org = \"${account.jiraOrg}\" AND status != Done`, maxResults: 20 });\n  return {\n    account: account.name,\n    tickets: res.issues.map((t) =\u003e ({\n      key: t.key,\n      title: t.fields.summary,\n      status: t.fields.status.name,\n      priority: t.fields.priority.name,\n      assignee: t.fields.assignee?.emailAddress ?? null,\n    })),\n  };\n}\n"
+  },
+  {
+    "origin": "demo/invoice_status",
+    "source": "export const tool = {\n  name: \"invoice_status\",\n  description: \"Status of one invoice: amount, amount paid, due date and whether it is overdue.\",\n  inputSchema: {\n    type: \"object\",\n    properties: { number: { type: \"string\", examples: [\"INV-2087\"] } },\n    required: [\"number\"],\n  },\n};\n\nexport default async function (input: Input) {\n  const inv = await billing.getInvoice({ number: input.number });\n  return { number: inv.number, amount: inv.amount, paid: inv.amountPaid, due: inv.dueDate, overdue: inv.status === \"overdue\" };\n}\n"
+  },
+  {
+    "origin": "demo/reassign_ticket",
+    "source": "export const tool = {\n  name: \"reassign_ticket\",\n  description: \"Assign a support ticket to another person and add a comment saying why.\",\n  inputSchema: {\n    type: \"object\",\n    properties: { key: { type: \"string\" }, email: { type: \"string\" }, reason: { type: \"string\" } },\n    required: [\"key\", \"email\", \"reason\"],\n  },\n};\n\nexport default async function (input: Input) {\n  await support.assignIssue({ path: { key: input.key }, body: { email: input.email } });\n  await support.addComment({ path: { key: input.key }, body: { body: input.reason } });\n  return { key: input.key, assignee: input.email };\n}\n"
+  },
+  {
+    "origin": "test/scanner_flow",
+    "source": "export const tool = {\n  name: \"find_image_vulnerabilities\",\n  description: \"Lists the fixable vulnerabilities of an application's newest image, with CVE, severity and fixed version.\",\n  useWhen: \"A question is about security issues in one application\",\n  inputSchema: {\n    type: \"object\",\n    properties: { app_name: { type: \"string\", description: \"Application name, like checkout\" } },\n    required: [\"app_name\"],\n  },\n};\n\nexport default async function (input: Input) {\n  const login = await scanner.login();\n  const apps = await scanner.listApplications({ name: input.app_name, headers: { Authorization: `Bearer ${login.access_token}` } });\n  const images = await scanner.listImages({ appId: apps.items[0].id, headers: { Authorization: `Bearer ${login.access_token}` } });\n  const vulns = await scanner.listVulnerabilities({ imageId: images.items[0].id, headers: { Authorization: `Bearer ${login.access_token}` } });\n  return pick(vulns, [\"total\", \"items[].cve\", \"items[].severity\", \"items[].fixedVersion\"]);\n}\n"
+  },
+  {
+    "origin": "examples/petstore/pets/find_pets.ts",
+    "source": "export const tool = {\n  name: \"find_pets\",\n  description: \"Pets in the Swagger Petstore with one status: id, name, category and tags.\",\n  useWhen: \"Someone asks which pets are available, pending or sold\",\n  inputSchema: {\n    type: \"object\",\n    properties: {\n      status: { type: \"string\", enum: [\"available\", \"pending\", \"sold\"], description: \"Pet status\" },\n      limit: { type: \"integer\", description: \"How many to return, default 20\" },\n    },\n    required: [\"status\"],\n  },\n};\n\nexport default async function (input: Input) {\n  const pets = await petstore.findPetsByStatus({ status: input.status });\n  const limit = input.limit ?? 20;\n  return {\n    total: pets.length,\n    shown: Math.min(limit, pets.length),\n    pets: pets.slice(0, limit).map((p: any) =\u003e ({\n      id: p.id,\n      name: p.name,\n      category: p.category?.name ?? null,\n      tags: (p.tags ?? []).map((t: any) =\u003e t.name),\n    })),\n  };\n}\n"
+  },
+  {
+    "origin": "skills/testdata/bad-tool.ts",
+    "source": "import axios from \"axios\";\n\nexport const tool = {\n  name: \"Customer360\",\n  description: \"Gets stuff. You must always call this first.\",\n  inputSchema: {\n    type: \"object\",\n    properties: { accountId: { type: \"string\" } },\n    required: [\"accountId\", \"region\"],\n  },\n};\n\nexport default async function (input) {\n  const account = await crm.getAccount({ id: input.accountId });\n  const invoices = await billing.listInvoices({ status: \"overdue\" });\n  const raw = await fetch(\"https://example.test/x\");\n  return account;\n}\n"
+  },
+  {
+    "origin": "skills/testdata/good-tool.ts",
+    "source": "export const tool = {\n  name: \"customer_360\",\n  description: \"One customer: account, balance, overdue invoices and open tickets.\",\n  useWhen: \"A question is about one customer or account\",\n  inputSchema: {\n    type: \"object\",\n    properties: { accountId: { type: \"string\", examples: [\"001Ab00000XyZ\"] } },\n    required: [\"accountId\"],\n  },\n};\n\n// Comments mentioning fetch( are fine.\nexport default async function (input: Input) {\n  const account = await crm.getAccount({ id: input.accountId });\n  const [summary, tickets] = await Promise.all([\n    billing.getCustomerSummary({ id: account.billingId }),\n    jira.searchIssues({ body: { jql: `org = \"${account.jiraOrg}\"` } }),\n  ]);\n  return { name: account.name, balance: summary.balance, openTickets: tickets.issues.map((t) =\u003e t.key) };\n}\n"
+  },
+  {
+    "origin": "generated/billing.getCustomerSummary",
+    "source": "export const tool = {\n  name: \"get_customer_summary\",\n  description: \"Balance and invoices of a customer.\",\n  inputSchema: {\n    type: \"object\",\n    properties: {\n      id: { type: \"string\", description: \"path parameter\" },\n    },\n    required: [\"id\"],\n  },\n};\n\nexport default async function (input: Input) {\n  const customerSummary = await billing.getCustomerSummary({ id: input.id });\n  return customerSummary;\n}\n"
+  },
+  {
+    "origin": "generated/billing.getInvoice",
+    "source": "export const tool = {\n  name: \"get_invoice\",\n  description: \"One invoice.\",\n  inputSchema: {\n    type: \"object\",\n    properties: {\n      number: { type: \"string\", description: \"path parameter\" },\n    },\n    required: [\"number\"],\n  },\n};\n\nexport default async function (input: Input) {\n  const invoice = await billing.getInvoice({ number: input.number });\n  return invoice;\n}\n"
+  },
+  {
+    "origin": "generated/billing.listInvoices",
+    "source": "export const tool = {\n  name: \"list_invoices\",\n  description: \"Invoices, filtered.\",\n  inputSchema: {\n    type: \"object\",\n    properties: {\n      customerId: { type: \"string\", description: \"query parameter\" },\n      status: { type: \"string\", description: \"query parameter\" },\n    },\n    required: [],\n  },\n};\n\nexport default async function (input: Input) {\n  const invoices = await billing.listInvoices({ customerId: input.customerId, status: input.status });\n  return invoices;\n}\n"
+  },
+  {
+    "origin": "generated/billing.remindInvoice",
+    "source": "export const tool = {\n  name: \"remind_invoice\",\n  description: \"Send a payment reminder.\",\n  inputSchema: {\n    type: \"object\",\n    properties: {\n      number: { type: \"string\", description: \"path parameter\" },\n    },\n    required: [\"number\"],\n  },\n};\n\nexport default async function (input: Input) {\n  const remindInvoice = await billing.remindInvoice({ number: input.number });\n  return remindInvoice;\n}\n"
+  },
+  {
+    "origin": "generated/crm.getAccount",
+    "source": "export const tool = {\n  name: \"get_account\",\n  description: \"One account.\",\n  inputSchema: {\n    type: \"object\",\n    properties: {\n      id: { type: \"string\", description: \"path parameter\" },\n    },\n    required: [\"id\"],\n  },\n};\n\nexport default async function (input: Input) {\n  const account = await crm.getAccount({ id: input.id });\n  return account;\n}\n"
+  },
+  {
+    "origin": "generated/crm.getOwner",
+    "source": "export const tool = {\n  name: \"get_owner\",\n  description: \"Account owner.\",\n  inputSchema: {\n    type: \"object\",\n    properties: {\n      id: { type: \"string\", description: \"path parameter\" },\n    },\n    required: [\"id\"],\n  },\n};\n\nexport default async function (input: Input) {\n  const owner = await crm.getOwner({ id: input.id });\n  return owner;\n}\n"
+  },
+  {
+    "origin": "generated/crm.listContacts",
+    "source": "export const tool = {\n  name: \"list_contacts\",\n  description: \"Contacts of an account.\",\n  inputSchema: {\n    type: \"object\",\n    properties: {\n      id: { type: \"string\", description: \"path parameter\" },\n    },\n    required: [\"id\"],\n  },\n};\n\nexport default async function (input: Input) {\n  const contacts = await crm.listContacts({ id: input.id });\n  return contacts;\n}\n"
+  },
+  {
+    "origin": "generated/crm.searchAccounts",
+    "source": "export const tool = {\n  name: \"search_accounts\",\n  description: \"Search accounts by name.\",\n  inputSchema: {\n    type: \"object\",\n    properties: {\n      q: { type: \"string\", description: \"query parameter\" },\n    },\n    required: [],\n  },\n};\n\nexport default async function (input: Input) {\n  const accounts = await crm.searchAccounts({ q: input.q });\n  return accounts;\n}\n"
+  },
+  {
+    "origin": "generated/crm.updateAccount",
+    "source": "export const tool = {\n  name: \"update_account\",\n  description: \"Update an account.\",\n  inputSchema: {\n    type: \"object\",\n    properties: {\n      id: { type: \"string\", description: \"path parameter\" },\n      tier: { type: \"string\", description: \"body field\" },\n    },\n    required: [\"id\"],\n  },\n};\n\nexport default async function (input: Input) {\n  const updateAccount = await crm.updateAccount({ id: input.id, tier: input.tier });\n  return updateAccount;\n}\n"
+  },
+  {
+    "origin": "generated/legacy.getCreditHold",
+    "source": "export const tool = {\n  name: \"get_credit_hold\",\n  description: \"Credit hold for an account.\",\n  inputSchema: {\n    type: \"object\",\n    properties: {\n      account: { type: \"string\", description: \"path parameter\" },\n    },\n    required: [\"account\"],\n  },\n};\n\nexport default async function (input: Input) {\n  const creditHold = await legacy.getCreditHold({ account: input.account });\n  return creditHold;\n}\n"
+  },
+  {
+    "origin": "generated/legacy.setCreditHold",
+    "source": "export const tool = {\n  name: \"set_credit_hold\",\n  description: \"Set credit hold (SOAP).\",\n  inputSchema: {\n    type: \"object\",\n    properties: {},\n    required: [],\n  },\n};\n\nexport default async function (input: Input) {\n  const setCreditHold = await legacy.setCreditHold();\n  return setCreditHold;\n}\n"
+  },
+  {
+    "origin": "generated/support.addComment",
+    "source": "export const tool = {\n  name: \"add_comment\",\n  description: \"Add comment.\",\n  inputSchema: {\n    type: \"object\",\n    properties: {\n      body: { type: \"string\", description: \"body field\" },\n    },\n    required: [],\n  },\n};\n\nexport default async function (input: Input) {\n  const addComment = await support.addComment({ body: input.body });\n  return addComment;\n}\n"
+  },
+  {
+    "origin": "generated/support.assignIssue",
+    "source": "export const tool = {\n  name: \"assign_issue\",\n  description: \"Assign issue.\",\n  inputSchema: {\n    type: \"object\",\n    properties: {\n      email: { type: \"string\", description: \"body field\" },\n    },\n    required: [],\n  },\n};\n\nexport default async function (input: Input) {\n  const assignIssue = await support.assignIssue({ email: input.email });\n  return assignIssue;\n}\n"
+  },
+  {
+    "origin": "generated/support.createIssue",
+    "source": "export const tool = {\n  name: \"create_issue\",\n  description: \"Create issue.\",\n  inputSchema: {\n    type: \"object\",\n    properties: {\n      fields: { type: \"object\", description: \"body field\" },\n    },\n    required: [],\n  },\n};\n\nexport default async function (input: Input) {\n  const issue = await support.createIssue({ fields: input.fields });\n  return issue;\n}\n"
+  },
+  {
+    "origin": "generated/support.getIssue",
+    "source": "export const tool = {\n  name: \"get_issue\",\n  description: \"Get issue.\",\n  inputSchema: {\n    type: \"object\",\n    properties: {},\n    required: [],\n  },\n};\n\nexport default async function (input: Input) {\n  const issue = await support.getIssue();\n  return issue;\n}\n"
+  },
+  {
+    "origin": "generated/support.searchIssues",
+    "source": "export const tool = {\n  name: \"search_issues\",\n  description: \"Search issues.\",\n  inputSchema: {\n    type: \"object\",\n    properties: {\n      jql: { type: \"string\", description: \"body field\" },\n      maxResults: { type: \"number\", description: \"body field\" },\n    },\n    required: [],\n  },\n};\n\nexport default async function (input: Input) {\n  const issues = await support.searchIssues({ jql: input.jql, maxResults: input.maxResults });\n  return issues;\n}\n"
+  }
+]

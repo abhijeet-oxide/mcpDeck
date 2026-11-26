@@ -421,11 +421,17 @@ func runJS(ctx context.Context, js string, input any, env Env) Result {
 		}
 		if !structured {
 			flat := map[string]any{}
-			for k, v := range m {
-				if _, isHdr := v.(map[string]any); k == "headers" && isHdr {
+			obj := v.ToObject(vm)
+			for k, x := range m {
+				if _, isHdr := x.(map[string]any); k == "headers" && isHdr {
 					continue
 				}
-				flat[k] = v
+				// { limit: input.limit } with no limit given leaves it out,
+				// like spreading the input would.
+				if goja.IsUndefined(obj.Get(k)) {
+					continue
+				}
+				flat[k] = x
 			}
 			a.Flat = flat
 			return a
