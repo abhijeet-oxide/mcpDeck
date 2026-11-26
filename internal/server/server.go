@@ -382,6 +382,13 @@ func (s *Server) routes() {
 		}
 		return d.TestTool(r.Context(), deck.Caller{Actor: you(), Toolkit: &tk}, in)
 	}))
+	m.HandleFunc("POST /api/tools/generate", h(func(r *http.Request) (any, error) {
+		in, err := body[deck.GenerateInput](r)
+		if err != nil {
+			return nil, err
+		}
+		return d.GenerateTool(r.Context(), in)
+	}))
 	m.HandleFunc("GET /api/tools", h(func(r *http.Request) (any, error) { return d.Library(r.Context()) }))
 	m.HandleFunc("GET /api/tools/{ref}", h(func(r *http.Request) (any, error) { return d.GetTool(r.Context(), r.PathValue("ref")) }))
 	m.HandleFunc("DELETE /api/tools/{ref}", h(func(r *http.Request) (any, error) { return nil, d.DeleteTool(r.Context(), r.PathValue("ref")) }))

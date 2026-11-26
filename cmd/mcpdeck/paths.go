@@ -64,3 +64,13 @@ func (opener) Open(target string) error {
 	}
 	return cmd.Start()
 }
+
+// devPointerDir is where a running `mcpdeck dev` records its temporary data
+// folder, next to the normal data folder, so `mcpdeck stop` finds it.
+func devPointerDir(dir string) string {
+	b, err := os.ReadFile(filepath.Join(dir, "dev-data.txt"))
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}

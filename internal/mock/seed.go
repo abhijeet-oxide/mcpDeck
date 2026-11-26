@@ -2,7 +2,9 @@ package mock
 
 import (
 	"context"
+	"crypto/rand"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -16,8 +18,20 @@ import (
 //go:embed demo/*.json
 var demoFiles embed.FS
 
-// DevToken is the fixed token of the dev agent (MOCK-4), as in .mcp.json.
+// DevToken is the well-known token `mcpdeck dev --fixed-token` gives the dev
+// agent (MOCK-4), as in this repo's .mcp.json. Without the flag the dev
+// agent gets a random token, printed at start.
 const DevToken = "mcpdeck-dev"
+
+// DevTokenFor returns DevToken when fixed, else a new random token.
+func DevTokenFor(fixed bool) string {
+	if fixed {
+		return DevToken
+	}
+	b := make([]byte, 18)
+	_, _ = rand.Read(b)
+	return "mcpdeck-dev-" + base64.RawURLEncoding.EncodeToString(b)
+}
 
 func crmSpec(base string) string {
 	return `{"openapi":"3.0.3","info":{"title":"Acme CRM","version":"1.4.0","description":"Accounts, contacts and owners."},
@@ -139,6 +153,11 @@ func test(name, input, script string) store.ToolTest {
 // Seed fills a fresh deck with the demo. dev adds the `dev` toolkit
 // and the fixed-token dev agent (MOCK-4).
 func Seed(ctx context.Context, d *deck.Deck, w *World, dev bool) error {
+	return SeedWithToken(ctx, d, w, dev, DevToken)
+}
+
+// SeedWithToken seeds the demo; with dev, the dev agent uses devToken.
+func SeedWithToken(ctx context.Context, d *deck.Deck, w *World, dev bool, devToken string) error {
 	step := func(what string, err error) error {
 		if err != nil {
 			return fmt.Errorf("demo: %s: %w", what, err)
@@ -292,7 +311,11 @@ func Seed(ctx context.Context, d *deck.Deck, w *World, dev bool) error {
 			_ = d.AddToolToToolkit(ctx, dtk.ID, t)
 		}
 		now := time.Now().UTC()
-		a := store.Agent{ID: d.IDs.New(), Name: "Dev agent (fixed token)", Client: "claude-code", TokenHash: deck.HashToken(DevToken), TokenPrefix: DevToken[:10], CreatedAt: now}
+		label := "Dev agent"
+		if devToken == DevToken {
+			label = "Dev agent (fixed token)"
+		}
+		a := store.Agent{ID: d.IDs.New(), Name: label, Client: "claude-code", TokenHash: deck.HashToken(devToken), TokenPrefix: devToken[:10], CreatedAt: now}
 		if err := d.Store.PutAgent(ctx, a); err != nil {
 			return err
 		}
