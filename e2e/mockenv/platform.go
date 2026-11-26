@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -185,6 +186,8 @@ func (e *Env) graphqlAPI() http.Handler {
 			first := 10
 			if f, ok := in.Variables["first"].(float64); ok {
 				first = int(f)
+			} else if m := literalFirst.FindStringSubmatch(qs); m != nil {
+				first, _ = strconv.Atoi(m[1]) // orders(first: 3) written in the query
 			}
 			start := 0
 			if a, ok := in.Variables["after"].(string); ok && a != "" {
@@ -366,3 +369,5 @@ func (e *Env) weather() http.Handler {
 	})
 	return mux
 }
+
+var literalFirst = regexp.MustCompile(`orders\(\s*first:\s*(\d+)`)

@@ -118,7 +118,7 @@ func init() {
   const f = i.fields;
   return { key: i.key, summary: f.summary, status: f.status.name, assignee: f.assignee?.displayName, description: text(f.description.content[0]) };`)
 		out := a.ok(name, map[string]any{"key": "OPS-5"})
-		expect(t, get(out, "description") == "The step times out after 10 minutes." && get(out, "assignee") == "Bo Chen", "got %s", asJSON(out))
+		expect(t, get(out, "description") == "The step times out after 10 minutes." && get(out, "assignee") == "Cy Patel", "got %s", asJSON(out))
 	})
 
 	add("errors", "jira 404 errorMessages are passed through", func(t *testing.T) {

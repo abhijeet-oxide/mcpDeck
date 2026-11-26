@@ -102,7 +102,7 @@ func freePort() int {
 	if err != nil {
 		return 47911
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	return ln.Addr().(*net.TCPAddr).Port
 }
 
@@ -637,18 +637,6 @@ func (h *harness) record(r result) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.results = append(h.results, r)
-}
-
-// eventually retries f until it returns nil or the deadline passes.
-func eventually(d time.Duration, f func() error) error {
-	deadline := time.Now().Add(d)
-	for {
-		err := f()
-		if err == nil || time.Now().After(deadline) {
-			return err
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
 }
 
 var _ = errors.New

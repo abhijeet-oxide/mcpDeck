@@ -44,7 +44,6 @@ func hp(name string, example any) param {
 func jsonBody(example any) *body { return &body{ct: "application/json", example: example} }
 
 type specDoc struct {
-	openapi  string // "3.0.3" or "2.0"
 	title    string
 	desc     string
 	server   string // absolute or relative

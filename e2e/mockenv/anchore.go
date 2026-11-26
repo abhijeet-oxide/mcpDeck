@@ -167,7 +167,7 @@ func (e *Env) anchore() http.Handler {
 		}
 		fail := strings.Contains(im.Tag, "nginx")
 		status, action := "pass", "go"
-		var findings []any
+		findings := []any{}
 		if fail {
 			status, action = "fail", "stop"
 			findings = []any{

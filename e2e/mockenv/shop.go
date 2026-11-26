@@ -71,7 +71,6 @@ func (e *Env) shop() http.Handler {
 		}
 	}
 	issue := func(w http.ResponseWriter, subject string) {
-		e.inc("shop.login")
 		writeJSON(w, 200, map[string]any{
 			"access_token":  e.tokens.issue("shop", subject, e.ttl(), false),
 			"refresh_token": e.tokens.issue("shop", subject, 24*e.ttl()+1, true),
@@ -85,6 +84,7 @@ func (e *Env) shop() http.Handler {
 			writeJSON(w, 401, map[string]any{"error": "invalid_credentials"})
 			return
 		}
+		e.inc("shop.login") // password logins only; refreshes count as shop.refresh
 		issue(w, in.Email)
 	})
 	mux.HandleFunc("POST /api/auth/refresh", func(w http.ResponseWriter, r *http.Request) {

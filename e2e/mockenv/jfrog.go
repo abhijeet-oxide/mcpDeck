@@ -394,5 +394,6 @@ func (e *Env) JFrogCurl() string {
 		`curl -H "Authorization: Bearer <TOKEN>" "` + u + `/artifactory/api/build/payments-ci/42"`,
 		`curl -H "Authorization: Bearer <TOKEN>" -X POST "` + u + `/xray/api/v1/violations" -H "Content-Type: application/json" -d '{"filters":{"watch_name":"prod-releases","min_severity":"High"},"pagination":{"order_by":"created","limit":25,"offset":1}}'`,
 		`curl -H "Authorization: Bearer <TOKEN>" "` + u + `/xray/api/v2/watches"`,
+		`curl -H "Authorization: Bearer <TOKEN>" -X POST "` + u + `/xray/api/v1/summary/artifact" -H "Content-Type: application/json" -d '{"paths":["default/libs-release-local/com/acme/payments/1.0.0/payments-1.0.0.jar"]}'`,
 	}, "\n\n")
 }

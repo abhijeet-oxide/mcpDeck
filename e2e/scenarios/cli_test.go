@@ -90,7 +90,7 @@ func init() {
 	})
 
 	add("install", "database and key files are private (0600)", func(t *testing.T) {
-		filepath.Walk(h.data, func(p string, info os.FileInfo, err error) error {
+		_ = filepath.Walk(h.data, func(p string, info os.FileInfo, err error) error {
 			if err == nil && !info.IsDir() && (strings.HasSuffix(p, ".db") || strings.HasSuffix(p, ".key") || strings.HasSuffix(p, "-wal")) {
 				expect(t, info.Mode().Perm()&0o077 == 0, "%s is %v", filepath.Base(p), info.Mode().Perm())
 			}
