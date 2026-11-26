@@ -1399,6 +1399,8 @@
   border-radius: 99px;
   font-size: 12px;
   font-weight: 500;
+  white-space: nowrap;
+  flex: none;
   color: var(--ok);
   background: var(--ok-bg);
   border: 1px solid color-mix(in srgb, var(--ok) 25%, transparent);
