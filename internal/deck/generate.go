@@ -66,9 +66,13 @@ func (d *Deck) GenerateTool(ctx context.Context, in GenerateInput) (*Generated, 
 	}
 	desc := strings.TrimSpace(in.Description)
 	if desc == "" {
-		desc = firstSentence(r.Description)
-		if desc == "" {
+		// The spec's summary says what the operation does; its description
+		// often starts with usage notes ("Multiple values can be ...").
+		if r.Title != reqName {
 			desc = firstSentence(r.Title)
+		}
+		if desc == "" {
+			desc = firstSentence(r.Description)
 		}
 		if desc == "" || desc == reqName {
 			desc = fmt.Sprintf("Calls %s %s on %s", r.Method, strings.TrimPrefix(r.URL, "{{baseUrl}}"), a.Title)

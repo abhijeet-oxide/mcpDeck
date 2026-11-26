@@ -198,6 +198,42 @@ func requestCmd(data *string) *cobra.Command {
 	ac.Flags().StringVar(&access, "set", "", "read or write")
 	ac.Flags().StringVar(&reason, "reason", "", "why, for the audit log")
 	c.AddCommand(ac)
+	var sendJSON bool
+	send := &cobra.Command{Use: "send <api> <request>", Short: "Send one saved request now, with the API's auth, to check auth and variables",
+		Example: "  mcpdeck request send shop listOrders\n  mcpdeck request send shop listOrders --json", Args: cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) error {
+			cl, err := localClient(*data)
+			if err != nil {
+				return err
+			}
+			a, err := findAPI(cl, args[0])
+			if err != nil {
+				return err
+			}
+			m, err := a.request(args[1])
+			if err != nil {
+				return err
+			}
+			var out map[string]any
+			if err := cl.do("POST", "/api/send", map[string]any{"apiId": a.ID, "requestId": m["id"]}, &out); err != nil {
+				return err
+			}
+			body := fmt.Sprint(out["body"])
+			if len(body) > 4000 {
+				body = body[:4000] + "\n… (trimmed; open the request in mcpDeck for the full body)"
+			}
+			if sendJSON {
+				printJSON(map[string]any{"status": out["status"], "error": out["error"], "body": body})
+				return nil
+			}
+			if e, _ := out["error"].(string); e != "" {
+				return fmt.Errorf("%s", e)
+			}
+			fmt.Printf("%v\n%s\n", out["status"], body)
+			return nil
+		}}
+	send.Flags().BoolVar(&sendJSON, "json", false, "print JSON")
+	c.AddCommand(send)
 	return c
 }
 
@@ -571,7 +607,46 @@ func toolCmd(data *string) *cobra.Command {
 				return fmt.Errorf("%s has no pending version of %s", args[0], args[1])
 			}}
 	}
-	c.AddCommand(gen, save, list, decide(true), decide(false))
+	var testFile, testInput string
+	var testJSON bool
+	test := &cobra.Command{Use: "test <toolkit> --file tool.ts [--input JSON]", Short: "Run a tool file against the live APIs without saving it: output, calls and size",
+		Example: "  mcpdeck tool test pets --file find_pets.ts --input '{\"status\":\"sold\"}'", Args: cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			cl, err := localClient(*data)
+			if err != nil {
+				return err
+			}
+			b, err := os.ReadFile(testFile)
+			if err != nil {
+				return err
+			}
+			var input any = map[string]any{}
+			if testInput != "" {
+				if err := json.Unmarshal([]byte(testInput), &input); err != nil {
+					return fmt.Errorf("--input must be a JSON object: %w", err)
+				}
+			}
+			var out map[string]any
+			if err := cl.do("POST", "/api/toolkits/"+args[0]+"/test", map[string]any{"source": string(b), "input": input}, &out); err != nil {
+				return err
+			}
+			res := map[string]any{"output": out["output"], "error": out["error"], "outputTokens": out["outputTokens"], "calls": len(asSlice(out["calls"]))}
+			if testJSON {
+				printJSON(res)
+				return nil
+			}
+			if e, _ := out["error"].(string); e != "" {
+				return fmt.Errorf("%s", e)
+			}
+			o, _ := json.MarshalIndent(out["output"], "", "  ")
+			fmt.Printf("%s\n%s, %v output tokens\n", o, plural(len(asSlice(out["calls"])), "call"), out["outputTokens"])
+			return nil
+		}}
+	test.Flags().StringVar(&testFile, "file", "", "the .ts file")
+	test.Flags().StringVar(&testInput, "input", "", "tool input as JSON")
+	test.Flags().BoolVar(&testJSON, "json", false, "print JSON")
+	_ = test.MarkFlagRequired("file")
+	c.AddCommand(gen, save, test, list, decide(true), decide(false))
 	return c
 }
 

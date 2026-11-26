@@ -89,6 +89,29 @@ func init() {
 		a.ok(name, map[string]any{})
 	})
 
+	add("cli", "request send and tool test check auth and a draft from the terminal", func(t *testing.T) {
+		need(t, "shop")
+		k := kit(t, "shop")
+		out := h.mustCLI(t, "request", "send", "shop", "listOrders", "--json")
+		var sent struct {
+			Status float64 `json:"status"`
+			Body   string  `json:"body"`
+		}
+		expect(t, json.Unmarshal([]byte(out), &sent) == nil && sent.Status == 200 && strings.Contains(sent.Body, "meta"), "request send: %s", clip(out, 300))
+		dir, _ := os.MkdirTemp("", "draft")
+		defer os.RemoveAll(dir)
+		f := filepath.Join(dir, "count.ts")
+		_ = os.WriteFile(f, []byte(toolSrc("count_orders", "Count all orders.", "", nil, `  return (await shop.listOrders({})).meta.total;`)), 0o644)
+		out = h.mustCLI(t, "tool", "test", k, "--file", f, "--json")
+		var tested struct {
+			Output any     `json:"output"`
+			Calls  float64 `json:"calls"`
+		}
+		expect(t, json.Unmarshal([]byte(out), &tested) == nil && num(tested.Output) > 0 && tested.Calls >= 1, "tool test: %s", clip(out, 300))
+		list := h.mustCLI(t, "tool", "list", k, "--json")
+		expect(t, !strings.Contains(list, "count_orders"), "tool test must not save: %s", list)
+	})
+
 	add("install", "database and key files are private (0600)", func(t *testing.T) {
 		_ = filepath.Walk(h.data, func(p string, info os.FileInfo, err error) error {
 			if err == nil && !info.IsDir() && (strings.HasSuffix(p, ".db") || strings.HasSuffix(p, ".key") || strings.HasSuffix(p, "-wal")) {

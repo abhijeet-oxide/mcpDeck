@@ -60,7 +60,7 @@ func pullCmd(data *string) *cobra.Command {
 			_ = os.WriteFile(filepath.Join(dir, "mcpdeck.d.ts"), req, 0o644)
 			tsconfig := `{"compilerOptions":{"target":"ES2020","module":"ESNext","strict":false,"noEmit":true,"skipLibCheck":true,"lib":["ES2020"]},"include":["*.ts"]}` + "\n"
 			_ = os.WriteFile(filepath.Join(dir, "tsconfig.json"), []byte(tsconfig), 0o644)
-			fmt.Printf("Wrote %d tools, mcpdeck.d.ts and tsconfig.json to %s. Edit, then: mcpdeck push %s --dir %s\n", len(tk.ToolRows), dir, args[0], dir)
+			fmt.Printf("Wrote %s, mcpdeck.d.ts and tsconfig.json to %s. Edit, then: mcpdeck push %s --dir %s\n", plural(len(tk.ToolRows), "tool"), dir, args[0], dir)
 			return nil
 		}}
 	c.Flags().StringVar(&dirFlag, "dir", "", "folder to write (default: the toolkit name)")
