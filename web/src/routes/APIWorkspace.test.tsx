@@ -75,3 +75,27 @@ describe("Authentication", () => {
     expect(screen.getByText("Headers on every call")).toBeInTheDocument();
   });
 });
+
+// REQ: CRED-2
+describe("Secret variables", () => {
+  it("show Set · Encrypted inline, and Not set when empty", async () => {
+    const f = mockAPI({ "/api/apis/a1/variables": {} });
+    const a = {
+      ...base,
+      auth: { type: "bearer", token: "{{token}}" },
+      variables: [
+        { id: "v1", envId: "e1", name: "token", source: "secret", value: "", isSet: true },
+        { id: "v2", envId: "e1", name: "apiKey", source: "secret", value: "", isSet: false },
+      ],
+    } as unknown as APIDetail;
+    renderApp(<AuthTab a={a} />);
+    expect(screen.getByText("Set · Encrypted")).toBeInTheDocument();
+    expect(screen.getByText("Not set")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Replace token" }));
+    fireEvent.change(screen.getAllByLabelText("Value")[0], { target: { value: "s3cret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Keep current" }));
+    expect(screen.getByText("Set · Encrypted")).toBeInTheDocument();
+    const calls = f.mock.calls as unknown as [unknown, RequestInit | undefined][];
+    expect(calls.some((c) => c[1]?.method === "PUT")).toBe(false);
+  });
+});

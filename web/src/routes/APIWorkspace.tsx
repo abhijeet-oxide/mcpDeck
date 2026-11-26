@@ -13,6 +13,7 @@ import {
   Gauge,
   KeyRound,
   Layers,
+  Lock,
   Pencil,
   Plus,
   Save,
@@ -1201,28 +1202,47 @@ function VarRow({ apiId, v, envId }: { apiId: string; v?: Variable; envId: strin
       <td>
         {source === "secret" && !editing ? (
           <span className="flex items-center gap-2">
-            <span className="mono muted">••••••••••</span>
-            <Chip tone="ok">set</Chip>
-            <Button size="sm" onClick={() => setEditing(true)}>
+            <span
+              className="secret-set"
+              title="Encrypted in mcpDeck's database with a key kept in the OS keychain or a key file (Settings → Security). It is never shown again."
+            >
+              <Lock size={12} /> Set · Encrypted
+            </span>
+            <Button size="sm" onClick={() => setEditing(true)} aria-label={`Replace ${name}`}>
               Replace
             </Button>
           </span>
         ) : (
-          <input
-            className="input mono"
-            aria-label="Value"
-            type={source === "secret" ? "password" : "text"}
-            autoComplete="off"
-            placeholder={
-              source === "os_env"
-                ? "ACME_CRM_URL"
-                : source === "secret"
-                  ? "new value, write-only"
-                  : "https://api.acme.example"
-            }
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-          />
+          <span className="flex items-center gap-2">
+            <input
+              className="input mono"
+              aria-label="Value"
+              type={source === "secret" ? "password" : "text"}
+              autoComplete="off"
+              placeholder={
+                source === "os_env"
+                  ? "ACME_CRM_URL"
+                  : source === "secret"
+                    ? "new value, write-only"
+                    : "https://api.acme.example"
+              }
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+            />
+            {source === "secret" && v?.isSet && (
+              <Button
+                size="sm"
+                kind="ghost"
+                onClick={() => {
+                  setValue("");
+                  setEditing(false);
+                }}
+              >
+                Keep current
+              </Button>
+            )}
+            {source === "secret" && v?.source === "secret" && !v.isSet && <Chip tone="warn">Not set</Chip>}
+          </span>
         )}
       </td>
       <td style={{ width: 120 }} className="num">
