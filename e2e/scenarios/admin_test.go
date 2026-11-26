@@ -44,6 +44,23 @@ func (a *agent) must(name string, args map[string]any) string {
 }
 
 func init() {
+	add("parity", "admin MCP sets up mutual TLS with the client key from its environment", func(t *testing.T) {
+		api := strings.ReplaceAll(uniq("adminVault"), "_", "")
+		ad := h.adminFor(t, "TLS agent", "VAULT_TOKEN="+mockenv.MTLSToken, "VAULT_CLIENT_KEY="+string(h.env.ClientKey))
+		ad.must("import_api", map[string]any{"source": `curl "` + h.env.URLs["vault"] + `/v1/sys/health"`, "api": api, "ca_pem": string(h.env.CACert)})
+		ad.must("secret_from_env", map[string]any{"api": api, "name": "vaultToken", "env": "VAULT_TOKEN"})
+		ad.must("secret_from_env", map[string]any{"api": api, "name": "clientKey", "env": "VAULT_CLIENT_KEY"})
+		ad.must("set_auth", map[string]any{"api": api, "auth": map[string]any{"type": "apikey", "key": "X-Vault-Token", "in": "header", "value": "{{vaultToken}}"}})
+		ad.must("set_tls", map[string]any{"api": api, "client_cert_pem": string(h.env.ClientCert), "client_key_var": "clientKey"})
+		got := ad.must("get_api", map[string]any{"api": api})
+		expect(t, !strings.Contains(got, "PRIVATE KEY") && !strings.Contains(got, mockenv.MTLSToken), "get_api leaks a secret: %s", got)
+		var info struct{ Requests []string }
+		_ = json.Unmarshal([]byte(got), &info)
+		expect(t, len(info.Requests) == 1, "get_api: %s", clip(got, 300))
+		sent := ad.must("send_request", map[string]any{"api": api, "request": strings.Fields(info.Requests[0])[0]})
+		expect(t, strings.Contains(sent, `"status":200`) && strings.Contains(sent, "client_cn"), "send_request over mTLS: %s", clip(sent, 300))
+	})
+
 	add("parity", "admin MCP onboards a login API end to end with no UI or CLI", func(t *testing.T) {
 		api, kitName := strings.ReplaceAll(uniq("adminShop"), "_", ""), strings.ReplaceAll(uniq("admin-orders"), "_", "-")
 		ad := h.adminFor(t, "Onboarding agent", "SHOP_PASSWORD="+mockenv.ShopPass)

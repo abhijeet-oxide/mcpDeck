@@ -192,6 +192,40 @@ func adminTools() []adminTool {
 				}
 				return "auth set; check it with send_request", nil
 			}},
+		{"set_tls", "Set an API's TLS: trust a company CA, send a client certificate (mutual TLS) whose key is a secret variable, or skip verification for a lab server.",
+			`{"type":"object","properties":{"api":{"type":"string"},"ca_pem":{"type":"string","description":"CA certificates (PEM) to trust"},"client_cert_pem":{"type":"string"},"client_key_var":{"type":"string","description":"name of a secret variable holding the client key; store it with secret_from_env"},"insecure":{"type":"boolean"}},"required":["api"]}`, false,
+			func(cl *client, a map[string]any) (any, error) {
+				d, err := apiOf(cl, a)
+				if err != nil {
+					return nil, err
+				}
+				var raw struct {
+					TLS map[string]any `json:"tls"`
+				}
+				if err := cl.do("GET", "/api/apis/"+d.ID, nil, &raw); err != nil {
+					return nil, err
+				}
+				t := raw.TLS
+				if t == nil {
+					t = map[string]any{}
+				}
+				if v := str(a, "ca_pem"); v != "" {
+					t["caCerts"] = v
+				}
+				if v := str(a, "client_cert_pem"); v != "" {
+					t["clientCert"] = v
+				}
+				if v := str(a, "client_key_var"); v != "" {
+					t["clientKey"] = "{{" + strings.Trim(v, "{} ") + "}}"
+				}
+				if b, ok := a["insecure"].(bool); ok {
+					t["insecure"] = b
+				}
+				if err := cl.do("PATCH", "/api/apis/"+d.ID, map[string]any{"tls": t}, nil); err != nil {
+					return nil, err
+				}
+				return map[string]any{"ok": true, "api": d.Name}, nil
+			}},
 		{"send_request", "Send one saved request now and get status and a short body, to check auth and variables.",
 			`{"type":"object","properties":{"api":{"type":"string"},"request":{"type":"string"}},"required":["api","request"]}`, false,
 			func(cl *client, a map[string]any) (any, error) {

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -121,11 +120,13 @@ func secretCmd(data *string) *cobra.Command {
 				}
 				value = string(b)
 			} else {
-				line, err := bufio.NewReader(os.Stdin).ReadString('\n')
-				if err != nil && !errors.Is(err, io.EOF) {
+				// All of stdin, so multi-line values (a PEM client key) survive;
+				// only the trailing newline of `echo` is dropped.
+				b, err := io.ReadAll(os.Stdin)
+				if err != nil {
 					return err
 				}
-				value = strings.TrimRight(line, "\r\n")
+				value = strings.TrimRight(string(b), "\r\n")
 			}
 			if value == "" {
 				return errors.New("the value is empty; pipe it on stdin")

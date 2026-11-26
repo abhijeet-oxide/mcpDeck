@@ -173,9 +173,9 @@ write wait for a person. <!-- C22 -->
 { "mcpServers": { "mcpdeck-admin": { "command": "mcpdeck", "args": ["mcp", "--agent", "Claude Code"] } } }
 ```
 
-- **Tools:** 18, covering import, variables, secrets, auth, requests,
+- **Tools:** 19, covering import, variables, secrets, auth, TLS, requests,
   toolkits, tools, tests, lint, reviews and connect.
-- **Context cost:** about 1,800 tokens with its instructions; a scenario fails
+- **Context cost:** about 1,950 tokens with its instructions; a scenario fails
   above 2,500.
 - **What it can do:** onboard a login API end to end, with no UI.
 - **What it can't do:** approve its own write tools, widen access, or read

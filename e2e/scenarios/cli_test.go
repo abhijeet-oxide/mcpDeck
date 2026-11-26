@@ -112,6 +112,42 @@ func init() {
 		expect(t, !strings.Contains(list, "count_orders"), "tool test must not save: %s", list)
 	})
 
+	add("cli", "api show and api tls set up mutual TLS from the terminal", func(t *testing.T) {
+		api := strings.ReplaceAll(uniq("vaultcli"), "_", "")
+		dir, _ := os.MkdirTemp("", "mtls")
+		defer os.RemoveAll(dir)
+		write := func(name, body string) string {
+			p := filepath.Join(dir, name)
+			_ = os.WriteFile(p, []byte(body), 0o600)
+			return p
+		}
+		curl := write("vault.sh", `curl "`+h.env.URLs["vault"]+`/v1/sys/health"`)
+		h.mustCLI(t, "import", curl, "--api", api, "--ca-file", write("ca.pem", string(h.env.CACert)))
+		secret := func(name, value string) {
+			cmd := h.cliCmd("secret", "set", api, name)
+			cmd.Stdin = strings.NewReader(value)
+			out, err := cmd.CombinedOutput()
+			expect(t, err == nil, "secret set %s: %v %s", name, err, out)
+		}
+		secret("vaultToken", mockenv.MTLSToken)
+		secret("clientKey", string(h.env.ClientKey))
+		h.mustCLI(t, "auth", "set", api, "--type", "apikey", "--key", "X-Vault-Token", "--in", "header", "--value", "{{vaultToken}}")
+		h.mustCLI(t, "api", "tls", api, "--client-cert", write("client.pem", string(h.env.ClientCert)), "--client-key-var", "clientKey")
+		var shown struct {
+			Auth     string `json:"auth"`
+			Requests []struct {
+				Name string `json:"name"`
+			} `json:"requests"`
+		}
+		out := h.mustCLI(t, "api", "show", api, "--json")
+		expect(t, json.Unmarshal([]byte(out), &shown) == nil && shown.Auth == "apikey" && len(shown.Requests) == 1, "api show: %s", clip(out, 300))
+		expect(t, !strings.Contains(out, "PRIVATE KEY") && !strings.Contains(out, mockenv.MTLSToken), "api show leaks a secret: %s", out)
+		out = h.mustCLI(t, "request", "send", api, shown.Requests[0].Name, "--json")
+		expect(t, strings.Contains(out, `"status": 200`) && strings.Contains(out, "client_cn"), "mTLS call failed: %s", clip(out, 300))
+		list := h.mustCLI(t, "api", "list", "--json")
+		expect(t, strings.Contains(list, api), "api list: %s", clip(list, 200))
+	})
+
 	add("install", "database and key files are private (0600)", func(t *testing.T) {
 		_ = filepath.Walk(h.data, func(p string, info os.FileInfo, err error) error {
 			if err == nil && !info.IsDir() && (strings.HasSuffix(p, ".db") || strings.HasSuffix(p, ".key") || strings.HasSuffix(p, "-wal")) {
