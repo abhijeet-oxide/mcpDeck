@@ -450,7 +450,18 @@ func (d *Deck) clients(ctx context.Context, scope []string) []tool.Client {
 			continue
 		}
 		reqs, _ := d.Store.Requests(ctx, a.ID)
-		out = append(out, tool.Client{API: a, Requests: reqs})
+		// Sign-in requests run only inside mcpDeck, never from a tool (CRED-8).
+		skip := map[string]bool{}
+		for _, id := range a.Auth.AuthRequestIDs() {
+			skip[id] = true
+		}
+		kept := reqs[:0:0]
+		for _, r := range reqs {
+			if !skip[r.ID] {
+				kept = append(kept, r)
+			}
+		}
+		out = append(out, tool.Client{API: a, Requests: kept})
 	}
 	return out
 }
@@ -588,8 +599,15 @@ func (d *Deck) SaveTool(ctx context.Context, toolkitRef string, c Caller, in Sav
 			if r.EffectiveAccess() == "write" {
 				access = "write"
 			}
-		} else if parts := strings.Fields(k); len(parts) >= 2 && proxy.ClassifyMethod(parts[1]) == "write" {
-			access = "write"
+			if strings.ToUpper(r.Method) == "POST" && proxy.IsGraphQLPath(strings.TrimPrefix(r.URL, "{{baseUrl}}")) && proxy.IsGraphQLMutation(in.Source) {
+				access = "write"
+			}
+		} else if parts := strings.Fields(k); len(parts) >= 3 {
+			// A raw call: by method, except a GraphQL POST whose code
+			// sends no mutation (TOOL-9).
+			if proxy.ClassifyMethod(parts[1]) == "write" && (!proxy.IsGraphQLPath(parts[2]) || strings.ToUpper(parts[1]) != "POST" || proxy.IsGraphQLMutation(in.Source)) {
+				access = "write"
+			}
 		}
 	}
 	existing, terr := d.Store.ToolByName(ctx, def.Name)

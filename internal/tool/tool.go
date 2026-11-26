@@ -39,6 +39,8 @@ const (
 	DefaultMaxOutput = 64 << 10
 	memoryCap        = 256 << 20
 	maxCallDepth     = 2000
+	// MaxTimeout caps tool.timeout (TOOL-6).
+	MaxTimeout = 300 * time.Second
 )
 
 // Definition is the `tool` export (TOOL-1).
@@ -48,6 +50,8 @@ type Definition struct {
 	UseWhen     string          `json:"useWhen"`
 	DontUseWhen string          `json:"dontUseWhen"`
 	InputSchema json.RawMessage `json:"inputSchema"`
+	// Timeout is the run limit in seconds for long jobs, up to MaxTimeout.
+	Timeout float64 `json:"timeout,omitempty"`
 }
 
 // Compile strips TypeScript types and makes a CommonJS module.
@@ -107,6 +111,9 @@ func Load(src string) (Definition, error) {
 	}
 	if strings.TrimSpace(d.Description) == "" {
 		return d, errors.New("tool.description is empty; say what the tool returns in one sentence")
+	}
+	if d.Timeout < 0 || time.Duration(d.Timeout*float64(time.Second)) > MaxTimeout {
+		return d, fmt.Errorf("tool.timeout is %v seconds; use 1 to %d", d.Timeout, int(MaxTimeout.Seconds()))
 	}
 	if len(d.InputSchema) == 0 || string(d.InputSchema) == "null" {
 		d.InputSchema = json.RawMessage(`{"type":"object","properties":{}}`)
@@ -259,8 +266,13 @@ func runJS(ctx context.Context, js string, input any, env Env) Result {
 	if env.MaxOutput <= 0 {
 		env.MaxOutput = DefaultMaxOutput
 	}
-	ctx, cancel := context.WithTimeout(ctx, env.Timeout)
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	limit := env.Timeout
+	timer := time.AfterFunc(limit, cancel)
+	defer timer.Stop()
+	var limitMu sync.Mutex
+	getLimit := func() time.Duration { limitMu.Lock(); defer limitMu.Unlock(); return limit }
 	start := time.Now()
 	vm, err := newVM()
 	if err != nil {
@@ -308,7 +320,7 @@ func runJS(ctx context.Context, js string, input any, env Env) Result {
 	_ = vm.Set("vars", varsObj)
 	_, _ = vm.RunString(`Object.freeze(vars)`)
 
-	startCall := func(c proxy.Call, label string) goja.Value {
+	startCall := func(c proxy.Call, label string, raw bool) goja.Value {
 		p, resolve, reject := vm.NewPromise()
 		pending++
 		go func() {
@@ -335,13 +347,38 @@ func runJS(ctx context.Context, js string, input any, env Env) Result {
 				}
 				body := string(r.Body)
 				status := r.Status
+				ct := ""
+				headers := map[string]any{}
+				for k, vs := range r.Headers {
+					headers[strings.ToLower(k)] = strings.Join(vs, ", ")
+					if strings.EqualFold(k, "Content-Type") && len(vs) > 0 {
+						ct = vs[0]
+					}
+				}
+				reason := ""
+				if status >= 400 && !r.Binary {
+					reason = proxy.UpstreamMessage(r.Body, ct)
+				}
 				fn = func() {
 					parsed, perr := jsonParse(goja.Undefined(), vm.ToValue(body))
 					if perr != nil {
 						parsed = vm.ToValue(body)
 					}
+					if raw {
+						// .raw(): status, headers and body, no throw on 4xx/5xx.
+						o := vm.NewObject()
+						_ = o.Set("status", status)
+						_ = o.Set("ok", status < 400)
+						_ = o.Set("headers", headers)
+						_ = o.Set("body", parsed)
+						_ = resolve(o)
+						return
+					}
 					if status >= 400 {
 						msg := fmt.Sprintf("%s returned %d", label, status)
+						if reason != "" {
+							msg += ": " + reason
+						}
 						e, _ := vm.New(apiErrCtor, vm.ToValue(msg), vm.ToValue(status), parsed, vm.ToValue("http_error"))
 						_ = reject(e)
 						return
@@ -407,37 +444,72 @@ func runJS(ctx context.Context, js string, input any, env Env) Result {
 		obj := vm.NewObject()
 		for _, r := range cl.Requests {
 			r := r
-			_ = obj.Set(r.Name, func(c goja.FunctionCall) goja.Value {
-				call := env.Base
-				call.APIID, call.RequestID, call.Args = cl.API.ID, r.ID, argsOf(c.Argument(0))
-				call.EnvID = env.EnvByAPI[cl.API.ID]
-				return startCall(call, cl.API.Name+"."+r.Name)
-			})
+			mk := func(raw bool) func(goja.FunctionCall) goja.Value {
+				return func(c goja.FunctionCall) goja.Value {
+					call := env.Base
+					call.APIID, call.RequestID, call.Args = cl.API.ID, r.ID, argsOf(c.Argument(0))
+					call.EnvID = env.EnvByAPI[cl.API.ID]
+					return startCall(call, cl.API.Name+"."+r.Name, raw)
+				}
+			}
+			fv := vm.ToValue(mk(false)).ToObject(vm)
+			_ = fv.Set("raw", mk(true))
+			_ = obj.Set(r.Name, fv)
 		}
 		_ = vm.Set(cl.API.Name, obj)
 		_, _ = vm.RunString("Object.freeze(" + cl.API.Name + ")")
 	}
-	_ = vm.Set("call", func(c goja.FunctionCall) goja.Value {
-		apiName := c.Argument(0).String()
-		route := strings.TrimSpace(c.Argument(1).String())
-		a, ok := byName[apiName]
-		method, path, _ := strings.Cut(route, " ")
-		if !ok || path == "" {
-			p, _, reject := vm.NewPromise()
-			names := make([]string, 0, len(byName))
-			for n := range byName {
-				names = append(names, n)
+	rawCall := func(raw bool) func(goja.FunctionCall) goja.Value {
+		return func(c goja.FunctionCall) goja.Value {
+			apiName := c.Argument(0).String()
+			route := strings.TrimSpace(c.Argument(1).String())
+			a, ok := byName[apiName]
+			method, path, _ := strings.Cut(route, " ")
+			if !ok || path == "" {
+				p, _, reject := vm.NewPromise()
+				names := make([]string, 0, len(byName))
+				for n := range byName {
+					names = append(names, n)
+				}
+				sort.Strings(names)
+				msg := fmt.Sprintf(`call(%q, %q): use call("<api>", "METHOD /path"); APIs here: %s`, apiName, route, strings.Join(names, ", "))
+				e, _ := vm.New(apiErrCtor, vm.ToValue(msg), vm.ToValue(0), goja.Undefined(), vm.ToValue("bad_call"))
+				_ = reject(e)
+				return vm.ToValue(p)
 			}
-			sort.Strings(names)
-			msg := fmt.Sprintf(`call(%q, %q): use call("<api>", "METHOD /path"); APIs here: %s`, apiName, route, strings.Join(names, ", "))
-			e, _ := vm.New(apiErrCtor, vm.ToValue(msg), vm.ToValue(0), goja.Undefined(), vm.ToValue("bad_call"))
-			_ = reject(e)
-			return vm.ToValue(p)
+			call := env.Base
+			call.APIID, call.Method, call.Path, call.Args = a.ID, strings.ToUpper(method), path, argsOf(c.Argument(2))
+			call.EnvID = env.EnvByAPI[a.ID]
+			return startCall(call, apiName+" "+strings.ToUpper(method)+" "+path, raw)
 		}
-		call := env.Base
-		call.APIID, call.Method, call.Path, call.Args = a.ID, strings.ToUpper(method), path, argsOf(c.Argument(2))
-		call.EnvID = env.EnvByAPI[a.ID]
-		return startCall(call, apiName+" "+strings.ToUpper(method)+" "+path)
+	}
+	callFn := vm.ToValue(rawCall(false)).ToObject(vm)
+	_ = callFn.Set("raw", rawCall(true))
+	_ = vm.Set("call", callFn)
+	// sleep(ms) waits between polls; it counts against the timeout.
+	_ = vm.Set("sleep", func(c goja.FunctionCall) goja.Value {
+		ms := c.Argument(0).ToInteger()
+		if ms < 0 {
+			ms = 0
+		}
+		p, resolve, _ := vm.NewPromise()
+		pending++
+		go func() {
+			select {
+			case <-time.After(time.Duration(ms) * time.Millisecond):
+			case <-ctx.Done():
+			}
+			settled <- settle{fn: func() { _ = resolve(goja.Undefined()) }}
+		}()
+		return vm.ToValue(p)
+	})
+	// xml(text) parses XML or SOAP into plain objects (see ParseXML).
+	_ = vm.Set("xml", func(c goja.FunctionCall) goja.Value {
+		v, err := ParseXML(c.Argument(0).String())
+		if err != nil {
+			panic(vm.NewTypeError("xml(): " + err.Error()))
+		}
+		return vm.ToValue(v)
 	})
 
 	// Watchdogs: timeout and a coarse memory cap (TOOL-6).
@@ -454,7 +526,7 @@ func runJS(ctx context.Context, js string, input any, env Env) Result {
 			case <-stopWatch:
 				return
 			case <-ctx.Done():
-				vm.Interrupt(fmt.Sprintf("timed out after %s (limit %s)", time.Since(start).Round(time.Millisecond), env.Timeout))
+				vm.Interrupt(fmt.Sprintf("timed out after %s (limit %s; raise it with timeout in the tool export)", time.Since(start).Round(time.Millisecond), getLimit()))
 				return
 			case <-tick.C:
 				runtime.ReadMemStats(&ms)
@@ -474,7 +546,19 @@ func runJS(ctx context.Context, js string, input any, env Env) Result {
 	if _, err := vm.RunString(js); err != nil {
 		return fail(err)
 	}
-	fnv := vm.Get("module").ToObject(vm).Get("exports").ToObject(vm).Get("default")
+	exportsObj := vm.Get("module").ToObject(vm).Get("exports").ToObject(vm)
+	if tv := exportsObj.Get("tool"); tv != nil && !goja.IsUndefined(tv) && !goja.IsNull(tv) {
+		if tov := tv.ToObject(vm).Get("timeout"); tov != nil && !goja.IsUndefined(tov) {
+			if sec := tov.ToFloat(); sec > 0 {
+				d := min(time.Duration(sec*float64(time.Second)), MaxTimeout)
+				limitMu.Lock()
+				limit = d
+				limitMu.Unlock()
+				timer.Reset(d - time.Since(start))
+			}
+		}
+	}
+	fnv := exportsObj.Get("default")
 	fn, ok := goja.AssertFunction(fnv)
 	if !ok {
 		res.Error = "the file has no default export function"
@@ -505,7 +589,7 @@ func runJS(ctx context.Context, js string, input any, env Env) Result {
 				}
 			case <-ctx.Done():
 				vm.Interrupt("timeout")
-				res.Error = fmt.Sprintf("timed out after %s; make fewer calls or run them with Promise.all", env.Timeout)
+				res.Error = fmt.Sprintf("timed out after %s; make fewer calls, run them with Promise.all, or raise timeout in the tool export (up to %d seconds)", getLimit(), int(MaxTimeout.Seconds()))
 				res.DurationMS = time.Since(start).Milliseconds()
 				return drain(res, &mu, settled, &pending)
 			}
@@ -639,14 +723,16 @@ func runPM(script, outputJSON, inputJSON string) ([]store.Assert, error) {
 	return as, nil
 }
 
-var callRe = regexp.MustCompile(`\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\.\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\(`)
-var rawCallRe = regexp.MustCompile(`\bcall\(\s*["'\x60]([a-zA-Z0-9_]+)["'\x60]\s*,\s*["'\x60]([A-Za-z]+)\s+([^"'\x60]+)["'\x60]`)
+var callRe = regexp.MustCompile(`\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\.\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:\.\s*raw\s*)?\(`)
+var rawCallRe = regexp.MustCompile(`\bcall(?:\s*\.\s*raw)?\(\s*["'\x60]([a-zA-Z0-9_]+)["'\x60]\s*,\s*["'\x60]([A-Za-z]+)\s+([^"'\x60]+)["'\x60]`)
 
 // UsedCalls finds the API requests a tool's code calls, as "api.request" or
 // "api METHOD /path", and the APIs involved.
 func UsedCalls(src string, clients []Client) (calls []string, apis []string) {
 	known := map[string]map[string]bool{}
+	reqsOf := map[string][]store.Request{}
 	for _, c := range clients {
+		reqsOf[c.API.Name] = c.Requests
 		m := map[string]bool{}
 		for _, r := range c.Requests {
 			m[r.Name] = true
@@ -668,6 +754,11 @@ func UsedCalls(src string, clients []Client) (calls []string, apis []string) {
 	for _, m := range rawCallRe.FindAllStringSubmatch(src, -1) {
 		if _, ok := known[m[1]]; ok {
 			k := m[1] + " " + strings.ToUpper(m[2]) + " " + m[3]
+			// A raw call on a saved request counts as that request (TOOL-9).
+			pathOnly, _, _ := strings.Cut(m[3], "?")
+			if r, _ := proxy.MatchRequest(reqsOf[m[1]], m[2], pathOnly); r != nil {
+				k = m[1] + "." + r.Name
+			}
 			if !seen[k] {
 				seen[k] = true
 				calls = append(calls, k)
