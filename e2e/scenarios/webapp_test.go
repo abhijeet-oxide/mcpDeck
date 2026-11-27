@@ -1,6 +1,9 @@
 package scenarios
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +12,8 @@ import (
 	"time"
 
 	"github.com/abhijeet-oxide/mcpdeck/internal/browser"
+	"github.com/abhijeet-oxide/mcpdeck/internal/tokens"
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // A web app with no API, signed in through company single sign-on: the
@@ -38,8 +43,50 @@ var (
 	receiptsDir  string
 )
 
-// recordExpenses runs record_workflow once: the agent asks, the person
-// signs in and clicks through one claim, then clicks Done.
+// copilot is the agent a person adds with Home › Build tools with your
+// agent: the admin MCP server on stdio. Everything it builds goes
+// through these tools; the person only signs in, clicks through the task
+// once and confirms.
+func copilot(t *testing.T) *agent { t.Helper(); return h.adminFor(t, "GitHub Copilot") }
+
+// adminCall calls an admin tool without failing the test from a goroutine.
+func adminCall(ad *agent, name string, args map[string]any, timeout time.Duration) (string, bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	res, err := ad.cs.CallTool(ctx, &sdk.CallToolParams{Name: name, Arguments: args})
+	if err != nil {
+		return "", true, err
+	}
+	var parts []string
+	for _, c := range res.Content {
+		if tc, ok := c.(*sdk.TextContent); ok {
+			parts = append(parts, tc.Text)
+		}
+	}
+	return strings.Join(parts, "\n"), res.IsError, nil
+}
+
+// personConfirms waits for a confirmation mcpDeck shows the person, checks
+// its title and answers it as they would.
+func personConfirms(t *testing.T, titlePart string, ok bool) map[string]any {
+	t.Helper()
+	var waiting []map[string]any
+	for i := 0; i < 150 && len(waiting) == 0; i++ {
+		time.Sleep(100 * time.Millisecond)
+		h.mustAPI(t, "GET", "/api/confirmations", nil, &waiting)
+	}
+	expect(t, len(waiting) == 1, "nothing waits for the person to confirm %q", titlePart)
+	c := waiting[0]
+	expect(t, strings.Contains(c["title"].(string), titlePart), "confirmation shows %s", asJSON(c))
+	err := h.apiAs("GitHub Copilot", "POST", "/api/confirmations/"+c["id"].(string), map[string]any{"confirm": true}, nil)
+	expect(t, err != nil, "the agent confirmed for the person")
+	h.mustAPI(t, "POST", "/api/confirmations/"+c["id"].(string), map[string]any{"confirm": ok}, nil)
+	return c
+}
+
+// recordExpenses: the person asks Copilot to build tools for the portal;
+// Copilot calls record_workflow; the person signs in and clicks through
+// one claim, then clicks Done. Once.
 func recordExpenses(t *testing.T) map[string]any {
 	t.Helper()
 	needBrowser(t)
@@ -48,9 +95,16 @@ func recordExpenses(t *testing.T) map[string]any {
 		env.AutoSignIn.Store(true)
 		env.AutoRecord.Store(true)
 		defer env.AutoRecord.Store(false)
-		done := make(chan error, 1)
+		ad := copilot(t)
+		type res struct {
+			text  string
+			isErr bool
+			err   error
+		}
+		done := make(chan res, 1)
 		go func() {
-			done <- h.apiAs("GitHub Copilot", "POST", "/api/record", map[string]any{"api": "expenses", "url": env.URLs["expenses"] + "/expenses/claims"}, &expensesRec)
+			text, isErr, err := adminCall(ad, "record_workflow", map[string]any{"api": "expenses", "url": env.URLs["expenses"] + "/expenses/claims"}, 2*time.Minute)
+			done <- res{text, isErr, err}
 		}()
 		deadline := time.Now().Add(45 * time.Second)
 		for time.Now().Before(deadline) {
@@ -65,15 +119,19 @@ func recordExpenses(t *testing.T) map[string]any {
 			}
 			time.Sleep(200 * time.Millisecond)
 		}
-		// The person clicks Done in mcpDeck.
+		// The person closes the window (here: Done, as headless Chrome can't).
 		if err := h.api("POST", "/api/record/stop", map[string]any{"api": "expenses"}, nil); err != nil {
 			expensesErr = "stop: " + err.Error()
 			return
 		}
 		select {
-		case err := <-done:
-			if err != nil {
-				expensesErr = err.Error()
+		case r := <-done:
+			if r.err != nil || r.isErr {
+				expensesErr = fmt.Sprintf("record_workflow: %v %s", r.err, r.text)
+				return
+			}
+			if err := json.Unmarshal([]byte(r.text), &expensesRec); err != nil {
+				expensesErr = "record_workflow returned " + clip(r.text, 300)
 			}
 		case <-time.After(30 * time.Second):
 			expensesErr = "record_workflow didn't return after Done"
@@ -85,23 +143,37 @@ func recordExpenses(t *testing.T) map[string]any {
 	return expensesRec
 }
 
-// expenseKit builds the toolkit from the recording, as the agent would,
-// with the person's receipts folder; once.
+// expenseKit: Copilot builds the toolkit from the recording through the
+// admin MCP server; the person confirms the receipts folder and approves
+// the write tool. Once.
 var kitOnce sync.Once
 
 func expenseKit(t *testing.T) {
 	t.Helper()
 	recordExpenses(t)
 	kitOnce.Do(func() {
-		// The person's receipts folder; it outlives this one scenario.
 		receiptsDir, _ = os.MkdirTemp("", "mcpdeck-receipts-")
 		_ = os.WriteFile(filepath.Join(receiptsDir, "december-internet.pdf"), []byte("%PDF-1.4 december internet receipt C4N4RY-pdf"), 0o600)
-		a := h.apiByName(t, "expenses")
-		h.mustAPI(t, "PUT", "/api/apis/"+a.ID+"/files-folder", map[string]any{"dir": receiptsDir}, nil)
-		h.toolkit(t, "expenses", "expenses")
-		for _, n := range []string{"list_claims", "list_receipts", "submit_claim"} {
-			h.saveTool(t, "expenses", example(t, n))
-		}
+		ad := copilot(t)
+		ad.must("create_toolkit", map[string]any{"name": "expenses", "apis": []any{"expenses"}, "description": "Expense reports: list them and submit one with its receipt."})
+		got := make(chan string, 1)
+		go func() {
+			text, isErr, err := adminCall(ad, "set_files_folder", map[string]any{"api": "expenses", "folder": receiptsDir}, time.Minute)
+			if err != nil || isErr {
+				text = fmt.Sprintf("failed: %v %s", err, text)
+			}
+			got <- text
+		}()
+		personConfirms(t, "upload files from", true)
+		r := <-got
+		expect(t, strings.Contains(r, `"ok":true`), "set_files_folder: %s", r)
+		read := ad.must("save_tool", map[string]any{"toolkit": "expenses", "source": example(t, "list_claims"),
+			"tests": []any{map[string]any{"name": "lists claims", "input": map[string]any{}, "script": `pm.test("claims", () => pm.expect(output.claims.length).to.be.above(0))`}}})
+		expect(t, strings.Contains(read, "live"), "list_claims didn't go live: %s", read)
+		write := ad.must("save_tool", map[string]any{"toolkit": "expenses", "source": example(t, "submit_claim")})
+		expect(t, strings.Contains(write, "pending"), "submit_claim should wait for the person: %s", write)
+		// The person approves it in mcpDeck › Review.
+		h.mustCLI(t, "tool", "approve", "expenses", "submit_claim")
 	})
 }
 
@@ -126,20 +198,27 @@ func init() {
 		for _, leak := range []string{"EXPSESSIONID", "52.10", "Home internet", "/sso/"} {
 			expect(t, !strings.Contains(text, leak), "the recording shows %q to the agent: %s", leak, clip(text, 400))
 		}
+		// Enough for the agent to write the tools: page forms and table columns.
+		for _, want := range []string{"claimForm POST /expenses/claims", "receiptForm POST /expenses/claims/{id}/receipt multipart", "submitForm POST /expenses/claims/{id}/submit",
+			`["Report","Date","Amount","Category","Purpose","Status","Receipt"]`, "getExpensesClaimsNew", "postExpensesClaimsReceiptById", "postExpensesClaimsSubmitById", "set_files_folder"} {
+			expect(t, strings.Contains(text, want), "the recording doesn't tell the agent %q: %s", want, clip(text, 2000))
+		}
 		h.noLeaks(t, "record_workflow", text)
+		tokensUsed := tokens.Count(text)
+		t.Logf("record_workflow result: %d tokens", tokensUsed)
+		expect(t, tokensUsed < 1500, "record_workflow returns %d tokens; keep it under 1500", tokensUsed)
 		a := h.apiByName(t, "expenses")
 		expect(t, a.Auth["type"] == "browser", "the new application doesn't sign in through the browser: %v", a.Auth)
 	})
 
-	add("webapp", "an agent lists claims and receipts and submits a claim with its receipt once the person confirms", func(t *testing.T) {
+	add("webapp", "an agent lists claims and submits a claim with a receipt from the folder once the person confirms", func(t *testing.T) {
 		expenseKit(t)
 		ag := h.agentFor(t, "expenses", "read_write")
 		// The portal session ended overnight: the browser signs in again.
 		h.env.ExpireExpenses()
 		claims := ag.ok("list_claims", map[string]any{})
 		expect(t, strings.Contains(asJSON(claims), `"1001"`), "no claims listed: %s", clip(asJSON(claims), 300))
-		receipts := ag.ok("list_receipts", map[string]any{})
-		expect(t, strings.Contains(asJSON(receipts), "december-internet.pdf") && !strings.Contains(asJSON(receipts), receiptsDir), "receipts: %s", asJSON(receipts))
+		expect(t, !strings.Contains(strings.Join(ag.tools(), ","), "list_receipts"), "a receipts tool is listed; the agent reads the folder itself")
 
 		before := h.env.Count("expenses.submit")
 		type res struct {
@@ -148,22 +227,12 @@ func init() {
 		}
 		out := make(chan res, 1)
 		go func() {
-			text, isErr := ag.call("submit_claim", map[string]any{"date": "2026-12-02", "amount": "48.00", "category": "Internet", "purpose": "Home internet December", "receipt": "december-internet.pdf"})
+			// The agent read december-internet.pdf itself and passes its path.
+			text, isErr := ag.call("submit_claim", map[string]any{"date": "2026-12-02", "amount": "48.00", "category": "Internet", "purpose": "Home internet December", "receipt": filepath.Join(receiptsDir, "december-internet.pdf")})
 			out <- res{text, isErr}
 		}()
-		var waiting []map[string]any
-		for i := 0; i < 100 && len(waiting) == 0; i++ {
-			time.Sleep(100 * time.Millisecond)
-			h.mustAPI(t, "GET", "/api/confirmations", nil, &waiting)
-		}
-		expect(t, len(waiting) == 1, "no confirmation waits for the person")
-		expect(t, h.env.Count("expenses.create") == 1, "a report was created before the person confirmed")
-		c := waiting[0]
-		expect(t, c["title"] == "Submit Internet claim of 48.00" && get(c, "fields.receipt") == "december-internet.pdf", "confirmation shows %s", asJSON(c))
-		// An agent can't confirm for the person.
-		err := h.apiAs("GitHub Copilot", "POST", "/api/confirmations/"+c["id"].(string), map[string]any{"confirm": true}, nil)
-		expect(t, err != nil, "the admin agent confirmed a write")
-		h.mustAPI(t, "POST", "/api/confirmations/"+c["id"].(string), map[string]any{"confirm": true}, nil)
+		c := personConfirms(t, "Submit Internet claim of 48.00", true)
+		expect(t, get(c, "fields.receipt") == "december-internet.pdf", "confirmation shows %s", asJSON(c))
 		r := <-out
 		expect(t, !r.isErr, "submit_claim failed: %s", r.text)
 		v := decodeOut(r.text)
@@ -191,13 +260,7 @@ func init() {
 		go func() {
 			out <- ag.fails("submit_claim", map[string]any{"date": "2026-12-03", "amount": "9.99", "category": "Mobile", "purpose": "Declined", "receipt": "december-internet.pdf"}, "declined")
 		}()
-		var waiting []map[string]any
-		for i := 0; i < 100 && len(waiting) == 0; i++ {
-			time.Sleep(100 * time.Millisecond)
-			h.mustAPI(t, "GET", "/api/confirmations", nil, &waiting)
-		}
-		expect(t, len(waiting) == 1, "no confirmation waits for the person")
-		h.mustAPI(t, "POST", "/api/confirmations/"+waiting[0]["id"].(string), map[string]any{"confirm": false}, nil)
+		personConfirms(t, "Submit Mobile claim", false)
 		<-out
 		expect(t, h.env.Count("expenses.create") == before, "a report was created after the person declined")
 	})
@@ -218,7 +281,7 @@ func init() {
 		for _, leak := range []string{"EXPSESSIONID", receiptsDir, "C4N4RY-pdf"} {
 			expect(t, !strings.Contains(text, leak), "the toolkit file holds %q", leak)
 		}
-		expect(t, len(bundle["tools"].([]any)) == 3, "tools in file: %d", len(bundle["tools"].([]any)))
+		expect(t, len(bundle["tools"].([]any)) == 2, "tools in file: %d", len(bundle["tools"].([]any)))
 
 		// A colleague's mcpDeck.
 		other := &harness{bin: h.bin, data: filepath.Join(t.TempDir(), "data"), env: h.env}
@@ -235,7 +298,7 @@ func init() {
 			m := x.(map[string]any)
 			status[m["name"].(string)] = m["status"].(string)
 		}
-		expect(t, status["submit_claim"] == "pending" && status["list_claims"] == "live" && status["list_receipts"] == "live", "imported statuses %v", status)
+		expect(t, status["submit_claim"] == "pending" && status["list_claims"] == "live", "imported statuses %v", status)
 		expect(t, strings.Contains(asJSON(res["signIn"]), "expenses") && strings.Contains(asJSON(res["filesFor"]), "expenses"), "import didn't say what to do next: %s", asJSON(res))
 		// The file can't be imported by an agent.
 		err := other.apiAs("GitHub Copilot", "POST", "/api/toolkit-import", bundle, nil)

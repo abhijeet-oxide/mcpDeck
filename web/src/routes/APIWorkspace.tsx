@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  CircleDot,
   Code2,
   Cookie,
   Copy,
@@ -55,7 +54,7 @@ import {
   useCopy,
   useToast,
 } from "../components/ui";
-import { BrowserFields, FilesPanel, RecordDialog } from "../components/WebApp";
+import { BrowserFields, FilesPanel } from "../components/WebApp";
 import { del, patch, post, put } from "../lib/api";
 import { getDraft, setDraft, useDrafts } from "../lib/drafts";
 import { ago, bytes, mod, num, pretty } from "../lib/format";
@@ -196,41 +195,36 @@ function AppMenu({ a, onTab }: { a: APIDetail; onTab: (t: Tab) => void }) {
     onError: (e) => toast((e as Error).message, true),
   });
   const used = a.tools ?? [];
-  const [recording, setRecording] = useState(false);
   return (
-    <>
-      {recording && <RecordDialog api={a.name} startUrl={a.auth?.startUrl} onClose={() => setRecording(false)} />}
-      <Menu
-        label="More application actions"
-        items={[
-          { label: "Import requests", icon: <FileUp size={14} />, onClick: () => navigate(`/apps/${a.id}/import`) },
-          { label: "Record a task in the browser", icon: <CircleDot size={14} />, onClick: () => setRecording(true) },
-          { label: "Edit name and hosts", icon: <Code2 size={14} />, onClick: () => onTab("settings") },
-          { label: "Clear cookie jar", icon: <Cookie size={14} />, onClick: () => cookies.mutate(undefined) },
-          "sep",
-          {
-            label: "Delete application",
-            icon: <Trash2 size={14} />,
-            danger: true,
-            onClick: async () => {
-              if (used.length > 0) {
-                toast(`Used by ${used.join(", ")}. Change those tools first.`, true);
-                return;
-              }
-              if (
-                await confirm({
-                  title: `Delete ${a.title || a.name}?`,
-                  body: `Its ${a.requests.length} requests, environments and credentials are deleted. This can't be undone.`,
-                  action: "Delete application",
-                  danger: true,
-                })
-              )
-                remove.mutate(undefined);
-            },
+    <Menu
+      label="More application actions"
+      items={[
+        { label: "Import requests", icon: <FileUp size={14} />, onClick: () => navigate(`/apps/${a.id}/import`) },
+        { label: "Edit name and hosts", icon: <Code2 size={14} />, onClick: () => onTab("settings") },
+        { label: "Clear cookie jar", icon: <Cookie size={14} />, onClick: () => cookies.mutate(undefined) },
+        "sep",
+        {
+          label: "Delete application",
+          icon: <Trash2 size={14} />,
+          danger: true,
+          onClick: async () => {
+            if (used.length > 0) {
+              toast(`Used by ${used.join(", ")}. Change those tools first.`, true);
+              return;
+            }
+            if (
+              await confirm({
+                title: `Delete ${a.title || a.name}?`,
+                body: `Its ${a.requests.length} requests, environments and credentials are deleted. This can't be undone.`,
+                action: "Delete application",
+                danger: true,
+              })
+            )
+              remove.mutate(undefined);
           },
-        ]}
-      />
-    </>
+        },
+      ]}
+    />
   );
 }
 

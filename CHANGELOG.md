@@ -10,8 +10,9 @@ them out of Unreleased.
 ### Features
 
 - Web apps without an API: browser sign-in through your installed Edge or
-  Chrome (company SSO and MFA stay with you); "Record a task" turns one
-  clicked-through task into requests with form fields; tools get
+  Chrome (company SSO and MFA stay with you); agents call `record_workflow`
+  to turn one task you click through into requests, page forms and table
+  columns; agents ask for a files folder you confirm; tools get
   `html.forms`, `html.tables`, `html.text`, a files folder you pick
   (`files.list`, `files.attach`, multipart uploads) and `confirm()` so each
   submit waits for you. Toolkits export to a `.mcpdeck` file and import with

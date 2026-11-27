@@ -55,15 +55,42 @@ type Step struct {
 	// FormFields are the field names and input types (hidden, text, file…)
 	// of the page form that sent this post, when one was seen.
 	FormFields map[string]string `json:"formFields,omitempty"`
+	// Page is what a page load showed: its forms and tables.
+	Page *PageInfo `json:"page,omitempty"`
 }
 
-// formsJS lists a page's forms: method, absolute action, field names and types.
-const formsJS = `JSON.stringify([...document.forms].map(f=>({m:(f.getAttribute('method')||'get').toUpperCase(),a:f.action,f:[...f.elements].filter(x=>x.name).map(x=>[x.name,(x.type||x.tagName).toLowerCase()])})))`
+// formsJS describes a loaded page: its URL, its forms (name, method,
+// absolute action, enctype, field names and types) and its tables' column
+// headers. Names and types only, never values.
+const formsJS = `JSON.stringify({u:location.href,f:[...document.forms].map(f=>({n:f.getAttribute('name')||f.id||'',m:(f.getAttribute('method')||'get').toUpperCase(),a:f.action,e:f.enctype,f:[...f.elements].filter(x=>x.name).map(x=>[x.name,(x.type||x.tagName).toLowerCase()])})),t:[...document.querySelectorAll('table')].map(t=>[...(t.querySelector('tr')?.children??[])].map(c=>c.textContent.trim()))})`
 
 type pageForm struct {
+	N string     `json:"n"`
 	M string     `json:"m"`
 	A string     `json:"a"`
+	E string     `json:"e"`
 	F [][]string `json:"f"`
+}
+
+type pageScan struct {
+	U string     `json:"u"`
+	F []pageForm `json:"f"`
+	T [][]string `json:"t"`
+}
+
+// PageForm is one form on a recorded page.
+type PageForm struct {
+	Name    string            `json:"name"`
+	Method  string            `json:"method"`
+	Action  string            `json:"action"`
+	Enctype string            `json:"enctype"`
+	Fields  map[string]string `json:"fields"` // name → input type
+}
+
+// PageInfo is what a recorded page holds: its forms and table headers.
+type PageInfo struct {
+	Forms  []PageForm `json:"forms,omitempty"`
+	Tables [][]string `json:"tables,omitempty"`
 }
 
 // Opener opens a browser for a person.
@@ -414,6 +441,7 @@ func (b *Chrome) Record(ctx context.Context, profile, start string) (Session, []
 	var last Session
 	snap := make(chan struct{}, 1)
 	forms := map[string]map[string]string{} // METHOD action → field types
+	pages := map[string]*PageInfo{}         // URL → what the page held
 	c.handle(func(prev func(event)) func(event) {
 		return func(ev event) {
 			prev(ev)
@@ -426,12 +454,13 @@ func (b *Chrome) Record(ctx context.Context, profile, start string) (Session, []
 						return
 					}
 					var raw string
-					var fs []pageForm
-					if json.Unmarshal(v, &raw) != nil || json.Unmarshal([]byte(raw), &fs) != nil {
+					var scan pageScan
+					if json.Unmarshal(v, &raw) != nil || json.Unmarshal([]byte(raw), &scan) != nil {
 						return
 					}
+					info := &PageInfo{Tables: scan.T}
 					mu.Lock()
-					for _, f := range fs {
+					for _, f := range scan.F {
 						m := map[string]string{}
 						for _, x := range f.F {
 							if len(x) == 2 {
@@ -439,7 +468,26 @@ func (b *Chrome) Record(ctx context.Context, profile, start string) (Session, []
 							}
 						}
 						forms[f.M+" "+f.A] = m
+						info.Forms = append(info.Forms, PageForm{Name: f.N, Method: f.M, Action: f.A, Enctype: f.E, Fields: m})
 					}
+					// A page seen more than once (before and after a post) keeps
+					// every form and table it showed.
+					if prev := pages[scan.U]; prev != nil {
+						have := map[string]bool{}
+						for _, f := range prev.Forms {
+							have[f.Method+" "+f.Name+" "+f.Action] = true
+						}
+						for _, f := range info.Forms {
+							if !have[f.Method+" "+f.Name+" "+f.Action] {
+								prev.Forms = append(prev.Forms, f)
+							}
+						}
+						if len(prev.Tables) == 0 {
+							prev.Tables = info.Tables
+						}
+						info = prev
+					}
+					pages[scan.U] = info
 					mu.Unlock()
 				}()
 			case "Network.requestWillBeSent":
@@ -502,7 +550,13 @@ func (b *Chrome) Record(ctx context.Context, profile, start string) (Session, []
 	finish := func() (Session, []Step, error) {
 		mu.Lock()
 		defer mu.Unlock()
-		return last, append([]Step(nil), steps...), nil
+		out := append([]Step(nil), steps...)
+		for i := range out {
+			if out[i].Method == "GET" && out[i].Type == "Document" {
+				out[i].Page = pages[out[i].URL]
+			}
+		}
+		return last, out, nil
 	}
 	for {
 		select {

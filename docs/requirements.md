@@ -231,8 +231,10 @@ URL, params, headers and body. Bodies: none, JSON, XML, text,
 (HTTP-3). Cookies set by login steps are kept per API. Binary request bodies
 and a cookie-jar view are not built.
 
-**HTTP-3 Multipart and the files folder.** A person MAY give an application a
-files folder (UI or CLI only; agents can't set or change it). Tools list it
+**HTTP-3 Multipart and the files folder.** An application MAY have a files
+folder. A person sets it (UI or CLI), or an agent asks for one with
+`set_files_folder` and the person confirms it in mcpDeck (CONF-1's page);
+nothing changes without them. Agents read the files themselves. Tools list it
 with `files.list(api)` (name, size, modified; no paths, no contents) and
 upload a file by putting `files.attach(api, name)` in a body field; the
 proxy then sends `multipart/form-data`, reading the file only from that
@@ -1052,13 +1054,15 @@ Fonts are bundled.
 
 ## Agents build everything
 
-**REC-1 Record a workflow.** `record_workflow` (admin MCP server), `mcpdeck
-record <api> <url>` (CLI) and "Record" (application page) open the browser at
-a URL for a person to sign in and click through a task once. Closing the
-window ends it. The result is a short list of the page loads and form posts
+**REC-1 Record a workflow.** `record_workflow` (admin MCP server) and
+`mcpdeck record <api> <url>` (CLI) open the browser at a URL for a person to
+sign in and click through a task once; there is no UI control, since an
+agent drives building. Closing the window ends it. The result is a short list of the page loads and form posts
 on the API's allowed hosts: method, path, status, redirect, content type and
 form field names, with hidden fields marked `(hidden)`, typed values replaced
-by their kind, and secret-like values left out. Cookies from the window are
+by their kind, and secret-like values left out; and for each page, its forms
+(name, action, fields and types) and table column headers, so an agent can
+write tools from it alone. Cookies from the window are
 kept as the API's browser session (AUTH-5). Static files and other hosts are
 left out. The agent then adds requests (`import_api` with curl) and writes
 tools against them.

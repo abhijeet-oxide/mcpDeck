@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"mime"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -51,6 +52,28 @@ func (d *Deck) SetFilesFolder(ctx context.Context, id, dir string) (*store.API, 
 	return &a, nil
 }
 
+// RequestFilesFolder is an agent asking for the folder an API's tools may
+// upload from: the person confirms it in mcpDeck, or nothing changes (HTTP-3).
+func (d *Deck) RequestFilesFolder(ctx context.Context, who audit.Actor, id, dir string) (*store.API, error) {
+	a, err := d.Store.API(ctx, id)
+	if err != nil {
+		return nil, notFound("API")
+	}
+	dir = strings.TrimSpace(dir)
+	if !filepath.IsAbs(dir) {
+		return nil, badRequest("give the folder's full path")
+	}
+	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+		return nil, badRequest("%s isn't a folder on this computer", dir)
+	}
+	title := "Let " + a.Name + " tools upload files from " + filepath.Clean(dir)
+	fields := map[string]any{"application": a.Name, "folder": filepath.Clean(dir), "what": "Tools may list this folder and upload a file from it when you run them. Agents see file names only."}
+	if err := d.AskConfirm(ctx, Caller{Actor: who}, title, fields); err != nil {
+		return nil, errf(http.StatusForbidden, "not_confirmed", "%s", err.Error())
+	}
+	return d.SetFilesFolder(ctx, id, dir)
+}
+
 // ListFiles lists an API's files folder.
 func (d *Deck) ListFiles(ctx context.Context, id string) ([]proxy.FileInfo, error) {
 	return d.Proxy.ListFiles(ctx, id)
@@ -91,6 +114,48 @@ type RecordedRequest struct {
 	Status int           `json:"status"`
 	Goes   string        `json:"goesTo,omitempty"` // redirect target path
 	Form   *RecordedForm `json:"form,omitempty"`
+	Page   *RecordedPage `json:"page,omitempty"` // what a page load showed
+}
+
+// RecordedPage is a page's forms and tables, so an agent knows what to
+// read with html.forms and html.tables. Names and types, never values.
+type RecordedPage struct {
+	Forms  []string   `json:"forms,omitempty"`  // "claimForm POST /expenses/claims: _state(hidden), amount(text)…"
+	Tables [][]string `json:"tables,omitempty"` // column headers
+}
+
+func recordPage(p *browser.PageInfo) *RecordedPage {
+	if p == nil || (len(p.Forms) == 0 && len(p.Tables) == 0) {
+		return nil
+	}
+	out := &RecordedPage{Tables: p.Tables}
+	for _, f := range p.Forms {
+		path := f.Action
+		if u, err := url.Parse(f.Action); err == nil {
+			path, _ = templatePath(u.Path)
+		}
+		names := make([]string, 0, len(f.Fields))
+		for n, t := range f.Fields {
+			switch t {
+			case "submit", "button", "reset", "image":
+				continue
+			case "hidden":
+				t = "hidden"
+			}
+			names = append(names, n+"("+t+")")
+		}
+		sort.Strings(names)
+		name := f.Name
+		if name == "" {
+			name = "(unnamed)"
+		}
+		enc := ""
+		if strings.Contains(f.Enctype, "multipart") {
+			enc = " multipart"
+		}
+		out.Forms = append(out.Forms, fmt.Sprintf("%s %s %s%s: %s", name, f.Method, path, enc, strings.Join(names, ", ")))
+	}
+	return out
 }
 
 // RecordResult is what an agent gets back: short, no cookies or values.
@@ -172,9 +237,12 @@ func (d *Deck) Record(ctx context.Context, in RecordInput) (*RecordResult, error
 			if f := recordForm(st); f != nil && res.Requests[i].Form == nil {
 				res.Requests[i].Form = f
 			}
+			if pg := recordPage(st.Page); pg != nil && res.Requests[i].Page == nil {
+				res.Requests[i].Page = pg
+			}
 			continue
 		}
-		rr := RecordedRequest{Name: requestName(st.Method, path, params), Method: st.Method, Path: path, Status: st.Status, Form: recordForm(st)}
+		rr := RecordedRequest{Name: requestName(st.Method, path, params), Method: st.Method, Path: path, Status: st.Status, Form: recordForm(st), Page: recordPage(st.Page)}
 		if lu, err := url.Parse(st.Location); err == nil && st.Location != "" {
 			rr.Goes, _ = templatePath(lu.Path)
 		}
@@ -191,8 +259,11 @@ func (d *Deck) Record(ctx context.Context, in RecordInput) (*RecordResult, error
 			return nil, err
 		}
 	}
-	res.Next = "Write tools that fetch a page, read it with html.forms(page)/html.tables(page), and post a form's values merged with the input: " +
-		"call(\"" + a.Name + "\", \"POST /path\", { ...form.values, field: input.x }). Upload with files.attach(name). Tools that submit set confirm: true and call confirm() first."
+	res.Next = "Each request is a method on " + a.Name + " (" + a.Name + ".<name>), already signed in. Write tools that: fetch a page (it returns HTML text); read it with " +
+		"html.tables(page) (rows keyed by the headers above) or html.forms(page).find(f => f.name === \"<form>\"); post { ...form.values, ...input } to the form's request " +
+		"(hidden fields come from the page each time; never hard-code them); use <request>.raw(...) for a post and read headers.location to find the page it went to. " +
+		"For a file field pass files.attach(fileName) (a file in the folder set with set_files_folder). A tool that submits sets confirm: true and awaits confirm({ title, fields }) before its first post. " +
+		"Read tools need a test; save with save_tool, then create_toolkit if needed and export_toolkit to share."
 	d.audit(ctx, audit.You, "api.record", a.Name, fmt.Sprintf("%d requests", len(res.Requests)))
 	return res, nil
 }

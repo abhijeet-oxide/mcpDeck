@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { mockAPI, renderApp } from "../test/render";
-import { BuildWithAgent, ConfirmBanner, FilesPanel, RecordDialog } from "./WebApp";
+import { BuildWithAgent, ConfirmBanner, FilesPanel } from "./WebApp";
 
 const calls = (fn: ReturnType<typeof mockAPI>) =>
   (fn.mock.calls as unknown as [unknown, RequestInit | undefined][]).map(
@@ -28,19 +28,6 @@ describe("Confirm each call", () => {
     expect(screen.getByText("december.pdf")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(calls(fn)).toContain('POST /api/confirmations/c1 {"confirm":true}'));
-  });
-});
-
-// REQ: REC-1
-describe("Record a task", () => {
-  it("starts recording at the start page", async () => {
-    const fn = mockAPI({ "/api/record": { api: "expenses", signedIn: true, requests: [] } });
-    renderApp(<RecordDialog api="expenses" startUrl="https://exp.corp/claims" onClose={() => {}} />);
-    fireEvent.click(screen.getByRole("button", { name: /Open browser and record/ }));
-    await waitFor(() =>
-      expect(calls(fn)).toContain('POST /api/record {"api":"expenses","url":"https://exp.corp/claims"}'),
-    );
-    await screen.findByText(/Added 0 requests/);
   });
 });
 

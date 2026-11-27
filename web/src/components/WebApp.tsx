@@ -1,14 +1,13 @@
-// Web apps without an API: browser sign-in (AUTH-5), recording a task
-// (REC-1), the files folder (HTTP-3), confirm each call (CONF-1), toolkit
+// Web apps without an API: browser sign-in (AUTH-5), the files folder (HTTP-3), confirm each call (CONF-1), toolkit
 // files (EXP-1) and building with an agent (CON-1).
 import { useQuery } from "@tanstack/react-query";
-import { Check, CircleDot, Download, FolderOpen, LogIn, ShieldCheck, Upload, Wand2 } from "lucide-react";
+import { Download, FolderOpen, LogIn, ShieldCheck, Upload, Wand2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { ApiError, get, post, put } from "../lib/api";
 import { useAction } from "../lib/hooks";
 import { navigate } from "../lib/router";
 import type { Auth } from "../lib/types";
-import { Button, CopyField, Dialog, ErrorBox, Field, Panel, Select, useToast } from "./ui";
+import { Button, CopyField, ErrorBox, Field, Panel, Select, useToast } from "./ui";
 
 /** The fields of the Browser sign-in auth type, with Sign in now. */
 export function BrowserFields({ apiId, auth, set }: { apiId: string; auth: Auth; set: (p: Partial<Auth>) => void }) {
@@ -120,87 +119,6 @@ export function FilesPanel({ apiId, dir }: { apiId: string; dir?: string }) {
         </div>
       )}
     </Panel>
-  );
-}
-
-type Recorded = {
-  api: string;
-  signedIn: boolean;
-  requests: { name: string; method: string; path: string; status: number; form?: { fields: Record<string, string> } }[];
-};
-
-/** Record a task: the person signs in and clicks through it once. */
-export function RecordDialog({ api, startUrl, onClose }: { api: string; startUrl?: string; onClose: () => void }) {
-  const [url, setUrl] = useState(startUrl ?? "");
-  const [result, setResult] = useState<Recorded | null>(null);
-  const run = useAction(() => post<Recorded>("/api/record", { api, url }), { onSuccess: (r) => setResult(r) });
-  const stop = useAction(() => post("/api/record/stop", { api }));
-  return (
-    <Dialog
-      title="Record a task"
-      sub="mcpDeck opens your browser. Sign in, do the task once (for example, create and submit one claim), then click Done here or close the window."
-      onClose={onClose}
-      wide
-      footer={
-        result ? (
-          <Button kind="ink" onClick={onClose}>
-            Close
-          </Button>
-        ) : run.isPending ? (
-          <Button kind="ink" icon={<Check size={14} />} loading={stop.isPending} onClick={() => stop.mutate(undefined)}>
-            Done
-          </Button>
-        ) : (
-          <>
-            <Button kind="ghost" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              kind="ink"
-              icon={<CircleDot size={14} />}
-              disabled={!/^https?:\/\//.test(url)}
-              onClick={() => run.mutate(undefined)}
-            >
-              Open browser and record
-            </Button>
-          </>
-        )
-      }
-    >
-      {!result && (
-        <Field label="Start page">
-          <input
-            className="input mono"
-            aria-label="Start page"
-            value={url}
-            disabled={run.isPending}
-            placeholder="https://expenses.corp.example/OA_HTML/claims"
-            onChange={(e) => setUrl(e.target.value)}
-          />
-        </Field>
-      )}
-      {run.isPending && <p className="muted">Recording… finish the task in the browser window.</p>}
-      {result && (
-        <>
-          <p className="m-0">
-            Added {result.requests.length} requests to <strong>{result.api}</strong>
-            {result.signedIn ? " and kept your sign-in." : "."} Ask your agent to write tools for them.
-          </p>
-          <table className="table">
-            <tbody>
-              {result.requests.map((r) => (
-                <tr key={r.method + r.path}>
-                  <td className="mono">{r.method}</td>
-                  <td className="mono">{r.path}</td>
-                  <td className="muted">{r.form ? Object.keys(r.form.fields).join(", ") : ""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-      <ErrorBox error={run.error} />
-    </Dialog>
   );
 }
 

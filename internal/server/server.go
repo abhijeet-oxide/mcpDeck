@@ -228,6 +228,15 @@ func (s *Server) routes() {
 		}
 		return d.SetFilesFolder(r.Context(), r.PathValue("id"), in.Dir)
 	}))
+	m.HandleFunc("POST /api/apis/{id}/files-folder/request", h(func(r *http.Request) (any, error) {
+		in, err := body[struct {
+			Dir string `json:"dir"`
+		}](r)
+		if err != nil {
+			return nil, err
+		}
+		return d.RequestFilesFolder(r.Context(), you(r), r.PathValue("id"), in.Dir)
+	}))
 	m.HandleFunc("GET /api/apis/{id}/files", h(func(r *http.Request) (any, error) { return d.ListFiles(r.Context(), r.PathValue("id")) }))
 	m.HandleFunc("POST /api/apis/{id}/signin", h(func(r *http.Request) (any, error) { return d.SignIn(r.Context(), r.PathValue("id")) }))
 	m.HandleFunc("POST /api/record", h(func(r *http.Request) (any, error) {

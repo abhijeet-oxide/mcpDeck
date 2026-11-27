@@ -382,6 +382,20 @@ func adminTools() []adminTool {
 				var out map[string]any
 				return out, cl.do("POST", "/api/record", map[string]any{"api": str(a, "api"), "url": str(a, "url")}, &out)
 			}},
+		{"set_files_folder", "Ask the user to let an API's tools upload files (receipts, attachments) from a folder. mcpDeck shows them a confirm page; this waits for their answer. You read the files yourself; tools upload them by name with files.attach.",
+			`{"type":"object","properties":{"api":{"type":"string"},"folder":{"type":"string","description":"full path on this computer"}},"required":["api","folder"]}`, false,
+			func(cl *client, a map[string]any) (any, error) {
+				d, err := findAPI(cl, str(a, "api"))
+				if err != nil {
+					return nil, err
+				}
+				cl.timeout = 6 * time.Minute
+				dir, _ := filepath.Abs(expandHome(str(a, "folder")))
+				if err := cl.do("POST", "/api/apis/"+d.ID+"/files-folder/request", map[string]any{"dir": dir}, nil); err != nil {
+					return nil, err
+				}
+				return map[string]any{"ok": true, "folder": dir}, nil
+			}},
 		{"export_toolkit", "Save a toolkit with its APIs and live tools as a .mcpdeck file others import in mcpDeck. No secrets, sessions or examples.",
 			`{"type":"object","properties":{"toolkit":{"type":"string"},"path":{"type":"string","description":"file to write; default <toolkit>.mcpdeck here"}},"required":["toolkit"]}`, false,
 			func(cl *client, a map[string]any) (any, error) {
@@ -448,8 +462,12 @@ func newAdminServer(cl *client) *sdk.Server {
 				}
 				text, ok := out.(string)
 				if !ok {
-					b, _ := json.Marshal(out)
-					text = string(b)
+					// Unescaped < > &: code hints read as written, in fewer tokens.
+					var buf strings.Builder
+					enc := json.NewEncoder(&buf)
+					enc.SetEscapeHTML(false)
+					_ = enc.Encode(out)
+					text = strings.TrimSuffix(buf.String(), "\n")
 				}
 				return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: text}}}, nil
 			})
