@@ -20,6 +20,7 @@ import (
 	"github.com/abhijeet-oxide/mcpdeck/internal/browser"
 	"github.com/abhijeet-oxide/mcpdeck/internal/proxy"
 	"github.com/abhijeet-oxide/mcpdeck/internal/store"
+	"github.com/abhijeet-oxide/mcpdeck/internal/tool"
 )
 
 // SetFilesFolder sets the folder an API's tools may upload from (HTTP-3).
@@ -124,28 +125,48 @@ type RecordedPage struct {
 	Tables [][]string `json:"tables,omitempty"` // column headers
 }
 
-func recordPage(p *browser.PageInfo) *RecordedPage {
-	if p == nil || (len(p.Forms) == 0 && len(p.Tables) == 0) {
+// pageForms reads a page's forms as tools will (html.forms), with actions
+// made absolute against the page's address.
+func pageForms(pageURL, page string) []tool.Form {
+	base, _ := url.Parse(pageURL)
+	forms := tool.ParseForms(page)
+	for i := range forms {
+		if base != nil {
+			if u, err := base.Parse(forms[i].Action); err == nil {
+				forms[i].Action = u.String()
+			}
+		}
+	}
+	return forms
+}
+
+// recordPage summarizes a page from its HTML: its forms and tables.
+func recordPage(pageURL, page string) *RecordedPage {
+	if page == "" {
 		return nil
 	}
-	out := &RecordedPage{Tables: p.Tables}
-	for _, f := range p.Forms {
+	out := &RecordedPage{Tables: tool.TableHeaders(page)}
+	if len(out.Tables) == 0 {
+		out.Tables = nil
+	}
+	for _, f := range pageForms(pageURL, page) {
 		path := f.Action
 		if u, err := url.Parse(f.Action); err == nil {
 			path, _ = templatePath(u.Path)
 		}
-		names := make([]string, 0, len(f.Fields))
-		for n, t := range f.Fields {
-			switch t {
+		names := []string{}
+		for _, fl := range f.Fields {
+			switch fl.Type {
 			case "submit", "button", "reset", "image":
 				continue
-			case "hidden":
-				t = "hidden"
 			}
-			names = append(names, n+"("+t+")")
+			names = append(names, fl.Name+"("+fl.Type+")")
 		}
 		sort.Strings(names)
 		name := f.Name
+		if name == "" {
+			name = f.ID
+		}
 		if name == "" {
 			name = "(unnamed)"
 		}
@@ -155,7 +176,33 @@ func recordPage(p *browser.PageInfo) *RecordedPage {
 		}
 		out.Forms = append(out.Forms, fmt.Sprintf("%s %s %s%s: %s", name, f.Method, path, enc, strings.Join(names, ", ")))
 	}
+	if len(out.Forms) == 0 && len(out.Tables) == 0 {
+		return nil
+	}
 	return out
+}
+
+// mergePage adds the forms and tables of another visit to the same page.
+func mergePage(a, b *RecordedPage) *RecordedPage {
+	if a == nil {
+		return b
+	}
+	if b == nil {
+		return a
+	}
+	have := map[string]bool{}
+	for _, f := range a.Forms {
+		have[f] = true
+	}
+	for _, f := range b.Forms {
+		if !have[f] {
+			a.Forms = append(a.Forms, f)
+		}
+	}
+	if len(a.Tables) == 0 {
+		a.Tables = b.Tables
+	}
+	return a
 }
 
 // RecordResult is what an agent gets back: short, no cookies or values.
@@ -225,6 +272,17 @@ func (d *Deck) Record(ctx context.Context, in RecordInput) (*RecordResult, error
 	for _, r := range existing {
 		byKey[r.Method+" "+r.URL] = true
 	}
+	// Which page form sent each post: its field types (hidden, file…).
+	fieldsBy := map[string]map[string]string{}
+	for _, st := range steps {
+		for _, f := range pageForms(st.URL, st.HTML) {
+			m := map[string]string{}
+			for _, fl := range f.Fields {
+				m[fl.Name] = fl.Type
+			}
+			fieldsBy[f.Method+" "+f.Action] = m
+		}
+	}
 	seen := map[string]int{}
 	for _, st := range steps {
 		su, err := url.Parse(st.URL)
@@ -234,16 +292,19 @@ func (d *Deck) Record(ctx context.Context, in RecordInput) (*RecordResult, error
 		path, params := templatePath(su.Path)
 		key := st.Method + " " + path
 		if i, ok := seen[key]; ok {
-			if f := recordForm(st); f != nil && res.Requests[i].Form == nil {
+			if f := recordForm(st, fieldsBy[st.Method+" "+st.URL]); f != nil && res.Requests[i].Form == nil {
 				res.Requests[i].Form = f
 			}
-			if pg := recordPage(st.Page); pg != nil && res.Requests[i].Page == nil {
-				res.Requests[i].Page = pg
+			res.Requests[i].Page = mergePage(res.Requests[i].Page, recordPage(st.URL, st.HTML))
+			// A page first seen redirecting to sign-in, then loaded.
+			if r := &res.Requests[i]; r.Status >= 300 && r.Status < 400 && st.Status == 200 {
+				r.Status, r.Goes = 200, ""
 			}
 			continue
 		}
-		rr := RecordedRequest{Name: requestName(st.Method, path, params), Method: st.Method, Path: path, Status: st.Status, Form: recordForm(st), Page: recordPage(st.Page)}
-		if lu, err := url.Parse(st.Location); err == nil && st.Location != "" {
+		rr := RecordedRequest{Name: requestName(st.Method, path, params), Method: st.Method, Path: path, Status: st.Status, Form: recordForm(st, fieldsBy[st.Method+" "+st.URL]), Page: recordPage(st.URL, st.HTML)}
+		// Where a post sends the person; a redirect to sign-in isn't the agent's concern.
+		if lu, err := su.Parse(st.Location); err == nil && st.Location != "" && hostIn(lu.Host, allowed) && !signInPath(lu.Path) {
 			rr.Goes, _ = templatePath(lu.Path)
 		}
 		seen[key] = len(res.Requests)
@@ -351,7 +412,7 @@ func requestName(method, path string, params []string) string {
 }
 
 // recordForm summarizes a post's fields by kind, never by value.
-func recordForm(st browser.Step) *RecordedForm {
+func recordForm(st browser.Step, formFields map[string]string) *RecordedForm {
 	if st.Method == "GET" || st.Method == "HEAD" {
 		return nil
 	}
@@ -361,9 +422,9 @@ func recordForm(st browser.Step) *RecordedForm {
 	if ct == "application/x-www-form-urlencoded" {
 		values, _ = url.ParseQuery(st.PostData)
 	}
-	if len(st.FormFields) > 0 {
+	if len(formFields) > 0 {
 		// The page's own form says which fields are hidden or files.
-		for name, typ := range st.FormFields {
+		for name, typ := range formFields {
 			switch typ {
 			case "submit", "button", "reset", "image":
 				continue

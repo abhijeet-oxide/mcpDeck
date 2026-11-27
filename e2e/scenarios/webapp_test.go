@@ -121,7 +121,13 @@ func recordExpenses(t *testing.T) map[string]any {
 		}
 		// The person closes the window (here: Done, as headless Chrome can't).
 		if err := h.api("POST", "/api/record/stop", map[string]any{"api": "expenses"}, nil); err != nil {
-			expensesErr = "stop: " + err.Error()
+			// Usually the recording already ended with its own error.
+			select {
+			case r := <-done:
+				expensesErr = fmt.Sprintf("record_workflow ended early: %v %s", r.err, r.text)
+			case <-time.After(5 * time.Second):
+				expensesErr = "stop: " + err.Error()
+			}
 			return
 		}
 		select {
