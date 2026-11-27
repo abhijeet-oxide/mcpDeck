@@ -115,7 +115,7 @@ func (h *harness) start() error {
 	h.port = freePort()
 	h.base = "http://127.0.0.1:" + strconv.Itoa(h.port)
 	h.cmd = exec.Command(h.bin, "serve", "--no-open", "--port", strconv.Itoa(h.port), "--data", h.data)
-	h.cmd.Env = append(os.Environ(), "MCPDECK_NO_KEYCHAIN=1")
+	h.cmd.Env = append(os.Environ(), "MCPDECK_NO_KEYCHAIN=1", "MCPDECK_BROWSER_HEADLESS=1")
 	h.logFile = filepath.Join(filepath.Dir(h.data), "server.log")
 	logf, err := os.Create(h.logFile)
 	if err != nil {

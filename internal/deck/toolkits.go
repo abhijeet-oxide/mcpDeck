@@ -524,7 +524,12 @@ func (d *Deck) env(ctx context.Context, c Caller, examples bool) tool.Env {
 	}
 	base := c.proxyBase()
 	base.Examples = examples
-	return tool.Env{Clients: d.clients(ctx, scope), Sender: d.Proxy, Base: base, Timeout: d.toolTimeout(ctx)}
+	e := tool.Env{Clients: d.clients(ctx, scope), Sender: d.Proxy, Base: base, Timeout: d.toolTimeout(ctx), Files: d.Proxy}
+	if c.byAgent() {
+		// An agent's run waits for the person to confirm its writes (CONF-1).
+		e.Confirm = func(ctx context.Context, title string, fields any) error { return d.AskConfirm(ctx, c, title, fields) }
+	}
+	return e
 }
 
 func (d *Deck) toolTimeout(ctx context.Context) time.Duration {

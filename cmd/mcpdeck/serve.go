@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/abhijeet-oxide/mcpdeck/internal/audit"
+	"github.com/abhijeet-oxide/mcpdeck/internal/browser"
 	"github.com/abhijeet-oxide/mcpdeck/internal/clock"
 	"github.com/abhijeet-oxide/mcpdeck/internal/connect"
 	"github.com/abhijeet-oxide/mcpdeck/internal/deck"
@@ -122,7 +123,11 @@ func serve(o serveOpts) error {
 	chmodPrivate(o.data)
 	c := clock.Real{}
 	ids := clock.ULIDs{Clock: c}
-	d := deck.New(st, v, proxy.New(st, v, c, ids, nil), audit.New(st, c, ids), c, ids, o.data, o.port)
+	px := proxy.New(st, v, c, ids, nil)
+	// Sign-in and recording windows use the installed Edge or Chrome with
+	// mcpDeck's own profiles (AUTH-5, REC-1).
+	px.SetBrowser(&browser.Chrome{Dir: filepath.Join(o.data, "browser"), Headless: os.Getenv("MCPDECK_BROWSER_HEADLESS") != ""})
+	d := deck.New(st, v, px, audit.New(st, c, ids), c, ids, o.data, o.port)
 	d.Demo = o.dev
 
 	var world *mock.World
@@ -142,6 +147,12 @@ func serve(o serveOpts) error {
 	}
 
 	g := server.NewGuard(o.port)
+	// A write waiting for the person opens its confirm page (CONF-1).
+	d.OpenConfirm = func(id string) {
+		if !o.noOpen {
+			_ = opener{}.Open(g.LaunchURL("/confirm/" + id))
+		}
+	}
 	httpSrv := &http.Server{ReadHeaderTimeout: 10 * time.Second}
 	var demoMu sync.Mutex
 	var demoCmd *exec.Cmd

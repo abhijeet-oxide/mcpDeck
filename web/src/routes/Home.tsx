@@ -32,6 +32,7 @@ import {
   StatusChip,
   useToast,
 } from "../components/ui";
+import { BuildWithAgent, ConfirmBanner } from "../components/WebApp";
 import { post } from "../lib/api";
 import { ago, num, time } from "../lib/format";
 import { useAction, useHome, useInfo, useToolkits } from "../lib/hooks";
@@ -101,9 +102,13 @@ function FirstRun() {
         sub="Start with an application: the system you want agents to use. The guide shows the next step as you go, and you can do them in any order."
         actions={<DemoButton />}
       />
+      <div className="mb-5">
+        <ConfirmBanner />
+      </div>
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,1fr)]">
         <GettingStarted />
         <div className="flex flex-col gap-4">
+          <BuildWithAgent />
           <div className="panel p-5">
             <div className="icon-tile mb-3">
               <AppWindow size={16} />
@@ -197,9 +202,13 @@ export function Home() {
           </>
         }
       />
+      <div className="mb-5">
+        <ConfirmBanner />
+      </div>
       {showSteps && (
-        <div className="mb-5">
+        <div className="mb-5 grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,1fr)]">
           <GettingStarted compact />
+          <BuildWithAgent />
         </div>
       )}
       {h.needsYou.length > 0 && (

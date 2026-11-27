@@ -62,12 +62,15 @@ const (
 	WeatherKey       = "weather-key-C4N4RY-15"
 	MTLSToken        = "mtls-bearer-C4N4RY-16"
 	ShopRefreshToken = "never-issued-before-login"
+	ExpenseUser      = "pat@corp.example"
+	ExpensePass      = "expense-pass-C4N4RY-17"
+	ExpenseOTP       = "246810"
 )
 
 // Canaries lists every secret above, for leak checks.
 func Canaries() []string {
 	return []string{ShopPass, JFrogPass, JFrogAPIKey, AnchorePass, OAuthSecret, OAuthUserPass, LegacyPass, HMACSecret,
-		GitHubPAT, JiraToken, SNPass, KubeToken, GraphQLToken, FlakyKey, WeatherKey, MTLSToken}
+		GitHubPAT, JiraToken, SNPass, KubeToken, GraphQLToken, FlakyKey, WeatherKey, MTLSToken, ExpensePass}
 }
 
 // Env is a running set of systems.
@@ -84,8 +87,14 @@ type Env struct {
 	// to test expiry and refresh.
 	TokenTTL atomic.Int64 // nanoseconds
 
-	expireLegacy func()
-	counters     sync.Map // name → *atomic.Int64, for assertions on retries and logins
+	// AutoSignIn and AutoRecord make the expense portal's pages act as the
+	// person in a real (headless) browser: sign in, and click through one claim.
+	AutoSignIn, AutoRecord atomic.Bool
+
+	expireLegacy   func()
+	expireExpenses func()
+	expenseClaims  func() []map[string]any
+	counters       sync.Map // name → *atomic.Int64, for assertions on retries and logins
 }
 
 // Count returns how many times a named event happened (logins, retries…).
@@ -140,6 +149,7 @@ func Start() (*Env, error) {
 		{"graphql", e.graphqlAPI(), false, false},
 		{"flaky", e.flaky(), false, false},
 		{"weather", e.weather(), false, false},
+		{"expenses", e.expenses(), false, false},
 	}
 	for _, s := range systems {
 		ln, err := net.Listen("tcp", "127.0.0.1:0")

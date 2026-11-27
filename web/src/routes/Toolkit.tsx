@@ -42,6 +42,7 @@ import {
   useConfirm,
   useToast,
 } from "../components/ui";
+import { ExportButton } from "../components/WebApp";
 import { del, get, patch, post } from "../lib/api";
 import { ago, num } from "../lib/format";
 import { useAction, useAPIs, useLibrary, useToolkit } from "../lib/hooks";
@@ -106,6 +107,7 @@ export function ToolkitPage({ name }: { name: string }) {
                 },
               ]}
             />
+            <ExportButton toolkit={t.name} />
             <Button icon={<Plus size={14} />} onClick={newTool}>
               New tool
             </Button>

@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"encoding/json"
+	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -71,4 +72,32 @@ func (r redactor) Bytes(b []byte) []byte {
 
 func (r redactor) sortLongestFirst() {
 	sort.Slice(r, func(i, j int) bool { return len(r[i]) > len(r[j]) })
+}
+
+// stateKey matches hidden framework fields (CSRF tokens, view state, one-time
+// page state) that the call log doesn't keep.
+var stateKey = regexp.MustCompile(`(?i)^_|csrf|viewstate|xsrf|nonce`)
+
+// MaskBody masks a request body for the call log: JSON as MaskJSON, and
+// URL-encoded forms by field name, so session and page state stay out of
+// the log.
+func MaskBody(b []byte, contentType string) []byte {
+	if !strings.Contains(strings.ToLower(contentType), "x-www-form-urlencoded") {
+		return MaskJSON(b)
+	}
+	q, err := url.ParseQuery(string(b))
+	if err != nil {
+		return b
+	}
+	for k := range q {
+		if IsSensitiveKey(k) || stateKey.MatchString(k) {
+			q[k] = []string{"[masked]"}
+		}
+	}
+	return []byte(q.Encode())
+}
+
+func mustJSON(v any) []byte {
+	b, _ := json.Marshal(v)
+	return b
 }

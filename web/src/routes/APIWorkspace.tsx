@@ -54,6 +54,7 @@ import {
   useCopy,
   useToast,
 } from "../components/ui";
+import { BrowserFields, FilesPanel } from "../components/WebApp";
 import { del, patch, post, put } from "../lib/api";
 import { getDraft, setDraft, useDrafts } from "../lib/drafts";
 import { ago, bytes, mod, num, pretty } from "../lib/format";
@@ -1638,6 +1639,7 @@ export function AuthTab({ a }: { a: APIDetail }) {
               { value: "login", label: "Login request", hint: "Log in first; keep the cookie, a header or a token" },
               { value: "oauth2", label: "OAuth 2.0", hint: "Client credentials or password grant" },
               { value: "hmac", label: "Signed requests (HMAC)", hint: "Sign each request with a shared secret" },
+              { value: "browser", label: "Browser sign-in", hint: "Company single sign-on and MFA, in your browser" },
             ]}
           />
         </Field>
@@ -1704,6 +1706,7 @@ export function AuthTab({ a }: { a: APIDetail }) {
         {auth.type === "login" && <LoginFields a={a} auth={auth} set={set} />}
         {auth.type === "oauth2" && <OAuthFields auth={auth} set={set} />}
         {auth.type === "hmac" && <HMACFields auth={auth} set={set} />}
+        {auth.type === "browser" && <BrowserFields apiId={a.id} auth={auth} set={set} />}
         {(auth.type === "oauth2" || auth.type === "hmac" || (auth.type === "login" && !auth.loginRequestId)) && (
           <Field
             label="Headers on every call"
@@ -1760,6 +1763,7 @@ const authKeys: Record<string, (keyof Auth)[]> = {
     "apply",
   ],
   hmac: ["algorithm", "secret", "stringToSign", "encoding", "apply"],
+  browser: ["startUrl", "signedIn"],
 };
 
 /** cleanAuth keeps only the fields the auth type uses (a token left from
@@ -2191,6 +2195,7 @@ function SettingsTab({ a }: { a: APIDetail }) {
         </div>
       </Panel>
       <TLSPanel a={a} />
+      <FilesPanel apiId={a.id} dir={a.filesDir} />
       <ErrorBox error={save.error} />
       <SaveBar
         dirty={dirty}

@@ -46,10 +46,52 @@ stay with a person on purpose (PAR-2).
 | Revoke an agent | Agents | `agents revoke` | person |
 | Change an agent's access or approval rules | Agents, Toolkit › Settings | person | person |
 | Verify the audit log | Activity | `audit verify` | |
+| Add the admin MCP server to a client (CON-1) | Home › Build tools with your agent | `mcp --agent <name>` (what the link runs) | person |
+| Record a task in a web app (REC-1) | (agent-driven; none) | `record <api> <url>` | `record_workflow` |
+| Browser sign-in (AUTH-5) | Application › Authentication › Browser sign-in, Sign in now | `auth set --type browser`, `auth signin` | `set_auth` {type: browser}; signing in is the person's |
+| Pick the files folder tools upload from (HTTP-3) | Application › Settings › Files folder | `api files <api> --folder` | `set_files_folder` (the person confirms) |
+| Confirm a write from a confirm-each-call tool (CONF-1) | Home, or the page mcpDeck opens | | person |
+| Export a toolkit file (EXP-1) | Toolkit › Export | `toolkit export` | `export_toolkit` |
+| Import a toolkit file (EXP-1) | Toolkits › Import | `toolkit import` | person |
 
 Not on agent surfaces yet: deleting an API or toolkit, editing
 environments other than the active one, and browsing the call log. These
 are in the UI only.
+
+## Web apps without an API
+
+Some systems have no API an agent can use: server-rendered pages behind
+company single sign-on, like an expense portal. The flow is the same as for
+any API, with two person-only steps:
+
+1. **Connect.** Home › *Build tools with your agent* adds the admin MCP
+   server to VS Code (GitHub Copilot), Claude Code, Cursor or Claude Desktop.
+2. **Describe.** Tell the agent what to automate: *"Build tools for
+   https://expenses.corp.example: list my claims, list my receipts, submit a
+   claim with its receipt."*
+3. **Record (person).** The agent calls `record_workflow`. mcpDeck opens
+   Edge or Chrome with its own profile; the person signs in (SSO, MFA) and
+   does the task once, then closes the window. The agent gets each page and
+   form post as a request, each page's forms and table columns, and form
+   fields by kind (`(hidden: take it from the page)`, `date`, `file`); no
+   cookies or values. The API is created with browser sign-in.
+4. **Build.** The agent writes tools that fetch a page, read it with
+   `html.forms` / `html.tables`, and post `{ ...form.values, ...input }`.
+   Uploads use `files.attach(name)`; tools that submit set `confirm: true`
+   and call `confirm()` first. It tests and saves them; write tools wait.
+5. **Files.** For uploads the agent calls `set_files_folder`; the person
+   clicks Confirm on the page mcpDeck opens. The agent reads the files
+   (PDF receipts) itself and passes a file name to the tool.
+6. **Approve (person)** the write tools in Review; run them from the editor
+   to check them if you like.
+7. **Share.** `export_toolkit` or Toolkit › Export writes a `.mcpdeck` file.
+   A colleague imports it (Toolkits › Import), approves the write tools,
+   picks their own files folder and connects an agent with read+write.
+
+When a tool runs and the session has ended, mcpDeck opens the browser for
+the person to sign in again; the agent is told to call again once they
+have. A write is never resent after a session ends. Each submit waits for
+the person to confirm it in mcpDeck. See [the example](../examples/expenses/).
 
 ## Agents that use tools
 
@@ -75,7 +117,7 @@ Measured with `cl100k_base`; the scenarios fail above the bounds.
 |---|---:|---:|---|
 | Use endpoint, one-tool toolkit: instructions + `tools/list` | about 470 | 1,000 | scenario `consumer/server instructions and tools/list stay small` |
 | Builder endpoint: instructions + `tools/list` | 910 | | `bench/results.json` |
-| Admin MCP server: instructions + `tools/list` (19 tools) | about 1,950 | 2,500 | scenario `parity/admin MCP context an agent reads stays small` |
+| Admin MCP server: instructions + `tools/list` (22 tools) | about 2,420 | 2,500 | scenario `parity/admin MCP context an agent reads stays small` |
 | `mcpdeck help --json` (every command) | about 3,500 | | `go run ./tools/tokcount` |
 | `mcpdeck help --json auth` (one group) | about 600 | | `go run ./tools/tokcount` |
 | [`llms.txt`](../llms.txt) | about 750 | | `go run ./tools/tokcount llms.txt` |

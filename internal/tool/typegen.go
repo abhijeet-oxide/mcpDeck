@@ -262,6 +262,9 @@ func DTS(clients []Client) string {
 	b.WriteString("/** Keep only these fields: pick(res, [\"id\", \"items[].name\"]) */\n")
 	b.WriteString("declare function pick(value: unknown, fields: string[]): any;\n")
 	b.WriteString("declare class ApiError extends Error { status: number; body: unknown; code: string }\n")
+	b.WriteString("declare const html: { forms(page: string): { name: string; id: string; action: string; method: string; enctype: string; fields: { name: string; type: string; value: string; label?: string; options?: string[] }[]; values: Record<string, string | string[]>; hidden: Record<string, string> }[]; tables(page: string): Record<string, string>[][]; text(page: string): string };\n")
+	b.WriteString("declare const files: { list(api: string): Promise<{ name: string; size: number; modified: string }[]>; attach(name: string): { $file: string } };\n")
+	b.WriteString("declare function confirm(what: { title: string; fields?: Record<string, unknown> }): Promise<true>;\n")
 	var names []string
 	for _, c := range clients {
 		names = append(names, fmt.Sprintf("%q", c.API.Name))

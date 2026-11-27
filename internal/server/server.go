@@ -218,6 +218,64 @@ func (s *Server) routes() {
 		d.Proxy.ClearCookies(r.PathValue("id"))
 		return nil, nil
 	}))
+	// Web apps: files folder (HTTP-3), browser sign-in (AUTH-5), record (REC-1).
+	m.HandleFunc("PUT /api/apis/{id}/files-folder", h(func(r *http.Request) (any, error) {
+		in, err := body[struct {
+			Dir string `json:"dir"`
+		}](r)
+		if err != nil {
+			return nil, err
+		}
+		return d.SetFilesFolder(r.Context(), r.PathValue("id"), in.Dir)
+	}))
+	m.HandleFunc("POST /api/apis/{id}/files-folder/request", h(func(r *http.Request) (any, error) {
+		in, err := body[struct {
+			Dir string `json:"dir"`
+		}](r)
+		if err != nil {
+			return nil, err
+		}
+		return d.RequestFilesFolder(r.Context(), you(r), r.PathValue("id"), in.Dir)
+	}))
+	m.HandleFunc("GET /api/apis/{id}/files", h(func(r *http.Request) (any, error) { return d.ListFiles(r.Context(), r.PathValue("id")) }))
+	m.HandleFunc("POST /api/apis/{id}/signin", h(func(r *http.Request) (any, error) { return d.SignIn(r.Context(), r.PathValue("id")) }))
+	m.HandleFunc("POST /api/record", h(func(r *http.Request) (any, error) {
+		in, err := body[deck.RecordInput](r)
+		if err != nil {
+			return nil, err
+		}
+		return d.Record(r.Context(), in)
+	}))
+	m.HandleFunc("GET /api/record", h(func(r *http.Request) (any, error) { return d.Recordings(), nil }))
+	m.HandleFunc("POST /api/record/stop", h(func(r *http.Request) (any, error) {
+		in, err := body[struct {
+			API string `json:"api"`
+		}](r)
+		if err != nil {
+			return nil, err
+		}
+		return nil, d.StopRecording(in.API)
+	}))
+	// Writes waiting for the person (CONF-1).
+	m.HandleFunc("GET /api/confirmations", h(func(r *http.Request) (any, error) { return d.Confirmations(), nil }))
+	m.HandleFunc("POST /api/confirmations/{id}", h(func(r *http.Request) (any, error) {
+		in, err := body[struct {
+			Confirm bool `json:"confirm"`
+		}](r)
+		if err != nil {
+			return nil, err
+		}
+		return nil, d.DecideConfirmation(r.PathValue("id"), in.Confirm)
+	}))
+	// Toolkit files (EXP-1).
+	m.HandleFunc("GET /api/toolkits/{ref}/export", h(func(r *http.Request) (any, error) { return d.ExportToolkit(r.Context(), r.PathValue("ref")) }))
+	m.HandleFunc("POST /api/toolkit-import", h(func(r *http.Request) (any, error) {
+		in, err := body[deck.Bundle](r)
+		if err != nil {
+			return nil, err
+		}
+		return d.ImportToolkit(r.Context(), in)
+	}))
 	m.HandleFunc("POST /api/import/preview", h(func(r *http.Request) (any, error) {
 		in, err := body[deck.ImportSource](r)
 		if err != nil {
@@ -451,6 +509,32 @@ func (s *Server) routes() {
 		}
 		in.planOpts.Client = in.ConnectInput.Client
 		return s.withPlan(res, in.planOpts)
+	}))
+	// Build with an agent: add the admin MCP server to a client (CON-1).
+	m.HandleFunc("POST /api/connect-builder", h(func(r *http.Request) (any, error) {
+		in, err := body[struct {
+			Client     string `json:"client"`
+			Scope      string `json:"scope"`
+			ProjectDir string `json:"projectDir"`
+			Write      bool   `json:"write"`
+		}](r)
+		if err != nil {
+			return nil, err
+		}
+		p, err := connect.Builder(in.Client, in.Scope, in.ProjectDir, s.opt.OS)
+		if err != nil {
+			return nil, &deck.Error{Status: 400, Code: "bad_request", Message: err.Error()}
+		}
+		out := map[string]any{"plan": p, "written": []string{}}
+		if in.Write {
+			written, err := connect.Apply(p)
+			if err != nil {
+				return nil, &deck.Error{Status: 500, Code: "write_failed", Message: err.Error()}
+			}
+			out["written"] = written
+			_ = d.Audit.Append(r.Context(), you(r), "connect.builder", in.Client, strings.Join(written, ", "))
+		}
+		return out, nil
 	}))
 	m.HandleFunc("POST /api/plans/{id}", h(func(r *http.Request) (any, error) {
 		in, err := body[planOpts](r)
