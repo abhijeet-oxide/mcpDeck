@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -192,17 +193,20 @@ func TestSignInWaitsForTheLoadedPageNotTheRequestedURL(t *testing.T) {
 // A page the person leaves at once is still kept, as the server sent it.
 func TestRecordKeepsPagesLeftAtOnce(t *testing.T) {
 	b := chrome(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	var once sync.Once
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		if r.URL.Path == "/list" {
 			_, _ = w.Write([]byte(`<table><tr><th>Report</th><th>Status</th></tr><tr><td>1</td><td>Draft</td></tr></table><form name="f" method="post" action="/x"><input type="hidden" name="_s" value="1"></form><script>location.href='/next'</script>`))
 			return
 		}
+		// The person has moved on: /list was kept before it could. Done.
+		once.Do(cancel)
 		_, _ = w.Write([]byte("<p>next</p>"))
 	}))
 	defer srv.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-	defer cancel()
 	_, steps, _ := b.Record(ctx, "fast", srv.URL+"/list")
 	for _, st := range steps {
 		if strings.HasSuffix(st.URL, "/list") {
