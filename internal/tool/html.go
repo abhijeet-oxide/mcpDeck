@@ -227,3 +227,34 @@ func PageText(page string) string {
 	}
 	return textOf(doc)
 }
+
+// TableHeaders lists each table's column headers: its th cells, or its
+// first row's cells.
+func TableHeaders(page string) [][]string {
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		return [][]string{}
+	}
+	out := [][]string{}
+	for t := range doc.Descendants() {
+		if t.Type != html.ElementNode || t.Data != "table" {
+			continue
+		}
+		for tr := range t.Descendants() {
+			if tr.Type != html.ElementNode || tr.Data != "tr" {
+				continue
+			}
+			var cells []string
+			for c := tr.FirstChild; c != nil; c = c.NextSibling {
+				if c.Type == html.ElementNode && (c.Data == "td" || c.Data == "th") {
+					cells = append(cells, textOf(c))
+				}
+			}
+			if len(cells) > 0 {
+				out = append(out, cells)
+				break
+			}
+		}
+	}
+	return out
+}

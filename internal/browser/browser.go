@@ -10,6 +10,7 @@ package browser
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -52,45 +53,10 @@ type Step struct {
 	ContentType string `json:"contentType,omitempty"` // of the request body
 	PostData    string `json:"-"`                     // raw; summarized by the caller, never returned to agents
 	MimeType    string `json:"mimeType,omitempty"`    // of the response
-	// FormFields are the field names and input types (hidden, text, file…)
-	// of the page form that sent this post, when one was seen.
-	FormFields map[string]string `json:"formFields,omitempty"`
-	// Page is what a page load showed: its forms and tables.
-	Page *PageInfo `json:"page,omitempty"`
-}
-
-// formsJS describes a loaded page: its URL, its forms (name, method,
-// absolute action, enctype, field names and types) and its tables' column
-// headers. Names and types only, never values.
-const formsJS = `JSON.stringify({u:location.href,f:[...document.forms].map(f=>({n:f.getAttribute('name')||f.id||'',m:(f.getAttribute('method')||'get').toUpperCase(),a:f.action,e:f.enctype,f:[...f.elements].filter(x=>x.name).map(x=>[x.name,(x.type||x.tagName).toLowerCase()])})),t:[...document.querySelectorAll('table')].map(t=>[...(t.querySelector('tr')?.children??[])].map(c=>c.textContent.trim()))})`
-
-type pageForm struct {
-	N string     `json:"n"`
-	M string     `json:"m"`
-	A string     `json:"a"`
-	E string     `json:"e"`
-	F [][]string `json:"f"`
-}
-
-type pageScan struct {
-	U string     `json:"u"`
-	F []pageForm `json:"f"`
-	T [][]string `json:"t"`
-}
-
-// PageForm is one form on a recorded page.
-type PageForm struct {
-	Name    string            `json:"name"`
-	Method  string            `json:"method"`
-	Action  string            `json:"action"`
-	Enctype string            `json:"enctype"`
-	Fields  map[string]string `json:"fields"` // name → input type
-}
-
-// PageInfo is what a recorded page holds: its forms and table headers.
-type PageInfo struct {
-	Forms  []PageForm `json:"forms,omitempty"`
-	Tables [][]string `json:"tables,omitempty"`
+	// HTML is the page as the server sent it, for a page load (text/html,
+	// up to 2 MB). It never leaves mcpDeck; the caller reads its forms and
+	// tables from it, as tools will.
+	HTML string `json:"-"`
 }
 
 // Opener opens a browser for a person.
@@ -320,7 +286,9 @@ func (ps *pages) attach(t targetInfo) {
 		_ = json.Unmarshal(res, &a)
 		if ps.record {
 			_, _ = ps.c.Call(ps.ctx, "Network.enable", map[string]any{"maxPostDataSize": 1 << 20}, a.SessionID)
-			_, _ = ps.c.Call(ps.ctx, "Page.enable", nil, a.SessionID)
+			// Pause each page's response so its HTML is read before the
+			// person (or a script) can move on.
+			_, _ = ps.c.Call(ps.ctx, "Fetch.enable", map[string]any{"patterns": []any{map[string]any{"urlPattern": "*", "resourceType": "Document", "requestStage": "Response"}}}, a.SessionID)
 		}
 		ps.mu.Lock()
 		ps.sessions[a.SessionID] = t.TargetID
@@ -329,6 +297,29 @@ func (ps *pages) attach(t targetInfo) {
 			go ps.onPage(ps.ctx, &Page{c: ps.c, session: a.SessionID})
 		}
 	}()
+}
+
+// navigateFirst opens start in the first tab, once the caller listens
+// for its events (REC-1).
+func (ps *pages) navigateFirst(ctx context.Context, start string) error {
+	var sid string
+	for i := 0; i < 100 && sid == ""; i++ {
+		ps.mu.Lock()
+		for k := range ps.sessions {
+			sid = k
+		}
+		ps.mu.Unlock()
+		if sid == "" {
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+	if sid == "" {
+		return errors.New("the browser opened no page to record")
+	}
+	if _, err := ps.c.Call(ctx, "Page.navigate", map[string]any{"url": start}, sid); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (ps *pages) sessionIDs() []string {
@@ -388,27 +379,6 @@ func (b *Chrome) start(ctx context.Context, profile, start string, record, watch
 	if _, err := c.Call(ctx, "Target.setDiscoverTargets", map[string]any{"discover": true}, ""); err != nil {
 		stop()
 		return nil, nil, nil, err
-	}
-	if record {
-		var sid string
-		for i := 0; i < 100 && sid == ""; i++ {
-			ps.mu.Lock()
-			for k := range ps.sessions {
-				sid = k
-			}
-			ps.mu.Unlock()
-			if sid == "" {
-				time.Sleep(50 * time.Millisecond)
-			}
-		}
-		if sid == "" {
-			stop()
-			return nil, nil, nil, errors.New("the browser opened no page to record")
-		}
-		if _, err := c.Call(ctx, "Page.navigate", map[string]any{"url": start}, sid); err != nil {
-			stop()
-			return nil, nil, nil, err
-		}
 	}
 	return c, ps, stop, nil
 }
@@ -487,57 +457,14 @@ func (b *Chrome) Record(ctx context.Context, profile, start string) (Session, []
 	var steps []Step
 	byID := map[string]int{}
 	var last Session
+	var bodies sync.WaitGroup
+	htmlBy := map[string]string{} // session/request → page HTML
+	keys := []string{}            // the session/request of each step
 	snap := make(chan struct{}, 1)
-	forms := map[string]map[string]string{} // METHOD action → field types
-	pages := map[string]*PageInfo{}         // URL → what the page held
 	c.handle(func(prev func(event)) func(event) {
 		return func(ev event) {
 			prev(ev)
 			switch ev.Method {
-			case "Page.loadEventFired", "Page.domContentEventFired":
-				sid := ev.SessionID
-				go func() {
-					v, err := (&Page{c: c, session: sid}).Eval(ctx, formsJS)
-					if err != nil {
-						return
-					}
-					var raw string
-					var scan pageScan
-					if json.Unmarshal(v, &raw) != nil || json.Unmarshal([]byte(raw), &scan) != nil {
-						return
-					}
-					info := &PageInfo{Tables: scan.T}
-					mu.Lock()
-					for _, f := range scan.F {
-						m := map[string]string{}
-						for _, x := range f.F {
-							if len(x) == 2 {
-								m[x[0]] = x[1]
-							}
-						}
-						forms[f.M+" "+f.A] = m
-						info.Forms = append(info.Forms, PageForm{Name: f.N, Method: f.M, Action: f.A, Enctype: f.E, Fields: m})
-					}
-					// A page seen more than once (before and after a post) keeps
-					// every form and table it showed.
-					if prev := pages[scan.U]; prev != nil {
-						have := map[string]bool{}
-						for _, f := range prev.Forms {
-							have[f.Method+" "+f.Name+" "+f.Action] = true
-						}
-						for _, f := range info.Forms {
-							if !have[f.Method+" "+f.Name+" "+f.Action] {
-								prev.Forms = append(prev.Forms, f)
-							}
-						}
-						if len(prev.Tables) == 0 {
-							prev.Tables = info.Tables
-						}
-						info = prev
-					}
-					pages[scan.U] = info
-					mu.Unlock()
-				}()
 			case "Network.requestWillBeSent":
 				var p struct {
 					RequestID string `json:"requestId"`
@@ -567,8 +494,9 @@ func (b *Chrome) Record(ctx context.Context, profile, start string) (Session, []
 					return
 				}
 				byID[key] = len(steps)
+				keys = append(keys, key)
 				steps = append(steps, Step{Method: p.Request.Method, URL: p.Request.URL, Type: p.Type,
-					ContentType: header(p.Request.Headers, "Content-Type"), PostData: p.Request.PostData, FormFields: forms[p.Request.Method+" "+p.Request.URL]})
+					ContentType: header(p.Request.Headers, "Content-Type"), PostData: p.Request.PostData})
 			case "Network.responseReceived":
 				var p struct {
 					RequestID string `json:"requestId"`
@@ -589,19 +517,84 @@ func (b *Chrome) Record(ctx context.Context, profile, start string) (Session, []
 				case snap <- struct{}{}:
 				default:
 				}
+			case "Fetch.requestPaused":
+				var p struct {
+					RequestID string `json:"requestId"`
+					NetworkID string `json:"networkId"`
+					Status    int    `json:"responseStatusCode"`
+					Headers   []struct {
+						Name  string `json:"name"`
+						Value string `json:"value"`
+					} `json:"responseHeaders"`
+				}
+				if json.Unmarshal(ev.Params, &p) != nil {
+					return
+				}
+				html := false
+				for _, h := range p.Headers {
+					if strings.EqualFold(h.Name, "Content-Type") && strings.Contains(h.Value, "html") {
+						html = true
+					}
+				}
+				sid := ev.SessionID
+				bodies.Add(1)
+				go func() {
+					defer bodies.Done()
+					bctx := context.WithoutCancel(ctx)
+					// Always let the page go on, whatever happens here.
+					defer func() { _, _ = c.Call(bctx, "Fetch.continueRequest", map[string]any{"requestId": p.RequestID}, sid) }()
+					if p.Status != 200 || !html {
+						return
+					}
+					res, err := c.Call(bctx, "Fetch.getResponseBody", map[string]any{"requestId": p.RequestID}, sid)
+					if err != nil {
+						return
+					}
+					var body struct {
+						Body          string `json:"body"`
+						Base64Encoded bool   `json:"base64Encoded"`
+					}
+					if json.Unmarshal(res, &body) != nil {
+						return
+					}
+					text := body.Body
+					if body.Base64Encoded {
+						b, err := base64.StdEncoding.DecodeString(body.Body)
+						if err != nil {
+							return
+						}
+						text = string(b)
+					}
+					if len(text) > 2<<20 {
+						return
+					}
+					mu.Lock()
+					htmlBy[sid+"/"+p.NetworkID] = text
+					mu.Unlock()
+				}()
 			}
 		}
 	})
+	if err := ps.navigateFirst(ctx, start); err != nil {
+		return Session{}, nil, err
+	}
 	seen := false
 	tick := time.NewTicker(300 * time.Millisecond)
 	defer tick.Stop()
 	finish := func() (Session, []Step, error) {
+		waited := make(chan struct{})
+		go func() { bodies.Wait(); close(waited) }()
+		select {
+		case <-waited:
+		case <-time.After(5 * time.Second):
+		}
 		mu.Lock()
 		defer mu.Unlock()
 		out := append([]Step(nil), steps...)
 		for i := range out {
-			if out[i].Method == "GET" && out[i].Type == "Document" {
-				out[i].Page = pages[out[i].URL]
+			// A redirected request keeps its ID; the last hop is the page.
+			if out[i].Method == "GET" && out[i].Status == 200 {
+				out[i].HTML = htmlBy[keys[i]]
 			}
 		}
 		return last, out, nil

@@ -187,3 +187,30 @@ func TestSignInWaitsForTheLoadedPageNotTheRequestedURL(t *testing.T) {
 		t.Fatalf("sign-in returned before the person signed in: cookies %+v", s.Cookies)
 	}
 }
+
+// REQ: REC-1
+// A page the person leaves at once is still kept, as the server sent it.
+func TestRecordKeepsPagesLeftAtOnce(t *testing.T) {
+	b := chrome(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		if r.URL.Path == "/list" {
+			_, _ = w.Write([]byte(`<table><tr><th>Report</th><th>Status</th></tr><tr><td>1</td><td>Draft</td></tr></table><form name="f" method="post" action="/x"><input type="hidden" name="_s" value="1"></form><script>location.href='/next'</script>`))
+			return
+		}
+		_, _ = w.Write([]byte("<p>next</p>"))
+	}))
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	_, steps, _ := b.Record(ctx, "fast", srv.URL+"/list")
+	for _, st := range steps {
+		if strings.HasSuffix(st.URL, "/list") {
+			if !strings.Contains(st.HTML, "<th>Report</th>") || !strings.Contains(st.HTML, `name="_s"`) {
+				t.Fatalf("page left at once wasn't kept: %q", st.HTML)
+			}
+			return
+		}
+	}
+	t.Fatalf("no /list step: %+v", steps)
+}
