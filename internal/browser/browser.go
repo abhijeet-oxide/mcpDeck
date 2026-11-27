@@ -143,7 +143,8 @@ func Find() (string, error) {
 	case "darwin":
 		cands = []string{"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/Applications/Chromium.app/Contents/MacOS/Chromium"}
 	default:
-		for _, n := range []string{"microsoft-edge", "microsoft-edge-stable", "google-chrome", "google-chrome-stable", "chromium", "chromium-browser"} {
+		// Chrome first: Edge for Linux is less common and slower to start headless.
+		for _, n := range []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "microsoft-edge-stable"} {
 			if p, err := exec.LookPath(n); err == nil {
 				cands = append(cands, p)
 			}
@@ -178,6 +179,8 @@ func (b *Chrome) launch(ctx context.Context, profile, start string) (*Conn, func
 	}
 	args = append(args, start)
 	cmd := exec.Command(bin, args...)
+	errOut := &tailBuffer{max: 2048}
+	cmd.Stderr = errOut
 	if err := cmd.Start(); err != nil {
 		return nil, nil, fmt.Errorf("starting the browser (%s): %w", bin, err)
 	}
@@ -191,7 +194,7 @@ func (b *Chrome) launch(ctx context.Context, profile, start string) (*Conn, func
 		}
 	}
 	var wsURL string
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for wsURL == "" {
 		if b, err := os.ReadFile(portFile); err == nil {
 			lines := strings.Split(strings.TrimSpace(string(b)), "\n")
@@ -206,7 +209,7 @@ func (b *Chrome) launch(ctx context.Context, profile, start string) (*Conn, func
 		}
 		select {
 		case <-exited:
-			return nil, nil, errors.New("the browser exited at start; if it was already open with this profile, close that window and try again")
+			return nil, nil, fmt.Errorf("the browser (%s) exited at start; if it was already open with this profile, close that window and try again%s", bin, errOut.say())
 		case <-ctx.Done():
 			_ = cmd.Process.Kill()
 			return nil, nil, ctx.Err()
@@ -214,7 +217,7 @@ func (b *Chrome) launch(ctx context.Context, profile, start string) (*Conn, func
 		}
 		if time.Now().After(deadline) {
 			_ = cmd.Process.Kill()
-			return nil, nil, errors.New("the browser didn't open its debugging port within 20 seconds")
+			return nil, nil, fmt.Errorf("the browser (%s) didn't open its debugging port within 30 seconds%s", bin, errOut.say())
 		}
 	}
 	ws, err := dialWS(wsURL, 5*time.Second)
@@ -229,6 +232,32 @@ func (b *Chrome) launch(ctx context.Context, profile, start string) (*Conn, func
 		kill()
 	}
 	return c, stop, nil
+}
+
+// tailBuffer keeps the last bytes a browser wrote to stderr, for errors.
+type tailBuffer struct {
+	mu  sync.Mutex
+	max int
+	b   []byte
+}
+
+func (t *tailBuffer) Write(p []byte) (int, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.b = append(t.b, p...)
+	if len(t.b) > t.max {
+		t.b = t.b[len(t.b)-t.max:]
+	}
+	return len(p), nil
+}
+
+func (t *tailBuffer) say() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if s := strings.TrimSpace(string(t.b)); s != "" {
+		return ". It said: " + s
+	}
+	return ""
 }
 
 func safeName(s string) string {
@@ -255,6 +284,7 @@ type targetInfo struct {
 type pages struct {
 	c      *Conn
 	record bool
+	watch  bool // attach to pages to read their loaded address (sign-in)
 	onPage func(ctx context.Context, p *Page)
 	ctx    context.Context
 
@@ -276,7 +306,7 @@ func (ps *pages) attach(t targetInfo) {
 		return
 	}
 	ps.open.Add(1)
-	if !ps.record && ps.onPage == nil {
+	if !ps.record && !ps.watch && ps.onPage == nil {
 		return
 	}
 	go func() {
@@ -301,6 +331,16 @@ func (ps *pages) attach(t targetInfo) {
 	}()
 }
 
+func (ps *pages) sessionIDs() []string {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	out := make([]string, 0, len(ps.sessions))
+	for k := range ps.sessions {
+		out = append(out, k)
+	}
+	return out
+}
+
 func (ps *pages) urlList() []string {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
@@ -311,7 +351,7 @@ func (ps *pages) urlList() []string {
 	return out
 }
 
-func (b *Chrome) start(ctx context.Context, profile, start string, record bool) (*Conn, *pages, func(), error) {
+func (b *Chrome) start(ctx context.Context, profile, start string, record, watch bool) (*Conn, *pages, func(), error) {
 	first := start
 	if record {
 		// Open blank, turn on network capture, then go: the first page counts too.
@@ -321,7 +361,7 @@ func (b *Chrome) start(ctx context.Context, profile, start string, record bool) 
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	ps := &pages{c: c, record: record, onPage: b.OnPage, ctx: ctx, urls: map[string]string{}, sessions: map[string]string{}}
+	ps := &pages{c: c, record: record, watch: watch, onPage: b.OnPage, ctx: ctx, urls: map[string]string{}, sessions: map[string]string{}}
 	c.handle(func(func(event)) func(event) {
 		return func(ev event) {
 			switch ev.Method {
@@ -398,7 +438,7 @@ func (b *Chrome) session(ctx context.Context, c *Conn) (Session, error) {
 
 // SignIn implements Opener.
 func (b *Chrome) SignIn(ctx context.Context, profile, start string, signedIn func(string) bool) (Session, error) {
-	c, ps, stop, err := b.start(ctx, profile, start, false)
+	c, ps, stop, err := b.start(ctx, profile, start, false, true)
 	if err != nil {
 		return Session{}, err
 	}
@@ -420,8 +460,16 @@ func (b *Chrome) SignIn(ctx context.Context, profile, start string, signedIn fun
 		} else if seen {
 			return Session{}, ErrClosed
 		}
-		for _, u := range urls {
-			if signedIn(u) {
+		// The URL a tab reports can be the one it was asked for, before the
+		// app redirects to its sign-in page; trust only a loaded document's
+		// own address.
+		for _, sid := range ps.sessionIDs() {
+			v, err := (&Page{c: c, session: sid}).Eval(ctx, `document.readyState === "complete" ? location.href : ""`)
+			if err != nil {
+				continue
+			}
+			var href string
+			if json.Unmarshal(v, &href) == nil && href != "" && signedIn(href) {
 				return b.session(ctx, c)
 			}
 		}
@@ -430,7 +478,7 @@ func (b *Chrome) SignIn(ctx context.Context, profile, start string, signedIn fun
 
 // Record implements Opener.
 func (b *Chrome) Record(ctx context.Context, profile, start string) (Session, []Step, error) {
-	c, ps, stop, err := b.start(ctx, profile, start, true)
+	c, ps, stop, err := b.start(ctx, profile, start, true, false)
 	if err != nil {
 		return Session{}, nil, err
 	}

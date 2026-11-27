@@ -3,6 +3,8 @@ package browser_test
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -144,5 +146,44 @@ func TestRecordSeesPagesAndFormPosts(t *testing.T) {
 	}
 	if len(s.Cookies) == 0 {
 		t.Fatal("no cookies kept from the recording")
+	}
+}
+
+// REQ: AUTH-5
+// The start page answers slowly with a redirect to sign-in, as company
+// portals do. The browser reports the start URL before the redirect, so
+// sign-in must wait until the loaded page itself is past sign-in.
+func TestSignInWaitsForTheLoadedPageNotTheRequestedURL(t *testing.T) {
+	b := chrome(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		switch r.URL.Path {
+		case "/app":
+			if c, err := r.Cookie("sid"); err == nil && c.Value == "ok" {
+				_, _ = w.Write([]byte("<h1>Signed in</h1>"))
+				return
+			}
+			time.Sleep(1500 * time.Millisecond)
+			http.Redirect(w, r, "/login", http.StatusFound)
+		case "/login":
+			// The person signs in after a moment.
+			_, _ = w.Write([]byte(`<script>setTimeout(()=>{document.cookie='sid=ok; path=/';location.href='/app'},800)</script>`))
+		}
+	}))
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	s, err := b.SignIn(ctx, "slow", srv.URL+"/app", func(u string) bool { return strings.HasPrefix(u, srv.URL+"/app") })
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, c := range s.Cookies {
+		if c.Name == "sid" && c.Value == "ok" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("sign-in returned before the person signed in: cookies %+v", s.Cookies)
 	}
 }
