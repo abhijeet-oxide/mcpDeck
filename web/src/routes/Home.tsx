@@ -13,6 +13,7 @@ import {
   Scissors,
   ShieldCheck,
   ToolCase,
+  Wand2,
 } from "lucide-react";
 import { useState } from "react";
 import { useConnect } from "../App";
@@ -23,6 +24,7 @@ import {
   Button,
   Chip,
   CopyButton,
+  Dialog,
   Empty,
   ErrorBox,
   Loading,
@@ -143,6 +145,7 @@ export function Home() {
   const tks = useToolkits();
   const connect = useConnect();
   const toast = useToast();
+  const [building, setBuilding] = useState(false);
   const close = useAction((id: string) => post(`/api/tool-requests/${id}/close`), {
     onSuccess: () => toast("Request closed"),
   });
@@ -183,12 +186,20 @@ export function Home() {
   const maxTok = Math.max(1, ...heaviest.map((r) => r.avgTokens));
   return (
     <div className="page">
+      {building && (
+        <Dialog title="Build with your agent" onClose={() => setBuilding(false)} wide>
+          <BuildWithAgent />
+        </Dialog>
+      )}
       <PageHead
         title="Home"
         sub="How your toolkits are doing, and anything that needs you."
         actions={
           <>
             <DemoButton />
+            <Button icon={<Wand2 size={14} />} onClick={() => setBuilding(true)}>
+              Build with your agent
+            </Button>
             {hasToolkit && <AskAgentButton prompts={prompts} toolkit={tk} />}
             {hasToolkit ? (
               <Button kind="ink" icon={<Bot size={14} />} onClick={() => connect()}>

@@ -129,4 +129,19 @@ describe("Home", () => {
     renderApp(<Home />);
     expect(await screen.findByText("not found")).toBeInTheDocument();
   });
+  // REQ: CON-1
+  it("offers Build with your agent after setup is done", async () => {
+    mockAPI({
+      "/api/home": { ...base, needsYou: [], hideOnboarding: true },
+      "/api/confirmations": [],
+      "/api/connect-builder": {
+        plan: { link: "vscode:mcp/install?x", firstPrompt: "Use the mcpdeck tools" },
+        written: [],
+      },
+    });
+    renderApp(<Home />);
+    const btn = await screen.findByRole("button", { name: /Build with your agent/ });
+    btn.click();
+    expect(await screen.findByRole("link", { name: /Add to VS Code/ })).toHaveAttribute("href", "vscode:mcp/install?x");
+  });
 });
