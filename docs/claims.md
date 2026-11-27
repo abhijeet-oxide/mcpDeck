@@ -51,3 +51,7 @@ from committed raw output.
 | C27 | Localhost only, Host and Origin checks, one-time launch link | `go:TestGuard_HostOriginCookieToken` `go:TestGuard_SessionCookiePerPort` |
 | C28 | The audit log detects edited rows | `go:TestVerify_DetectsEditedRow` `go:TestStore_AuditRowsCannotBeChanged` |
 | C29 | The installers verify checksums and install for the user | `go:TestInstaller` |
+| C30 | Browser sign-in for web apps behind company SSO; cookies stay in the proxy | `scenario:webapp/an agent lists claims and receipts and submits a claim with its receipt once the person confirms` `go:TestBrowserSignIn_OpensOnceAndKeepsOnlyThePortalsCookies` `go:TestBrowserSignIn_ExpiryRetriesReadsButNeverResendsWrites` |
+| C31 | Record a task once in the browser; the agent gets its pages and form fields, no cookies or values | `scenario:webapp/record_workflow turns one clicked-through task into requests with form fields, without cookies or values` |
+| C32 | Tools read forms and tables, upload files from a folder the person picks, and wait for the person to confirm each submit | `scenario:webapp/an agent lists claims and receipts and submits a claim with its receipt once the person confirms` `scenario:webapp/a declined confirmation sends nothing` `go:TestUpload_SendsMultipartFromTheFilesFolderOnly` `go:TestParseForms` |
+| C33 | A toolkit exports to one file without secrets; importing it leaves write tools waiting for approval | `scenario:webapp/the toolkit exports to a file without secrets and imports elsewhere with its write tool waiting for approval` |

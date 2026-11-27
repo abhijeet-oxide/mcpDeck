@@ -86,8 +86,15 @@ type Deck struct {
 	// Practice is the demo scanner API to walk the builder flow with (MOCK-6).
 	Practice *Practice
 
+	// OpenConfirm shows the person a write waiting for them (CONF-1), e.g.
+	// by opening the confirm page in their browser. Nil leaves it to the
+	// Home banner.
+	OpenConfirm func(id string)
+
 	mu        sync.RWMutex
 	listeners []Listener
+	conf      *confirmations
+	recording map[string]context.CancelFunc // API name → stop a recording (REC-1)
 }
 
 // Practice is a mock API for trying the full flow: import, log in, chain.

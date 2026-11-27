@@ -9,6 +9,15 @@ them out of Unreleased.
 
 ### Features
 
+- Web apps without an API: browser sign-in through your installed Edge or
+  Chrome (company SSO and MFA stay with you); "Record a task" turns one
+  clicked-through task into requests with form fields; tools get
+  `html.forms`, `html.tables`, `html.text`, a files folder you pick
+  (`files.list`, `files.attach`, multipart uploads) and `confirm()` so each
+  submit waits for you. Toolkits export to a `.mcpdeck` file and import with
+  write tools waiting for approval. Home adds mcpDeck to GitHub Copilot,
+  Claude Code, Cursor or Claude Desktop in one click to build tools by
+  describing them.
 - Visual builder opens every shipped and generated tool. Steps reorder by
   drag (or keyboard) and the code follows; Arrange tidies the canvas; full
   screen; a legend explains the connectors; agent inputs are editable.

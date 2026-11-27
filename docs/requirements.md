@@ -194,6 +194,25 @@ bearer" adds `Authorization: Bearer {{login.<name>}}`.
 *Accept:* scenarios for token login, refresh, expiry, CSRF form login and a
 login redirect.
 
+**AUTH-5 Browser sign-in.** For web apps a person signs in to through a
+browser (company single sign-on, MFA), the auth type `browser` has a start
+URL and a "signed in" test (the URL contains a given text and isn't a sign-in
+page). When a call needs a session and there is none, mcpDeck opens the
+installed Edge or Chrome with its own profile at the start URL; the person
+signs in; once the test passes mcpDeck keeps the cookies of the API's
+allowed hosts and the browser's User-Agent in the proxy only, and closes the
+window. A call waits for the person up to the sign-in timeout (default 3
+minutes), then fails with `signin_required` saying a browser window is open.
+A session the API stops accepting (401 or a redirect to a sign-in page) is
+never resent: a read signs in again and retries; a write fails with
+`signin_required` and the tool runs again from the start. A person can sign
+in ahead with "Sign in now" (UI), `mcpdeck auth signin <api>` (CLI). Agents
+never see cookies; the admin MCP server can't start a sign-in on its own
+(`record_workflow` is the one exception, and a person drives that window).
+*Accept:* scenario against the mock expense portal: first call signs in
+through a (fake) browser, expiry signs in again for reads, a write after
+expiry fails with `signin_required`, no cookie value reaches the agent.
+
 **AUTH-3 OAuth 2.0.** Client credentials and password grants; client
 authentication by basic header or body; scopes; tokens cached until shortly
 before expiry; refresh-token rotation. Imported from an OpenAPI `oauth2`
@@ -208,9 +227,19 @@ signature and timestamp are applied as headers through `{{sign.*}}`.
 
 **HTTP-1 Requests.** A request has method (any verb, including custom),
 URL, params, headers and body. Bodies: none, JSON, XML, text,
-`x-www-form-urlencoded` and GraphQL. Cookies set by login steps are kept per
-API. Multipart and binary request bodies, and a cookie-jar view, are not
-built.
+`x-www-form-urlencoded`, GraphQL and, from tools, `multipart/form-data`
+(HTTP-3). Cookies set by login steps are kept per API. Binary request bodies
+and a cookie-jar view are not built.
+
+**HTTP-3 Multipart and the files folder.** A person MAY give an application a
+files folder (UI or CLI only; agents can't set or change it). Tools list it
+with `files.list(api)` (name, size, modified; no paths, no contents) and
+upload a file by putting `files.attach(api, name)` in a body field; the
+proxy then sends `multipart/form-data`, reading the file only from that
+folder (no `..`, no links out of it, 20 MB at most). The recorded call keeps
+field names and the file's name and size, never its contents.
+*Accept:* proxy tests for traversal, size and content type; the scenario
+uploads a receipt to the mock portal.
 
 **IMP-1 OpenAPI / Swagger.** Import OpenAPI 3.x and Swagger 2.0 from a file or
 URL. Each operation becomes a request named from its `operationId` (or method
@@ -384,6 +413,25 @@ exactly what the agent gets.
 - `console.log`, `console.error`: shown in test output and recorded.
 - `pm.test`, `pm.expect` in tool test files (TOOL-8).
 All network goes through the proxy with the agent's grant.
+
+**TOOL-12 HTML pages.** For server-rendered web apps tool code has
+`html.forms(text)` (each form's name, action, method, enctype and fields,
+hidden and repeated ones included, selects with their options),
+`html.tables(text)` (rows as objects keyed by header) and `html.text(text)`.
+Calls follow nothing by themselves: `.raw()` gives `headers.location` after a
+post, so a tool posts, then fetches the page it was sent to.
+*Accept:* unit tests over the mock portal's pages.
+
+**CONF-1 Confirm each call.** A tool MAY export `confirm: true`. Before its
+first write request in a run it calls `await confirm({ title, fields })`;
+mcpDeck shows the person the title and fields (Home banner and a page that
+opens in the browser) and the run continues only once they click Confirm.
+Without it the proxy refuses the tool's writes for agents (`confirm_required`).
+Declining or no answer within 5 minutes fails the call with `not_confirmed`,
+and nothing is sent. An agent token can't confirm. A person running the tool
+from mcpDeck (Test) confirms by running it.
+*Accept:* scenario: an agent's submit waits, a person confirms in the UI API,
+the write is sent once; a decline sends nothing.
 
 **TOOL-3 Code editor.** The editor is Monaco (the VS Code editor) with the
 TypeScript language service:
@@ -1004,6 +1052,38 @@ Fonts are bundled.
 
 ## Agents build everything
 
+**REC-1 Record a workflow.** `record_workflow` (admin MCP server), `mcpdeck
+record <api> <url>` (CLI) and "Record" (application page) open the browser at
+a URL for a person to sign in and click through a task once. Closing the
+window ends it. The result is a short list of the page loads and form posts
+on the API's allowed hosts: method, path, status, redirect, content type and
+form field names, with hidden fields marked `(hidden)`, typed values replaced
+by their kind, and secret-like values left out. Cookies from the window are
+kept as the API's browser session (AUTH-5). Static files and other hosts are
+left out. The agent then adds requests (`import_api` with curl) and writes
+tools against them.
+*Accept:* scenario records a fake browser session on the mock portal; the
+summary names every form field and holds no cookie, `_state` value or
+password.
+
+**EXP-1 Toolkit file.** A person or agent exports a toolkit as one
+`.mcpdeck` JSON file: its applications (requests, auth settings, plain
+variables, allowed hosts), toolkit settings and the live version of each
+tool with its tests. Secrets, sessions, examples, saved responses, files
+folders and agents are left out. Import (UI and CLI; person only) creates
+what's missing, never overwrites, creates secrets empty to fill in, leaves
+imported scripts untrusted (RNR-6) and makes every imported write tool
+pending until a person approves it.
+*Accept:* scenario exports the expense toolkit and imports it into a fresh
+mcpDeck: tools listed, write tool pending, no secret in the file.
+
+**CON-1 Build with an agent in one click.** Home has "Build with Copilot"
+(and the other clients): it adds the admin MCP server (`mcpdeck mcp --agent
+<client>`) to the client, as a `vscode:mcp/install` link or the client's
+config file. The admin server's instructions say how to build from a web app
+(record, import curl, write tools, test, save, export), so a person only
+describes what to automate.
+
 **PAR-1 Parity.** Everything a person sets up in the UI (import, variables,
 secrets, auth, request access, toolkits, tools, tests, lint, connect) can
 also be done with the CLI (`--json` output) and the admin MCP server
@@ -1146,9 +1226,9 @@ removed requests and the tool versions that would break.
 **DRIFT-1 Drift.** Flag when upstream responses stop matching the captured
 schema, with the tools affected.
 
-**EXP-1 One-file export.** Export a `.mcpdeck` file with chosen parts;
-credentials left out unless included with a passphrase (Argon2id +
-AES-256-GCM). `mcpdeck serve file.mcpdeck` starts a working copy.
+**EXP-2 Encrypted export.** Include credentials in a `.mcpdeck` file with a
+passphrase (Argon2id + AES-256-GCM). `mcpdeck serve file.mcpdeck` starts a
+working copy.
 
 **AUD-3 Audit export.** JSON Lines and OpenTelemetry export, off by default.
 

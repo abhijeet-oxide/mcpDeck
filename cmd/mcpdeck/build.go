@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -240,14 +241,15 @@ func requestCmd(data *string) *cobra.Command {
 
 func authCmd(data *string) *cobra.Command {
 	c := &cobra.Command{Use: "auth", Short: "Set how mcpDeck signs in to an API"}
-	var typ, refresh, expires, raw, grant, tokenURL, clientID, clientSecret, scope, token, key, in, value, user, pass, secret, sts, alg, enc string
+	var typ, refresh, expires, raw, grant, tokenURL, clientID, clientSecret, scope, token, key, in, value, user, pass, secret, sts, alg, enc, startURL, signedIn string
 	var reqs, captures, headers []string
 	var asJSON bool
-	set := &cobra.Command{Use: "set <api> --type <none|bearer|basic|apikey|login|oauth2|hmac>", Short: "Set an API's auth: tokens, login chains, OAuth 2.0 or HMAC signing",
+	set := &cobra.Command{Use: "set <api> --type <none|bearer|basic|apikey|login|oauth2|hmac|browser>", Short: "Set an API's auth: tokens, login chains, OAuth 2.0, HMAC signing or browser sign-in",
 		Example: `  mcpdeck auth set shop --type login --request login --capture json:access_token
   mcpdeck auth set legacy --type login --request loginPage --capture csrf=cookie:csrftoken --request login --header "X-CSRFToken: {{login.csrf}}"
   mcpdeck auth set billing --type oauth2 --grant client_credentials --token-url https://idp/token --client-id '{{clientId}}' --client-secret '{{clientSecret}}'
-  mcpdeck auth set payments --type hmac --secret '{{signingKey}}' --string-to-sign '{{method}}\n{{path}}\n{{timestamp}}' --header 'X-Signature: {{sign.signature}}'`,
+  mcpdeck auth set payments --type hmac --secret '{{signingKey}}' --string-to-sign '{{method}}\n{{path}}\n{{timestamp}}' --header 'X-Signature: {{sign.signature}}'
+  mcpdeck auth set expenses --type browser --start-url https://expenses.corp.example/OA_HTML/claims`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			cl, err := localClient(*data)
@@ -316,8 +318,10 @@ func authCmd(data *string) *cobra.Command {
 					}
 				case "hmac":
 					auth["secret"], auth["stringToSign"], auth["algorithm"], auth["encoding"] = secret, strings.ReplaceAll(sts, `\n`, "\n"), alg, enc
+				case "browser":
+					auth["startUrl"], auth["signedIn"] = startURL, signedIn
 				default:
-					return fmt.Errorf("--type must be none, bearer, basic, apikey, login, oauth2 or hmac")
+					return fmt.Errorf("--type must be none, bearer, basic, apikey, login, oauth2, hmac or browser")
 				}
 			}
 			var out map[string]any
@@ -353,9 +357,36 @@ func authCmd(data *string) *cobra.Command {
 	f.StringVar(&sts, "string-to-sign", "", `hmac: template, like "{{method}}\n{{path}}\n{{timestamp}}"`)
 	f.StringVar(&alg, "algorithm", "sha256", "hmac: sha256, sha1 or sha512")
 	f.StringVar(&enc, "encoding", "hex", "hmac: hex or base64")
+	f.StringVar(&startURL, "start-url", "", "browser: the page a person signs in from")
+	f.StringVar(&signedIn, "signed-in", "", "browser: text in the URL once signed in (default: the start page, not a sign-in page)")
 	f.StringVar(&raw, "auth-json", "", "the whole auth object as JSON (overrides the other flags)")
 	f.BoolVar(&asJSON, "json", false, "print JSON")
-	c.AddCommand(set)
+	var signinJSON bool
+	signin := &cobra.Command{Use: "signin <api>", Short: "Open the browser to sign in to an API that uses browser sign-in, and wait",
+		Example: "  mcpdeck auth signin expenses", Args: cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			cl, err := localClient(*data)
+			if err != nil {
+				return err
+			}
+			a, err := findAPI(cl, args[0])
+			if err != nil {
+				return err
+			}
+			cl.timeout = 5 * time.Minute
+			var out map[string]any
+			if err := cl.do("POST", "/api/apis/"+a.ID+"/signin", nil, &out); err != nil {
+				return err
+			}
+			if signinJSON {
+				printJSON(out)
+				return nil
+			}
+			fmt.Printf("Signed in to %s.\n", a.Name)
+			return nil
+		}}
+	signin.Flags().BoolVar(&signinJSON, "json", false, "print JSON")
+	c.AddCommand(set, signin)
 	return c
 }
 
@@ -455,6 +486,7 @@ func toolkitCmd(data *string) *cobra.Command {
 		}}
 	list.Flags().BoolVar(&listJSON, "json", false, "print JSON")
 	c.AddCommand(create, list)
+	c.AddCommand(toolkitFileCmds(data)...)
 	return c
 }
 

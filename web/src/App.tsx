@@ -6,6 +6,7 @@ import { Palette } from "./components/Palette";
 import { RequestTray } from "./components/RequestTray";
 import { Logo, Sidebar, TopBar } from "./components/Sidebar";
 import { Button, EmptyState, Loading } from "./components/ui";
+import { ConfirmPage } from "./components/WebApp";
 import { useHome, useInfo } from "./lib/hooks";
 import { match, navigate, useLocation } from "./lib/router";
 import { About } from "./routes/About";
@@ -50,6 +51,7 @@ const table: [string, (p: Record<string, string>) => ReactNode][] = [
   ],
   ["/toolkits/:tk", (m) => <ToolkitPage key={m.tk} name={m.tk} />],
   ["/review/:id", (m) => <Review key={m.id} id={m.id} />],
+  ["/confirm/:id", (m) => <ConfirmPage key={m.id} id={m.id} />],
   ["/agents", () => <Agents />],
   ["/agents/:id", (m) => <AgentPage key={m.id} id={m.id} />],
   ["/activity", () => <Activity />],

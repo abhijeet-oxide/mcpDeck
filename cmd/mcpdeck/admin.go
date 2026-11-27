@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/abhijeet-oxide/mcpdeck/internal/importer"
 	"github.com/abhijeet-oxide/mcpdeck/internal/version"
@@ -19,7 +21,8 @@ import (
 const adminInstructions = `mcpDeck turns HTTP APIs into small MCP tools. This server sets mcpDeck up, with the same reach as the mcpdeck CLI.
 Order: import_api, get_api, set_variable or ask_for_secret, set_auth, send_request (check it works), create_toolkit, generate_tool or save_tool, lint, connect_client.
 Secrets: never ask the user to paste one into chat. Use secret_from_env or ask_for_secret.
-A person approves write tools and widens access; pending_reviews lists what waits for them.`
+A person approves write tools and widens access; pending_reviews lists what waits for them.
+Web apps without an API (server-rendered pages, company sign-in): record_workflow opens the user's browser; they sign in and do the task once; you get its pages and form fields as requests. Write tools with html.forms/html.tables, files.list/files.attach and confirm() (see record_workflow's next). Then save_tool, and export_toolkit to share.`
 
 type adminTool struct {
 	name, desc string
@@ -158,7 +161,7 @@ func adminTools() []adminTool {
 				}
 				return "updated", nil
 			}},
-		{"set_auth", "Set how mcpDeck signs in. auth.type: bearer {token}, basic {username,password}, apikey {key,in,value}, login {steps:[{requestId,captures:[{name,from}]}], apply:[{key,value}], refreshRequestId, expiresFrom}, oauth2 {grant,tokenUrl,clientId,clientSecret,scope}, hmac {secret,stringToSign,apply}. Values are {{variables}}; captures are json:path, header:Name, cookie:name or regex:...; use request names for requestId.",
+		{"set_auth", "Set how mcpDeck signs in. auth.type: bearer {token}, basic {username,password}, apikey {key,in,value}, login {steps:[{requestId,captures:[{name,from}]}], apply:[{key,value}], refreshRequestId, expiresFrom}, oauth2 {grant,tokenUrl,clientId,clientSecret,scope}, hmac {secret,stringToSign,apply}, browser {startUrl} (the user signs in in their browser). Values are {{variables}}; captures are json:path, header:Name, cookie:name or regex:...; use request names for requestId.",
 			`{"type":"object","properties":{"api":{"type":"string"},"auth":{"type":"object"}},"required":["api","auth"]}`, false,
 			func(cl *client, a map[string]any) (any, error) {
 				d, err := apiOf(cl, a)
@@ -371,6 +374,31 @@ func adminTools() []adminTool {
 					return map[string]any{"written": written.Written}, nil
 				}
 				return map[string]any{"url": cl.base + "/mcp/" + str(a, "toolkit"), "token": out.Result.Token, "header": "Authorization: Bearer <token>"}, nil
+			}},
+		{"record_workflow", "Open the user's browser at a web app; they sign in and do the task once, then close the window. Adds each page and form post as a request in the API (created if new, with browser sign-in) and returns their paths and form fields by kind. Takes as long as the user does.",
+			`{"type":"object","properties":{"api":{"type":"string","description":"API name, e.g. expenses"},"url":{"type":"string","description":"the page to start from"}},"required":["api","url"]}`, false,
+			func(cl *client, a map[string]any) (any, error) {
+				cl.timeout = 31 * time.Minute
+				var out map[string]any
+				return out, cl.do("POST", "/api/record", map[string]any{"api": str(a, "api"), "url": str(a, "url")}, &out)
+			}},
+		{"export_toolkit", "Save a toolkit with its APIs and live tools as a .mcpdeck file others import in mcpDeck. No secrets, sessions or examples.",
+			`{"type":"object","properties":{"toolkit":{"type":"string"},"path":{"type":"string","description":"file to write; default <toolkit>.mcpdeck here"}},"required":["toolkit"]}`, false,
+			func(cl *client, a map[string]any) (any, error) {
+				var b map[string]any
+				if err := cl.do("GET", "/api/toolkits/"+str(a, "toolkit")+"/export", nil, &b); err != nil {
+					return nil, err
+				}
+				path := str(a, "path")
+				if path == "" {
+					path = str(a, "toolkit") + ".mcpdeck"
+				}
+				data, _ := json.MarshalIndent(b, "", "  ")
+				if err := os.WriteFile(path, append(data, '\n'), 0o600); err != nil {
+					return nil, err
+				}
+				abs, _ := filepath.Abs(path)
+				return map[string]any{"file": abs, "tools": len(asSlice(b["tools"])), "say_to_user": "Share " + filepath.Base(abs) + "; others open mcpDeck › Toolkits › Import, approve the tools and pick their files folder."}, nil
 			}},
 	}
 }

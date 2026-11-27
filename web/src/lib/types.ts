@@ -25,6 +25,8 @@ export type Auth = {
   secret?: string;
   stringToSign?: string;
   encoding?: string;
+  startUrl?: string;
+  signedIn?: string;
 };
 export type LoginStep = { requestId: string; captures?: { name: string; from: string }[] };
 export type API = {
@@ -37,6 +39,7 @@ export type API = {
   auth: Auth;
   activeEnvId: string;
   tls?: TLS;
+  filesDir?: string;
   createdAt: string;
 };
 export type TLS = { insecure: boolean; caCerts?: string; clientCert?: string; clientKey?: string };

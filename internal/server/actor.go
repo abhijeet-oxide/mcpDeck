@@ -53,6 +53,11 @@ var personOnly = []struct {
 	{"PUT", regexp.MustCompile(`^/api/settings$`), "changing settings"},
 	{"POST", regexp.MustCompile(`^/api/reveal-data$`), "opening the data folder"},
 	{"POST", regexp.MustCompile(`^/api/apis/[^/]+/scripts-trust$`), "trusting scripts"},
+	{"PUT", regexp.MustCompile(`^/api/apis/[^/]+/files-folder$`), "choosing which folder tools may upload from"},
+	{"POST", regexp.MustCompile(`^/api/apis/[^/]+/signin$`), "signing in"},
+	{"POST", regexp.MustCompile(`^/api/confirmations/`), "confirming a write"},
+	{"POST", regexp.MustCompile(`^/api/toolkit-import$`), "importing a toolkit file"},
+	{"POST", regexp.MustCompile(`^/api/connect-builder$`), "adding the admin MCP server to a client"},
 }
 
 func blockedForAgent(r *http.Request) string {

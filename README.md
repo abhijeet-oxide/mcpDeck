@@ -138,6 +138,7 @@ admin MCP server. Tools never handle credentials. <!-- C10 -->
 | API keys, bearer, basic | Header or query; imported from the spec's security schemes or from curl <!-- C14 --> |
 | HMAC-signed requests | A string to sign built from method, path, query, timestamp, nonce and body hash; SHA-1, SHA-256 or SHA-512; hex or base64 <!-- C15 --> |
 | Mutual TLS and private CAs | Client certificate and key per API, extra CA certificates, or skip verification for a self-signed lab server <!-- C16 --> |
+| Web app behind company sign-in, no API | Browser sign-in: mcpDeck opens Edge or Chrome, you sign in (SSO, MFA), and only that app's session cookies are kept, inside the proxy <!-- C30 --> |
 
 Each of these has scenarios <!-- C17 -->:
 
@@ -146,6 +147,18 @@ Each of these has scenarios <!-- C17 -->:
 - `202 Accepted` polling
 - cursor, page, offset and `Link`-header pagination
 - retries on 429 and 503 with `Retry-After`
+
+### Web apps without an API
+
+Record a task once: mcpDeck opens your browser, you sign in and click
+through it, and the agent gets each page and form post as a request, with
+form fields by kind and no cookies or values. <!-- C31 --> Tools read pages
+with `html.forms` and `html.tables`, upload files from a folder you pick, and
+wait for you to confirm each submit in mcpDeck. <!-- C32 --> Export the
+toolkit as one `.mcpdeck` file to share; importing it leaves its write tools
+waiting for approval, and no secrets travel with it. <!-- C33 --> See
+[the walkthrough](docs/agents.md#web-apps-without-an-api) and
+[the expenses example](examples/expenses/).
 
 ## For agents
 

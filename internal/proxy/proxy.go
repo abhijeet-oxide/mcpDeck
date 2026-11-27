@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/abhijeet-oxide/mcpdeck/internal/browser"
 	"github.com/abhijeet-oxide/mcpdeck/internal/clock"
 	"github.com/abhijeet-oxide/mcpdeck/internal/store"
 	"github.com/abhijeet-oxide/mcpdeck/internal/tokens"
@@ -44,6 +45,9 @@ const (
 	CodeBadTLS         = "bad_tls"
 	CodeTimeout        = "timeout"
 	CodeCanceled       = "canceled"
+	// CodeConfirmRequired is a write from a confirm-each-call tool that
+	// the person hasn't confirmed (CONF-1).
+	CodeConfirmRequired = "confirm_required"
 )
 
 // Error is an actionable proxy error.
@@ -94,6 +98,10 @@ type Call struct {
 	ParentID    string
 	ToolkitID   string
 	Examples    bool // answer from the saved example, no network
+	// NeedConfirm marks a run of a confirm-each-call tool (CONF-1): its
+	// writes are refused until Confirmed.
+	NeedConfirm bool
+	Confirmed   bool
 }
 
 // Response is a masked upstream response.
@@ -136,6 +144,12 @@ type Proxy struct {
 	sessLocks map[string]*sync.Mutex  // one sign-in at a time per API
 	tls       map[string]tlsTransport // apiID → transport for its TLS settings
 	net       Network                 // proxy settings (NET-1)
+
+	browser   browser.Opener     // opens a browser for a person (AUTH-5)
+	browserUA map[string]string  // apiID → User-Agent of a live browser session
+	signins   map[string]*signin // apiID → sign-in window waiting for the person
+	// SigninTimeout is how long a sign-in window waits for the person.
+	SigninTimeout time.Duration
 }
 
 type tlsTransport struct {
@@ -148,7 +162,8 @@ type tlsTransport struct {
 // New returns a proxy. tr may be nil for the default transport.
 func New(s *store.Store, v *vault.Vault, c clock.Clock, ids clock.IDs, tr http.RoundTripper) *Proxy {
 	p := &Proxy{store: s, vault: v, clock: c, ids: ids, tr: tr,
-		jars: map[string]*cookiejar.Jar{}, sessions: map[string]*session{}, sessLocks: map[string]*sync.Mutex{}, tls: map[string]tlsTransport{}}
+		jars: map[string]*cookiejar.Jar{}, sessions: map[string]*session{}, sessLocks: map[string]*sync.Mutex{}, tls: map[string]tlsTransport{},
+		browserUA: map[string]string{}, signins: map[string]*signin{}, SigninTimeout: DefaultSigninTimeout}
 	if tr == nil {
 		p.tr = &http.Transport{Proxy: p.proxyFor, MaxIdleConnsPerHost: 16, IdleConnTimeout: 60 * time.Second}
 	}
@@ -237,6 +252,7 @@ func (p *Proxy) ClearCookies(apiID string) {
 	delete(p.jars, apiID)
 	delete(p.sessions, apiID)
 	delete(p.tls, apiID)
+	delete(p.browserUA, apiID)
 	p.mu.Unlock()
 }
 
@@ -440,6 +456,7 @@ type built struct {
 	access  string
 	name    string
 	reqID   string
+	logBody []byte // what the call log keeps of the body, when not the body itself
 }
 
 func (p *Proxy) build(ctx context.Context, api store.API, c Call, res resolved) (built, *store.Request, error) {
@@ -540,6 +557,17 @@ func (p *Proxy) build(ctx context.Context, api store.API, c Call, res resolved) 
 					delete(bodyArgs, k)
 				}
 			}
+			if r.BodyType == "form" && hasFile(bodyArgs) {
+				// A file among the fields: send the form as multipart (HTTP-3).
+				form, _ := url.ParseQuery(res.expand(tmpl, map[string]bool{}))
+				for k, v := range form {
+					if _, set := bodyArgs[k]; !set && len(v) > 0 {
+						bodyArgs[k] = v[0]
+					}
+				}
+				body, hasBody, tmpl = bodyArgs, true, ""
+				bodyArgs = nil
+			}
 			if r.BodyType == "form" && len(bodyArgs) > 0 {
 				form, _ := url.ParseQuery(tmpl)
 				for k, v := range bodyArgs {
@@ -620,8 +648,33 @@ func (p *Proxy) build(ctx context.Context, api store.API, c Call, res resolved) 
 	for k, v := range a.Headers {
 		h.Set(k, v)
 	}
-	var b []byte
+	var b, logBody []byte
+	fileFields, multipartBody := body.(map[string]any)
+	multipartBody = multipartBody && hasBody && hasFile(fileFields)
 	switch {
+	case multipartBody:
+		mb, ct, lb, err := buildMultipart(api, fileFields)
+		if err != nil {
+			return built{}, &r, err
+		}
+		b, logBody = mb, lb
+		h.Set("Content-Type", ct)
+	case hasBody && r.BodyType == "form" && !isString(body):
+		// An object body for a form request is sent URL-encoded.
+		form := url.Values{}
+		if m, ok := body.(map[string]any); ok {
+			for k, v := range m {
+				if arr, ok := v.([]any); ok {
+					for _, x := range arr {
+						form.Add(k, fmtArg(x))
+					}
+					continue
+				}
+				form.Set(k, fmtArg(v))
+			}
+		}
+		b = []byte(form.Encode())
+		h.Set("Content-Type", "application/x-www-form-urlencoded")
 	case hasBody:
 		if s, ok := body.(string); ok {
 			b = []byte(s)
@@ -658,7 +711,10 @@ func (p *Proxy) build(ctx context.Context, api store.API, c Call, res resolved) 
 		access = "write"
 	}
 	name := api.Name + "." + r.Name
-	return built{method: strings.ToUpper(r.Method), url: pu.String(), headers: h, body: b, access: access, name: name, reqID: r.ID}, &r, nil
+	if logBody == nil {
+		logBody = MaskBody(b, h.Get("Content-Type"))
+	}
+	return built{method: strings.ToUpper(r.Method), url: pu.String(), headers: h, body: b, access: access, name: name, reqID: r.ID, logBody: logBody}, &r, nil
 }
 
 func unresolvedErr(api store.API, missing map[string]bool) error {
@@ -723,7 +779,7 @@ func (p *Proxy) Do(ctx context.Context, c Call) (*Response, error) {
 		return fail("blocked", &Error{Code: CodeWriteBlocked, Message: b.name + " is how mcpDeck signs in to " + api.Name + "; tools can't call it. Call the API's other requests and mcpDeck signs in for them."})
 	}
 	rec.URL = res.secrets.String(b.url)
-	rec.Input = res.secrets.String(string(MaskJSON(b.body)))
+	rec.Input = res.secrets.String(string(b.logBody))
 
 	// Access (ACC-2): a read grant never sends a write.
 	if c.Access == "read" && b.access == "write" {
@@ -737,6 +793,10 @@ func (p *Proxy) Do(ctx context.Context, c Call) (*Response, error) {
 		}
 		return fail("blocked", &Error{Code: CodeWriteBlocked, Message: fmt.Sprintf(
 			"write blocked: %s (%s). This agent has read access to the %s toolkit. Use a read tool, or ask the user to give this agent read+write in mcpDeck.", b.name, why, tk)})
+	}
+	// Confirm each call (CONF-1): an agent's write waits for the person.
+	if c.NeedConfirm && !c.Confirmed && b.access == "write" && c.Actor.Kind == "agent" {
+		return fail("blocked", &Error{Code: CodeConfirmRequired, Message: b.name + " writes and this tool asks the user to confirm each call; the tool must call confirm() before it. Tell the user the tool needs fixing in mcpDeck."})
 	}
 	if c.Examples {
 		if r == nil || len(r.Example) == 0 {
@@ -758,6 +818,17 @@ func (p *Proxy) Do(ctx context.Context, c Call) (*Response, error) {
 	}
 
 	auth := effectiveAuth(api, r)
+	if auth.Type == "browser" {
+		// A person signs in through the browser (AUTH-5).
+		if err := p.ensureBrowser(ctx, api, auth); err != nil {
+			return fail("error", err)
+		}
+		if b.headers.Get("User-Agent") == "" {
+			if ua := p.browserUserAgent(api.ID); ua != "" {
+				b.headers.Set("User-Agent", ua)
+			}
+		}
+	}
 	timeout := p.timeoutFor(ctx, r)
 	cl, err := p.client(api, timeout, res)
 	if err != nil {
@@ -784,6 +855,25 @@ func (p *Proxy) Do(ctx context.Context, c Call) (*Response, error) {
 		return hr, body, err
 	}
 	hr, body, err := send()
+	// A browser session the API no longer accepts (AUTH-5): never resend a
+	// write, since the page state it carried is gone; a read signs in again.
+	if err == nil && auth.Type == "browser" && (hr.StatusCode == http.StatusUnauthorized || looksLikeLoginRedirect(hr) || redirectsOff(hr, p.AllowedHosts(ctx, api))) {
+		p.dropBrowserSession(api.ID)
+		if b.access == "write" {
+			return fail("error", &Error{Code: CodeSigninRequired, Message: "the " + api.Name + " session ended before " + b.name + " was sent; nothing was saved. Run the tool again from the start; the user may need to sign in again in the browser window mcpDeck opens."})
+		}
+		if serr := p.ensureBrowser(ctx, api, auth); serr != nil {
+			return fail("error", serr)
+		}
+		if ua := p.browserUserAgent(api.ID); ua != "" && b.headers.Get("User-Agent") == "" {
+			b.headers.Set("User-Agent", ua)
+		}
+		cl, err = p.client(api, timeout, res)
+		if err != nil {
+			return fail("error", err)
+		}
+		hr, body, err = send()
+	}
 	// A session the API no longer accepts: sign in again once (AUTH-2).
 	if err == nil && usesSession(auth) && (hr.StatusCode == http.StatusUnauthorized || looksLikeLoginRedirect(hr)) {
 		p.dropSession(api.ID)

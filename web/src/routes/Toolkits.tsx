@@ -17,6 +17,7 @@ import {
   StatusChip,
   Tabs,
 } from "../components/ui";
+import { ImportButton } from "../components/WebApp";
 import { post } from "../lib/api";
 import { num } from "../lib/format";
 import { useAction, useAPIs, useLibrary, useToolkits } from "../lib/hooks";
@@ -138,11 +139,14 @@ export function Toolkits() {
         title="Toolkits"
         sub="A toolkit is a set of tools for one job, served as its own MCP server. Connect an agent to a toolkit and it gets those tools."
         actions={
-          !empty && (
-            <Button kind="ink" icon={<Plus size={14} />} onClick={() => setCreating(true)}>
-              New toolkit
-            </Button>
-          )
+          <>
+            <ImportButton />
+            {!empty && (
+              <Button kind="ink" icon={<Plus size={14} />} onClick={() => setCreating(true)}>
+                New toolkit
+              </Button>
+            )}
+          </>
         }
       />
       {!empty && (

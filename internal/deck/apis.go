@@ -3,9 +3,10 @@ package deck
 import (
 	"context"
 	"encoding/json"
-	"slices"
 	"fmt"
+	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -221,6 +222,8 @@ func tidyAuth(a store.Auth) store.Auth {
 		}
 	case "hmac":
 		t.Algorithm, t.Secret, t.StringToSign, t.Encoding, t.Apply = a.Algorithm, a.Secret, a.StringToSign, a.Encoding, a.Apply
+	case "browser":
+		t.StartURL, t.SignedIn = strings.TrimSpace(a.StartURL), strings.TrimSpace(a.SignedIn)
 	default:
 		t = a
 	}
@@ -1226,8 +1229,13 @@ func (d *Deck) checkAuth(ctx context.Context, a store.API, au store.Auth) error 
 		if au.Secret == "" || au.StringToSign == "" || len(au.Apply) == 0 {
 			return badRequest("HMAC needs a secret, the string to sign and where to put the signature")
 		}
+	case "browser":
+		u, err := url.Parse(strings.TrimSpace(au.StartURL))
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return badRequest("browser sign-in needs the page to open, as an http or https URL (the app's start page)")
+		}
 	default:
-		return badRequest("auth type %q isn't one of none, bearer, basic, apikey, login, oauth2, hmac", au.Type)
+		return badRequest("auth type %q isn't one of none, bearer, basic, apikey, login, oauth2, hmac, browser", au.Type)
 	}
 	return nil
 }

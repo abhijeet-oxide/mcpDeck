@@ -14,7 +14,7 @@ type KV struct {
 
 // Auth is set on an API or a request (AUTH-1). Values may contain {{vars}}.
 type Auth struct {
-	Type           string `json:"type"` // inherit | none | bearer | apikey | basic | login
+	Type           string `json:"type"` // inherit | none | bearer | apikey | basic | login | oauth2 | hmac | browser
 	Token          string `json:"token,omitempty"`
 	Key            string `json:"key,omitempty"`
 	Value          string `json:"value,omitempty"`
@@ -54,6 +54,12 @@ type Auth struct {
 	Secret       string `json:"secret,omitempty"`
 	StringToSign string `json:"stringToSign,omitempty"`
 	Encoding     string `json:"encoding,omitempty"` // hex (default) | base64
+
+	// Browser sign-in (AUTH-5): a person signs in at StartURL in their
+	// browser; the session counts as signed in once the page URL contains
+	// SignedIn (default: the start URL's host and path, not a sign-in page).
+	StartURL string `json:"startUrl,omitempty"`
+	SignedIn string `json:"signedIn,omitempty"`
 }
 
 // LoginStep is one request in a login chain and what to keep from its response.
@@ -103,6 +109,10 @@ type API struct {
 	ScriptsTrusted bool      `json:"scriptsTrusted"`
 	TLS            TLS       `json:"tls"`
 	CreatedAt      time.Time `json:"createdAt"`
+
+	// FilesDir is a folder a person picked whose files tools may upload
+	// (HTTP-3). Agents can't set it.
+	FilesDir string `json:"filesDir,omitempty"`
 }
 
 // TLS is how the proxy checks an API's certificates (API-9).
@@ -142,7 +152,7 @@ type Request struct {
 	Headers        []KV            `json:"headers"`
 	Query          []KV            `json:"query"`
 	PathParams     []KV            `json:"pathParams,omitempty"` // values for {id} or :id when you send it; agents pass their own
-	BodyType       string          `json:"bodyType"` // none | json | text | xml | form
+	BodyType       string          `json:"bodyType"`             // none | json | text | xml | form
 	Body           string          `json:"body"`
 	Auth           *Auth           `json:"auth,omitempty"`
 	Access         string          `json:"access"` // read | write

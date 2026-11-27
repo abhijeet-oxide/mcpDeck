@@ -42,6 +42,8 @@ const (
 	maxCallDepth     = 2000
 	// MaxTimeout caps tool.timeout (TOOL-6).
 	MaxTimeout = 300 * time.Second
+	// ConfirmTimeout is how long confirm() waits for the person (CONF-1).
+	ConfirmTimeout = 5 * time.Minute
 )
 
 // Definition is the `tool` export (TOOL-1).
@@ -53,6 +55,8 @@ type Definition struct {
 	InputSchema json.RawMessage `json:"inputSchema"`
 	// Timeout is the run limit in seconds for long jobs, up to MaxTimeout.
 	Timeout float64 `json:"timeout,omitempty"`
+	// Confirm makes each run's writes wait for the person (CONF-1).
+	Confirm bool `json:"confirm,omitempty"`
 	// Annotations are optional MCP hints. readOnlyHint and destructiveHint
 	// are set from the requests the tool calls; a file may only narrow them.
 	Annotations *lint.Annotations `json:"annotations,omitempty"`
@@ -208,6 +212,17 @@ type Env struct {
 	Vars      map[string]string
 	Timeout   time.Duration
 	MaxOutput int
+	// Files lists an application's files folder (HTTP-3); nil turns
+	// files.list off.
+	Files FileLister
+	// Confirm asks the person to confirm a write (CONF-1). Nil means the
+	// person is running the tool themselves, which confirms it.
+	Confirm func(ctx context.Context, title string, fields any) error
+}
+
+// FileLister lists an application's files folder.
+type FileLister interface {
+	ListFiles(ctx context.Context, apiID string) ([]proxy.FileInfo, error)
 }
 
 // Upstream is one API call made during a run (TOOL-7 timeline).
@@ -324,7 +339,9 @@ func runJS(ctx context.Context, js string, input any, env Env) Result {
 	_ = vm.Set("vars", varsObj)
 	_, _ = vm.RunString(`Object.freeze(vars)`)
 
+	confirmed := false
 	startCall := func(c proxy.Call, label string, raw bool) goja.Value {
+		c.Confirmed = c.Confirmed || confirmed
 		p, resolve, reject := vm.NewPromise()
 		pending++
 		go func() {
@@ -513,6 +530,100 @@ func runJS(ctx context.Context, js string, input any, env Env) Result {
 		}()
 		return vm.ToValue(p)
 	})
+	// html.forms / tables / text read server-rendered pages (TOOL-12).
+	htmlObj := vm.NewObject()
+	_ = htmlObj.Set("forms", func(c goja.FunctionCall) goja.Value {
+		b, _ := json.Marshal(ParseForms(c.Argument(0).String()))
+		v, _ := jsonParse(goja.Undefined(), vm.ToValue(string(b)))
+		return v
+	})
+	_ = htmlObj.Set("tables", func(c goja.FunctionCall) goja.Value {
+		b, _ := json.Marshal(ParseTables(c.Argument(0).String()))
+		v, _ := jsonParse(goja.Undefined(), vm.ToValue(string(b)))
+		return v
+	})
+	_ = htmlObj.Set("text", func(c goja.FunctionCall) goja.Value { return vm.ToValue(PageText(c.Argument(0).String())) })
+	_ = vm.Set("html", htmlObj)
+	_, _ = vm.RunString("Object.freeze(html)")
+
+	// files.list(api) and files.attach(name): the application's files
+	// folder, names only (HTTP-3).
+	filesObj := vm.NewObject()
+	_ = filesObj.Set("list", func(c goja.FunctionCall) goja.Value {
+		p, resolve, reject := vm.NewPromise()
+		apiName := c.Argument(0).String()
+		a, ok := byName[apiName]
+		if !ok || env.Files == nil {
+			e, _ := vm.New(apiErrCtor, vm.ToValue(fmt.Sprintf("files.list(%q): no such API here, or files are off", apiName)), vm.ToValue(0), goja.Undefined(), vm.ToValue("bad_call"))
+			_ = reject(e)
+			return vm.ToValue(p)
+		}
+		pending++
+		go func() {
+			list, err := env.Files.ListFiles(ctx, a.ID)
+			settled <- settle{fn: func() {
+				if err != nil {
+					code := "error"
+					var pe *proxy.Error
+					if errors.As(err, &pe) {
+						code = pe.Code
+					}
+					e, _ := vm.New(apiErrCtor, vm.ToValue(err.Error()), vm.ToValue(0), goja.Undefined(), vm.ToValue(code))
+					_ = reject(e)
+					return
+				}
+				b, _ := json.Marshal(list)
+				v, _ := jsonParse(goja.Undefined(), vm.ToValue(string(b)))
+				_ = resolve(v)
+			}}
+		}()
+		return vm.ToValue(p)
+	})
+	_ = filesObj.Set("attach", func(c goja.FunctionCall) goja.Value {
+		o := vm.NewObject()
+		_ = o.Set("$file", c.Argument(0).String())
+		return o
+	})
+	_ = vm.Set("files", filesObj)
+	_, _ = vm.RunString("Object.freeze(files)")
+
+	// confirm({ title, fields }) waits for the person before a write (CONF-1).
+	_ = vm.Set("confirm", func(c goja.FunctionCall) goja.Value {
+		p, resolve, reject := vm.NewPromise()
+		arg := c.Argument(0)
+		title, fields := "Confirm", any(nil)
+		if o, ok := arg.Export().(map[string]any); ok {
+			if t, ok := o["title"].(string); ok && t != "" {
+				title = t
+			}
+			fields = o["fields"]
+		}
+		if env.Confirm == nil {
+			confirmed = true
+			_ = resolve(true)
+			return vm.ToValue(p)
+		}
+		pending++
+		// Waiting for a person doesn't count against the run's timeout.
+		limitMu.Lock()
+		limit += ConfirmTimeout
+		limitMu.Unlock()
+		timer.Reset(getLimit() - time.Since(start))
+		go func() {
+			err := env.Confirm(ctx, title, fields)
+			settled <- settle{fn: func() {
+				if err != nil {
+					e, _ := vm.New(apiErrCtor, vm.ToValue(err.Error()), vm.ToValue(0), goja.Undefined(), vm.ToValue("not_confirmed"))
+					_ = reject(e)
+					return
+				}
+				confirmed = true
+				_ = resolve(true)
+			}}
+		}()
+		return vm.ToValue(p)
+	})
+
 	// xml(text) parses XML or SOAP into plain objects (see ParseXML).
 	_ = vm.Set("xml", func(c goja.FunctionCall) goja.Value {
 		v, err := ParseXML(c.Argument(0).String())
@@ -566,6 +677,10 @@ func runJS(ctx context.Context, js string, input any, env Env) Result {
 				limitMu.Unlock()
 				timer.Reset(d - time.Since(start))
 			}
+		}
+		// confirm: true makes the tool's writes wait for confirm() (CONF-1).
+		if cv := tv.ToObject(vm).Get("confirm"); cv != nil && cv.ToBoolean() && env.Confirm != nil {
+			env.Base.NeedConfirm = true
 		}
 	}
 	fnv := exportsObj.Get("default")

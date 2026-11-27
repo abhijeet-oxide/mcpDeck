@@ -157,5 +157,6 @@ func apiCmd(data *string) *cobra.Command {
 	tls.Flags().BoolVar(&verify, "verify", false, "turn certificate verification back on")
 
 	c.AddCommand(list, show, tls)
+	c.AddCommand(apiFilesCmd(data))
 	return c
 }
